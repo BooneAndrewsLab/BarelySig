@@ -1,9 +1,11 @@
 import { type ReactNode, useState } from 'react';
 
 import { downstreamOf } from '@/model/deps';
-import type { Project } from '@/model/project';
+import { newId } from '@/model/ids';
+import { GRAPH_DEFAULTS, type Project } from '@/model/project';
 import type { Table } from '@/model/table';
 
+import { analytics } from '../analytics';
 import { Icon } from '../Icon';
 import { formatLabel, tableTypeInfo } from '../formats';
 import { store } from '../state/store';
@@ -55,9 +57,16 @@ export function TableSheet({ project, table, children }: Props) {
               </button>
             ))}
             {graphs.map((g) => (
-              <span key={g.id} className="chip quiet">
+              <button
+                key={g.id}
+                type="button"
+                className="chip quiet"
+                onClick={() => {
+                  store.show({ kind: 'graph', id: g.id });
+                }}
+              >
                 {g.title}
-              </span>
+              </button>
             ))}
           </p>
         )}
@@ -70,6 +79,37 @@ export function TableSheet({ project, table, children }: Props) {
           >
             Change data format…
           </button>
+          {table.type === 'column' && (
+            <button
+              type="button"
+              onClick={() => {
+                const id = newId('g');
+                // Brackets of the table's t tests come along (note 05).
+                const tests = [...project.analyses.values()]
+                  .filter(
+                    (a) =>
+                      a.kind === 't-test' && a.input.kind === 'table' && a.input.table === table.id,
+                  )
+                  .map((a) => a.id);
+                store.edit(
+                  {
+                    op: 'addGraph',
+                    graph: {
+                      id,
+                      title: table.title,
+                      source: { kind: 'table', table: table.id },
+                      analyses: tests,
+                      ...GRAPH_DEFAULTS,
+                    },
+                  },
+                  { show: { kind: 'graph', id } },
+                );
+                analytics.trackOnce('graph', 'new-column');
+              }}
+            >
+              <Icon name="new-graph" size={16} /> New graph
+            </button>
+          )}
           <button
             type="button"
             className="primary"

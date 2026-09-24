@@ -49,23 +49,67 @@ export type Analysis = AnalysisSpec & {
   readonly input: AnalysisInput;
 };
 
-// --- Graphs, layouts, exports (provisional) -----------------------------------
-//
-// Only what the dependency graph and the file need. Their full shape comes
-// with the graph design note (#19, #20) and #43; those extend these types.
+// --- Graphs (note 05) ---------------------------------------------------------
 
-/** What a graph plots. */
+/** What a graph plots. Column tables only, for now. */
 export type GraphSource =
   | { readonly kind: 'table'; readonly table: Id }
   | { readonly kind: 'analysis'; readonly analysis: Id };
+
+export type ErrorBar = 'sd' | 'sem' | 'ci95' | 'range' | 'none';
+
+export type ColumnPlot =
+  | { readonly kind: 'bars'; readonly error: ErrorBar; readonly points: boolean }
+  | { readonly kind: 'dots'; readonly center: 'mean' | 'median'; readonly error: ErrorBar };
+
+/**
+ * The theme a graph uses: named (follows the app's defaults) or fixed (a
+ * resolved theme, as in a figure recipe, which never changes). A fixed
+ * theme is kept as plain data here; `src/graphs/theme.ts` reads it.
+ */
+export type GraphThemeRef =
+  | { readonly kind: 'named'; readonly name: 'modern' | 'classic' }
+  | { readonly kind: 'fixed'; readonly theme: Json };
+
+export interface GraphFormat {
+  /** Value-axis title; unset = the table's value title and unit. */
+  readonly yTitle?: string;
+  /** Value-axis range; unset = automatic. */
+  readonly yMin?: number;
+  readonly yMax?: number;
+  readonly bracketLabels: 'stars' | 'exact';
+  readonly showNs: boolean;
+  /** t tests whose brackets the user hid. */
+  readonly hiddenBrackets: readonly Id[];
+}
 
 export interface Graph {
   readonly id: Id;
   readonly title: string;
   readonly source: GraphSource;
+  /** Data sets plotted, in order; null = all of the table's, in table order. */
+  readonly dataSets: readonly Id[] | null;
   /** Analyses whose results the graph draws, e.g. significance brackets. */
   readonly analyses: readonly Id[];
+  readonly plot: ColumnPlot;
+  /** The figure's final size, in millimetres. */
+  readonly size: { readonly width: number; readonly height: number };
+  readonly theme: GraphThemeRef;
+  readonly format: GraphFormat;
 }
+
+/** A new graph's settings: bars of the mean with SD and the points, 70 × 60 mm, Modern (note 05). */
+export const GRAPH_DEFAULTS: Pick<Graph, 'dataSets' | 'plot' | 'size' | 'theme' | 'format'> = {
+  dataSets: null,
+  plot: { kind: 'bars', error: 'sd', points: true },
+  size: { width: 70, height: 60 },
+  theme: { kind: 'named', name: 'modern' },
+  format: { bracketLabels: 'stars', showNs: true, hiddenBrackets: [] },
+};
+
+// --- Layouts, exports (provisional) --------------------------------------------
+//
+// Only what the dependency graph and the file need; Phase 2 and #43 extend them.
 
 export interface Layout {
   readonly id: Id;

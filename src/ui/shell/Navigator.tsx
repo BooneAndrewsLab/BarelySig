@@ -238,6 +238,29 @@ export function Navigator({ project, sheet, onNewTable }: Props) {
       />,
     ];
   });
+  const graphItems = project.order.graphs.flatMap((id: Id) => {
+    const g = project.graphs.get(id);
+    if (!g) return [];
+    return [
+      <NavItem
+        key={id}
+        title={g.title}
+        icon={g.plot.kind === 'bars' ? 'bar-error' : 'dot-plot'}
+        active={sheet.kind === 'graph' && sheet.id === id}
+        onShow={() => {
+          store.show({ kind: 'graph', id });
+        }}
+        onRename={(title) => {
+          store.edit({ op: 'setGraph', graph: { ...g, title } });
+        }}
+        onDelete={() => {
+          if (store.edit({ op: 'removeGraph', graph: id })) {
+            store.notify(`Deleted “${g.title}”. Undo brings it back (Ctrl+Z).`);
+          }
+        }}
+      />,
+    ];
+  });
   return (
     <nav className="navigator" aria-label="Project">
       <section>
@@ -257,7 +280,11 @@ export function Navigator({ project, sheet, onNewTable }: Props) {
       </section>
       <section>
         <h2>Graphs</h2>
-        <p className="nav-empty">Graphs of your tables and results appear here.</p>
+        {graphItems.length > 0 ? (
+          <ul>{graphItems}</ul>
+        ) : (
+          <p className="nav-empty">Open a table and click New graph; your graphs appear here.</p>
+        )}
       </section>
     </nav>
   );

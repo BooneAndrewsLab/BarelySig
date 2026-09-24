@@ -535,8 +535,14 @@ function removeDataSet(project: Project, tableId: Id, id: Id): Project {
       });
     }
   });
+  const graphs = new Map(project.graphs);
+  graphs.forEach((g) => {
+    if (g.source.kind === 'table' && g.source.table === tableId && g.dataSets?.includes(id)) {
+      graphs.set(g.id, { ...g, dataSets: g.dataSets.filter((x) => x !== id) });
+    }
+  });
   const table: Table = { ...t, dataSets: t.dataSets.filter((d) => d.id !== id) };
-  return { ...project, tables: withEntry(project.tables, table), analyses };
+  return { ...project, tables: withEntry(project.tables, table), analyses, graphs };
 }
 
 function setExcluded(table: Table, id: Id, cells: readonly CellRef[], excluded: boolean): Table {
@@ -621,9 +627,15 @@ function checkAnalysis(project: Project, a: Analysis): void {
 }
 
 function checkGraph(project: Project, g: Graph): void {
-  if (g.source.kind === 'table') requireTable(project, g.source.table);
-  else if (!project.analyses.has(g.source.analysis))
+  if (g.source.kind === 'table') {
+    const t = requireTable(project, g.source.table);
+    g.dataSets?.forEach((d) => requireDataSet(t, d));
+  } else if (!project.analyses.has(g.source.analysis)) {
     throw new EditError(`No analysis ${g.source.analysis}.`);
+  }
   for (const a of g.analyses)
     if (!project.analyses.has(a)) throw new EditError(`No analysis ${a}.`);
+  if (!(g.size.width > 0 && g.size.height > 0 && g.size.width <= 1000 && g.size.height <= 1000)) {
+    throw new EditError('A graph’s width and height must be between 0 and 1000 mm.');
+  }
 }

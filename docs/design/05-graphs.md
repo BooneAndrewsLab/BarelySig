@@ -27,6 +27,13 @@ ticks, the colour-blind palette, generous whitespace, a plain sans. What
 we do better: seaborn's x labels collide ("Drug 1 µMDrug 10 µM"), its
 bars are solid and heavy, its points are black blots over them.
 
+BarelySig's first renders of the same data (Modern with brackets, Modern
+dots, Classic with SEM):
+
+| Modern bars | Modern dots | Classic |
+|---|---|---|
+| ![bars](05/barelysig-bars.png) | ![dots](05/barelysig-dots.png) | ![classic](05/barelysig-classic.png) |
+
 ## Style: the "Modern" theme
 
 - **Font:** Arimo (SIL OFL 1.1; `design/fonts/`), metrically identical

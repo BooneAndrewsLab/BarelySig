@@ -58,6 +58,7 @@ export const EVENTS = {
   data: ['paste', 'fill-down', 'exclude'],
   file: ['open', 'download'],
   analysis: ['new-descriptive', 'new-t-test'],
+  graph: ['new-column', 'export-svg', 'export-png'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type EventCategory = keyof typeof EVENTS;

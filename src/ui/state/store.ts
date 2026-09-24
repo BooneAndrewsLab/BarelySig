@@ -23,7 +23,8 @@ import { analytics } from '../analytics';
 export type Sheet =
   | { readonly kind: 'home' }
   | { readonly kind: 'table'; readonly id: Id }
-  | { readonly kind: 'analysis'; readonly id: Id };
+  | { readonly kind: 'analysis'; readonly id: Id }
+  | { readonly kind: 'graph'; readonly id: Id };
 
 export const HOME: Sheet = { kind: 'home' };
 
@@ -49,7 +50,8 @@ export const project = (s: AppState): Project => s.history.present;
 /** Whether a sheet still exists in the project (a table can be undone away). */
 function exists(p: Project, sheet: Sheet): boolean {
   if (sheet.kind === 'home') return true;
-  return sheet.kind === 'table' ? p.tables.has(sheet.id) : p.analyses.has(sheet.id);
+  if (sheet.kind === 'table') return p.tables.has(sheet.id);
+  return sheet.kind === 'analysis' ? p.analyses.has(sheet.id) : p.graphs.has(sheet.id);
 }
 
 /** The first table, or home: where to go when the open sheet disappears. */

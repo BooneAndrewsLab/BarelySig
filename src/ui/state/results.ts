@@ -13,6 +13,8 @@ import type { EngineInfo } from '@/model/inputs';
 import { Recompute, type ResultEntry, type Runner } from '@/model/recompute';
 import type { Analysis, Project } from '@/model/project';
 
+import { withGraphSummaries } from '@/graphs/data';
+
 import { type AppStore, project, store } from './store';
 
 export const STOPPED = 'Stopped. Run it again when you’re ready.';
@@ -53,10 +55,10 @@ export class ResultsBridge {
         }),
       );
     }
-    this.recompute.setProject(project(appStore.getState()));
+    this.recompute.setProject(withGraphSummaries(project(appStore.getState())));
     this.unsubscribe.push(
       appStore.subscribe(() => {
-        this.recompute.setProject(project(appStore.getState()));
+        this.recompute.setProject(withGraphSummaries(project(appStore.getState())));
       }),
     );
   }

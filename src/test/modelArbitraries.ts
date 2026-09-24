@@ -3,7 +3,13 @@ import fc from 'fast-check';
 import { type Edit, EditError, applyEdit } from '@/model/edits';
 import { type Id, newId } from '@/model/ids';
 import type { Cell } from '@/model/missing';
-import { type Analysis, type Project, DEFAULT_OPTIONS, createProject } from '@/model/project';
+import {
+  type Analysis,
+  type Project,
+  DEFAULT_OPTIONS,
+  createProject,
+  GRAPH_DEFAULTS,
+} from '@/model/project';
 import {
   type EntryFormat,
   SUMMARY_STATS,
@@ -101,7 +107,13 @@ export type Shape =
     }
   | { readonly k: 'chained'; readonly a: number }
   | { readonly k: 'rewire'; readonly a: number; readonly to: number }
-  | { readonly k: 'graph'; readonly t: number; readonly a: readonly number[] }
+  | {
+      readonly k: 'graph';
+      readonly t: number;
+      readonly a: readonly number[];
+      readonly v: number;
+      readonly ds: readonly number[];
+    }
   | { readonly k: 'removeTable'; readonly t: number }
   | { readonly k: 'removeAnalysis'; readonly a: number }
   | { readonly k: 'removeGraph'; readonly g: number }
@@ -205,7 +217,13 @@ export const shapeArb: fc.Arbitrary<Shape> = fc.oneof(
   { arbitrary: fc.record({ k: fc.constant('chained'), a: idx }), weight: 1 },
   { arbitrary: fc.record({ k: fc.constant('rewire'), a: idx, to: idx }), weight: 1 },
   {
-    arbitrary: fc.record({ k: fc.constant('graph'), t: idx, a: fc.array(idx, { maxLength: 2 }) }),
+    arbitrary: fc.record({
+      k: fc.constant('graph'),
+      t: idx,
+      a: fc.array(idx, { maxLength: 2 }),
+      v: fc.nat(1000),
+      ds: fc.array(idx, { maxLength: 3 }),
+    }),
     weight: 1,
   },
   { arbitrary: fc.record({ k: fc.constant('removeTable'), t: idx }), weight: 1 },
@@ -380,8 +398,41 @@ export function resolve(p: Project, s: Shape): Edit | null {
         graph: {
           id: newId('g'),
           title: 'Graph',
+          ...GRAPH_DEFAULTS,
           source: { kind: 'table', table: table.id },
           analyses,
+          // Vary every field the file has to carry.
+          dataSets:
+            s.v % 2 === 0 || table.dataSets.length === 0
+              ? null
+              : [
+                  ...new Set(
+                    s.ds.map((i) => (table.dataSets[i % table.dataSets.length] as { id: Id }).id),
+                  ),
+                ],
+          plot:
+            s.v % 3 === 0
+              ? {
+                  kind: 'dots',
+                  center: s.v % 5 === 0 ? 'median' : 'mean',
+                  error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                }
+              : {
+                  kind: 'bars',
+                  error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                  points: s.v % 7 !== 0,
+                },
+          size: { width: 20 + (s.v % 160), height: 20 + ((s.v * 7) % 120) + 0.5 },
+          theme:
+            s.v % 4 === 0
+              ? { kind: 'fixed', theme: { name: 'x', lines: { axis: 0.5 } } }
+              : { kind: 'named', name: s.v % 2 ? 'classic' : 'modern' },
+          format: {
+            bracketLabels: s.v % 2 ? 'exact' : 'stars',
+            showNs: s.v % 3 !== 1,
+            hiddenBrackets: analyses.slice(0, s.v % 2),
+            ...(s.v % 5 === 1 ? { yTitle: 'Viability (%)', yMin: -1.5, yMax: 120 } : {}),
+          },
         },
       };
     }

@@ -27,7 +27,9 @@ import type {
   AnalysisInput,
   AnalysisSpec,
   ExportRecord,
+  ColumnPlot,
   Graph,
+  GraphFormat,
   GraphSource,
   Layout,
   Project,
@@ -72,6 +74,12 @@ export class BsigError extends Error {
   override readonly name = 'BsigError';
 }
 
+/** An analysis's result, or a graph's summary statistics (`<graph id>/summary`, note 05). */
+function keepsResult(p: Project, id: Id): boolean {
+  if (p.analyses.has(id)) return true;
+  return id.endsWith('/summary') && p.graphs.has(asId(id.slice(0, -'/summary'.length)));
+}
+
 // --- writing ------------------------------------------------------------------
 
 const optional = <K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> =>
@@ -111,7 +119,32 @@ function graphJson(g: Graph): Json {
     g.source.kind === 'table'
       ? { kind: 'table', table: g.source.table }
       : { kind: 'analysis', analysis: g.source.analysis };
-  return { id: g.id, title: g.title, source, analyses: g.analyses };
+  const f = g.format;
+  const format: Json = {
+    bracketLabels: f.bracketLabels,
+    showNs: f.showNs,
+    hiddenBrackets: f.hiddenBrackets,
+    ...optional('yTitle', f.yTitle),
+    ...optional('yMin', f.yMin),
+    ...optional('yMax', f.yMax),
+  };
+  return {
+    id: g.id,
+    title: g.title,
+    source,
+    dataSets: g.dataSets,
+    analyses: g.analyses,
+    plot:
+      g.plot.kind === 'bars'
+        ? { kind: 'bars', error: g.plot.error, points: g.plot.points }
+        : { kind: 'dots', center: g.plot.center, error: g.plot.error },
+    size: { width: g.size.width, height: g.size.height },
+    theme:
+      g.theme.kind === 'named'
+        ? { kind: 'named', name: g.theme.name }
+        : { kind: 'fixed', theme: g.theme.theme },
+    format,
+  };
 }
 
 const inOrder = <T>(ids: readonly Id[], map: ReadonlyMap<Id, T>): T[] =>
@@ -121,7 +154,7 @@ export function writeBsig(saved: SavedProject): string {
   const { project: p } = saved;
   const results: Record<string, Json> = {};
   saved.results.forEach((r, id) => {
-    if (p.analyses.has(id)) results[id] = r;
+    if (keepsResult(p, id)) results[id] = r;
   });
   const doc: JsonObject = {
     format: FORMAT,
@@ -321,13 +354,65 @@ function graphSource(v: Json | undefined, p: Path): GraphSource {
   return p.key('kind').fail(`is an unknown graph source "${kind}"`);
 }
 
+const ERROR_BARS = ['sd', 'sem', 'ci95', 'range', 'none'] as const;
+
+function oneOf<T extends string>(v: Json | undefined, p: Path, options: readonly T[]): T {
+  const s = str(v, p);
+  if (!(options as readonly string[]).includes(s)) p.fail(`should be one of ${options.join(', ')}`);
+  return s as T;
+}
+
+function plot(v: Json | undefined, p: Path): ColumnPlot {
+  const o = obj(v, p);
+  const kind = oneOf(o['kind'], p.key('kind'), ['bars', 'dots'] as const);
+  const error = oneOf(o['error'], p.key('error'), ERROR_BARS);
+  return kind === 'bars'
+    ? { kind, error, points: bool(o['points'], p.key('points')) }
+    : { kind, error, center: oneOf(o['center'], p.key('center'), ['mean', 'median'] as const) };
+}
+
 function graph(v: Json, p: Path): Graph {
   const o = obj(v, p);
+  const size = obj(o['size'], p.key('size'));
+  const theme = obj(o['theme'], p.key('theme'));
+  const tp: Path = p.key('theme');
+  const themeKind = oneOf(theme['kind'], tp.key('kind'), ['named', 'fixed'] as const);
+  const f = obj(o['format'], p.key('format'));
+  const fp: Path = p.key('format');
+  const format: GraphFormat = withOptional(
+    {
+      bracketLabels: oneOf(f['bracketLabels'], fp.key('bracketLabels'), [
+        'stars',
+        'exact',
+      ] as const),
+      showNs: bool(f['showNs'], fp.key('showNs')),
+      hiddenBrackets: list(f['hiddenBrackets'], fp.key('hiddenBrackets'), id),
+    },
+    {
+      yTitle: optStr(f, 'yTitle', fp),
+      yMin: f['yMin'] === undefined ? undefined : num(f['yMin'], fp.key('yMin')),
+      yMax: f['yMax'] === undefined ? undefined : num(f['yMax'], fp.key('yMax')),
+    },
+  );
   return {
     id: id(o['id'], p.key('id')),
     title: str(o['title'], p.key('title')),
     source: graphSource(o['source'], p.key('source')),
+    dataSets: o['dataSets'] === null ? null : list(o['dataSets'], p.key('dataSets'), id),
     analyses: list(o['analyses'], p.key('analyses'), id),
+    plot: plot(o['plot'], p.key('plot')),
+    size: {
+      width: num(size['width'], p.key('size').key('width')),
+      height: num(size['height'], p.key('size').key('height')),
+    },
+    theme:
+      themeKind === 'named'
+        ? {
+            kind: 'named',
+            name: oneOf(theme['name'], tp.key('name'), ['modern', 'classic'] as const),
+          }
+        : { kind: 'fixed', theme: obj(theme['theme'], tp.key('theme')) },
+    format,
   };
 }
 
@@ -446,7 +531,7 @@ export function readBsig(text: string): SavedProject {
   const ro = doc['results'] === undefined ? {} : obj(doc['results'], root.key('results'));
   for (const [k, v] of Object.entries(ro)) {
     // Results of analyses the file no longer has are ignored, not an error.
-    if (project.analyses.has(asId(k))) results.set(asId(k), result(v, root.key('results').key(k)));
+    if (keepsResult(project, asId(k))) results.set(asId(k), result(v, root.key('results').key(k)));
   }
   return {
     project,

@@ -4,7 +4,7 @@ import { type Edit, applyEdit } from './edits';
 import { type Id, asId } from './ids';
 import { type EngineInfo, inputHashes } from './inputs';
 import type { Json } from './json';
-import { type Analysis, type Project, createProject } from './project';
+import { type Analysis, type Project, createProject, GRAPH_DEFAULTS } from './project';
 import { type Job, Recompute } from './recompute';
 import { createColumnTable } from './table';
 
@@ -285,6 +285,7 @@ describe('Recompute', () => {
       graph: {
         id: asId('g_1'),
         title: 'G',
+        ...GRAPH_DEFAULTS,
         source: { kind: 'table', table: table.id },
         analyses: [A1],
       },

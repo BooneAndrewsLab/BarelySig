@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { analysisOrder, dependentsOf, downstreamOf, wouldCycle } from './deps';
 import { type Edit, EditError, applyEdit, describeEdit } from './edits';
 import { type Id, asId, newId } from './ids';
-import { type Analysis, type Project, createProject } from './project';
+import { type Analysis, type Project, createProject, GRAPH_DEFAULTS } from './project';
 import { type Table, cellKey, createColumnTable, createGroupedTable } from './table';
 import { validateProject } from './validate';
 
@@ -325,6 +325,7 @@ describe('analyses and the dependency graph', () => {
         graph: {
           id: asId('g_1'),
           title: 'G',
+          ...GRAPH_DEFAULTS,
           source: { kind: 'table', table: table.id },
           analyses: [asId('a_2')],
         },
@@ -395,6 +396,7 @@ describe('analyses and the dependency graph', () => {
         graph: {
           id: asId('g_x'),
           title: 'G',
+          ...GRAPH_DEFAULTS,
           source: { kind: 'table', table: asId('t_nope') },
           analyses: [],
         },

@@ -897,3 +897,75 @@ select {
 .nav-status.running {
   background: var(--bs-accent);
 }
+
+/* --- graphs ------------------------------------------------------------ */
+
+@font-face {
+  font-family: Arimo;
+  src: url('/fonts/arimo-400.woff') format('woff');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: Arimo;
+  src: url('/fonts/arimo-700.woff') format('woff');
+  font-weight: 700;
+}
+
+.graph-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 20px;
+  padding: 4px 20px 20px;
+  overflow: auto;
+}
+
+.graph-controls {
+  flex: none;
+  width: 200px;
+}
+
+.graph-controls fieldset {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+
+.graph-controls legend {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.size-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.size-fields input {
+  width: 5em;
+}
+
+.graph-figure {
+  margin: 0;
+  min-width: 0;
+}
+
+.graph-canvas {
+  max-width: 100%;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid var(--rule);
+}
+
+.graph-canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.graph-figure .legend {
+  max-width: 60ch;
+  margin-top: 8px;
+}

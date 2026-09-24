@@ -158,6 +158,13 @@ export function validateProject(project: Project): string[] {
         ? project.tables.get(g.source.table)
         : project.analyses.get(g.source.analysis);
     if (!src) problems.push(`graph ${g.id}: its source does not exist`);
+    if (g.source.kind === 'table' && g.dataSets) {
+      const t = project.tables.get(g.source.table);
+      for (const d of g.dataSets) {
+        if (t && !t.dataSets.some((x) => x.id === d))
+          problems.push(`graph ${g.id}: plots data set ${d}, not in its table`);
+      }
+    }
     for (const a of g.analyses) {
       if (!project.analyses.has(a))
         problems.push(`graph ${g.id}: draws analysis ${a}, which does not exist`);
