@@ -17,3 +17,6 @@ HANDOFF.md
 
 # R oracle environment
 .venv-oracle/
+
+# Staged by scripts/webr/fetch.mjs
+public/webr/

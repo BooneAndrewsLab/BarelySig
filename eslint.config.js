@@ -9,7 +9,7 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   {
-    ignores: ['dist', 'coverage', 'node_modules', '.idea', 'design'],
+    ignores: ['dist', 'coverage', 'node_modules', '.idea', 'design', 'public/webr'],
   },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
@@ -30,7 +30,7 @@ export default defineConfig(
     },
   },
   {
-    files: ['vite.config.ts', 'eslint.config.js'],
+    files: ['vite.config.ts', 'eslint.config.js', 'scripts/**/*.{ts,mjs}'],
     languageOptions: {
       globals: { ...globals.node },
     },

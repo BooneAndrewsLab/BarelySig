@@ -1,0 +1,7 @@
+{
+  "$comment": "R packages the app loads in WebR, pinned by scripts/webr/fetch.ts (public/webr/repo/lock.json). Keep this list small: each package and its dependencies are downloaded on first use. Reference packages used only to check our R (multcomp, dunn.test, fBasics, car, drc) live in the barelysig-r oracle env, not here.",
+  "webr": "0.6.0",
+  "rVersion": "4.6",
+  "repo": "https://repo.r-wasm.org",
+  "packages": ["mvtnorm", "emmeans"]
+}

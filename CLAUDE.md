@@ -39,10 +39,15 @@ do not script and should never need to.
 - **Stats engine:** an established runtime in WebAssembly, not hand-written
   statistics — hand-rolled tests invite subtle errors (tie and continuity
   corrections, df approximations, multiple-comparison adjustments).
-  Default **WebR** (R → WASM, 0.6.0 ships R 4.6.0) in a Web Worker; base R
-  `stats` is the reference reviewers trust. Pyodide (SciPy/statsmodels) is
-  the fallback only if WebR hits a blocking problem. Channel choice
-  (PostMessage vs `coi-serviceworker`) is decided by the spike (item 01).
+  **WebR** 0.6.0 (R 4.6.0), PostMessage channel, no cross-origin isolation
+  (item 01). WebR runs R in its own worker; cancel = restart WebR (no
+  interrupt without `SharedArrayBuffer`), so analyses keep no state in R
+  between calls. Self-hosted: `npm run webr:fetch` (before dev/build)
+  stages the runtime and a pinned package repository in `public/webr/`.
+  The app ships **base R + mvtnorm + emmeans** only
+  (`scripts/webr/packages.json`), loaded per analysis on first use;
+  heavier reference packages (multcomp, dunn.test, fBasics, car, drc) are
+  oracle-only, used to check our own R.
 - **Engine interface:** `runAnalysis(request: AnalysisRequest):
   Promise<AnalysisResult>`, one request/result type pair per analysis. No R
   code outside `src/engine` and `src/analyses`. Each analysis module holds
@@ -248,14 +253,9 @@ the target).
   lockup page, Matomo module (no site id yet).
 - `barelysig-r` conda env created (R 4.6.0 + oracle packages).
 - Milestones and issues #1–#42 on GitHub.
-- Next: 0.1 — the WebR spike (#1, #2) and the R oracle (#3).
-
-## Open questions
-
-1. WebR channel on GitHub Pages: PostMessage vs `coi-serviceworker`?
-2. WASM availability of needed R packages (`multcomp`/`mvtnorm` for
-   Dunnett, a Dunn's test package or our own R, `survival`, `drc` or an
-   `nls`-based alternative)?
+- 0.1: WebR spike done (item 01, #1, #2).
+- Next: the R oracle and fixture harness (#3), pinning oracle package
+  versions to `public/webr/repo/lock.json`.
 
 ## Tooling
 

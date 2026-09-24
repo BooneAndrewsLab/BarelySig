@@ -1,0 +1,9 @@
+# Design notes
+
+One note per numbered item of work: what was asked, what was built and
+why. "Item N" in code comments means `NN-*.md` here. Write the note before
+implementing anything significant; open work lives in GitHub Issues.
+
+| # | Note | Issue |
+|---|---|---|
+| 01 | [WebR engine: channel, hosting, packages](01-webr-engine.md) | #1, #2 |
