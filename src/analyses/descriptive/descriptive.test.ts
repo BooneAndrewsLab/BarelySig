@@ -9,6 +9,8 @@ import type { Plain } from '@/engine/convert';
 import { applyEdit } from '@/model/edits';
 import { asId } from '@/model/ids';
 import { type Analysis, type Project, createProject } from '@/model/project';
+
+type Descriptive = Extract<Analysis, { kind: 'descriptive' }>;
 import type { GroupData } from '@/model/selectors';
 import { createColumnTable, createGroupedTable } from '@/model/table';
 import { loadFixtures, mismatches } from '@/test/fixtures';
@@ -93,7 +95,7 @@ describe('prepare', () => {
     const [r0] = t.rows;
     if (!wt || !ko || !r0) throw new Error('unreachable');
     let p: Project = applyEdit(createProject('P'), { op: 'addTable', table: t });
-    const analysis = (dataSets = [wt.id, ko.id]): Analysis => ({
+    const analysis = (dataSets = [wt.id, ko.id]): Descriptive => ({
       id: asId('a_1'),
       title: 'Stats',
       kind: 'descriptive',
@@ -132,7 +134,7 @@ describe('prepare', () => {
       format: { kind: 'replicates', count: 2 },
     });
     const withGrouped = applyEdit(s.p, { op: 'addTable', table: g });
-    const onGrouped: Analysis = {
+    const onGrouped: Descriptive = {
       ...s.analysis(),
       input: { kind: 'table', table: g.id, dataSets: [] },
     };
