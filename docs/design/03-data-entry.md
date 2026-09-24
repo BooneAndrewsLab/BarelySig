@@ -81,11 +81,12 @@ without a DOM: **pure logic** (layout, coordinates, selection, keyboard
 commands, editing → edits) and a **thin React view**.
 
 **Layout.** A table becomes a grid of columns: one per subcolumn of each
-data set, in order, then the subcolumns of one *spare* data set ("Add
-group"). A Grouped table has a row-title column first. Rows are the
+data set, in order, then the subcolumns of *spare* data sets filling the view
+(the first titled "Add group"). A Grouped table has a row-title column first. Rows are the
 table's rows, then spare blank rows (enough to fill the view plus 20):
-typing into a spare row or the spare data set creates it, as part of the
-same edit (a `batch`). So the model only holds what the user entered
+typing into a spare row or a spare data set creates it (and any spare
+groups to its left, empty) as part of the same edit (a `batch`). A new
+table starts with no groups at all. So the model only holds what the user entered
 (note 02: trailing rows are not trimmed, so they must not be created
 needlessly).
 
@@ -230,7 +231,7 @@ only, never contents.
 ## Decisions made here
 
 1. **Titles in the grid**, as Prism, rather than in a side panel.
-2. **Spare rows and one spare data set** instead of a fixed empty
+2. **Spare rows and spare data sets** instead of a fixed empty
    rectangle, so the model holds only entered data.
 3. **Non-numbers typed into a cell are refused** with a message, and
    non-numbers in a paste become empty cells with a notice.
