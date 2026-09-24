@@ -7,3 +7,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | # | Note | Issue |
 |---|---|---|
 | 01 | [WebR engine: channel, hosting, packages](01-webr-engine.md) | #1, #2 |
+| 02 | [Data model: tables, project, dependency graph](02-data-model.md) (proposed) | #4 |
