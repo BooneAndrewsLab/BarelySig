@@ -1,27 +1,27 @@
 {
   "input": {
-    "a": [1, 1.01, 0.98999999999999999, 1.02, 0.97999999999999998],
-    "b": [5, 5.0099999999999998, 4.9900000000000002, 5.0199999999999996, 4.9800000000000004]
+    "a": [5, 5, 5, 5],
+    "b": [6, 7, 8, 7]
   },
   "expected": {
-    "t": 400.00000000000409,
-    "df": 8,
-    "p_two": 1.7086767930568891e-18,
-    "n_a": 5,
-    "n_b": 5,
-    "mean_a": 1,
-    "mean_b": 5,
-    "sd_a": 0.01581138830084191,
-    "sd_b": 0.015811388300841559,
-    "difference": 4,
-    "se_difference": 0.0099999999999998979,
-    "ci_lower": 3.9769399586479586,
-    "ci_upper": 4.023060041352041,
-    "r_squared": 0.99995000249987498,
-    "f": 1.0000000000000442,
-    "f_dfn": 4,
-    "f_dfd": 4,
-    "f_p": 0.9999999999999668
+    "t": 4.8989794855663558,
+    "df": 6,
+    "p_two": 0.0027136820350937962,
+    "n_a": 4,
+    "n_b": 4,
+    "mean_a": 5,
+    "mean_b": 7,
+    "sd_a": 0,
+    "sd_b": 0.81649658092772603,
+    "difference": 2,
+    "se_difference": 0.40824829046386302,
+    "ci_lower": 1.0010524198543,
+    "ci_upper": 2.9989475801456997,
+    "r_squared": 0.79999999999999993,
+    "f": null,
+    "f_dfn": null,
+    "f_dfd": null,
+    "f_p": null
   },
   "reference": {
     "r": "R version 4.6.0 (2026-04-24)",
@@ -32,7 +32,7 @@
     "call": "unpaired(a, b, FALSE)"
   },
   "tolerance": 9.9999999999999995e-7,
-  "note": "p near 1e-18: compared relatively, so a p rounded to 0 fails.",
+  "note": "One group without variation: t is defined, the F test is not.",
   "options": {
     "paired": false,
     "welch": false
