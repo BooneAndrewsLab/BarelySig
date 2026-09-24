@@ -356,7 +356,12 @@ function engine(v: Json | undefined, p: Path): EngineInfo | null {
   const packages: Record<string, string> = {};
   const q = p.key('packages');
   for (const [k, x] of Object.entries(obj(o['packages'], q))) packages[k] = str(x, q.key(k));
-  return { webr: str(o['webr'], p.key('webr')), r: str(o['r'], p.key('r')), packages };
+  const base = { webr: str(o['webr'], p.key('webr')), r: str(o['r'], p.key('r')), packages };
+  if (o['code'] === undefined) return base;
+  const code: Record<string, string> = {};
+  const c = p.key('code');
+  for (const [k, x] of Object.entries(obj(o['code'], c))) code[k] = str(x, c.key(k));
+  return { ...base, code };
 }
 
 function result(v: Json, p: Path): ResultEntry {

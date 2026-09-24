@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RObject, WebR } from 'webr';
 
 import { fromR, type RJs } from '@/engine/convert';
+import { ENGINE } from '@/engine/engineInfo';
 
 import { loadFixtures, mismatches } from './fixtures';
 import { startNodeWebR } from './webrNode';
@@ -32,6 +33,7 @@ describe('engine parity with desktop R', () => {
     const version = await webR.evalRString('R.version.string');
     const oracle = new Set(fixtures.map((f) => f.reference.r));
     expect([...oracle]).toEqual([version]);
+    expect(version).toContain(`R version ${ENGINE.r} `);
   });
 
   it.each(fixtures.map((f) => [f.id, f] as const))('%s', async (_id, f) => {

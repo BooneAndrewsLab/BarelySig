@@ -47,7 +47,7 @@ WebR is already in its own worker, so no worker of ours).
 
 ### Pinned engine
 
-The WebR package versions are **committed** in `scripts/webr/lock.json`
+The WebR package versions are **committed** in `src/engine/lock.json`
 (today they are read from the live r-wasm index on every
 `webr:fetch`, so an upstream update would silently change the engine).
 `webr:fetch` stages exactly those versions and fails if the index no

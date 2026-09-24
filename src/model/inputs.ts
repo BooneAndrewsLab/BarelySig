@@ -19,8 +19,13 @@ import type { Table } from './table';
 export interface EngineInfo {
   readonly webr: string;
   readonly r: string;
-  /** R package versions (`public/webr/repo/lock.json`). */
+  /** R package versions (`src/engine/lock.json`). */
   readonly packages: Readonly<Record<string, string>>;
+  /**
+   * A fingerprint of each analysis's own code and result format (item 04),
+   * so changing how an analysis computes makes its saved results stale.
+   */
+  readonly code?: Readonly<Record<string, string>>;
 }
 
 function tableInput(table: Table, dataSets: readonly Id[]): Json | null {
@@ -73,7 +78,12 @@ export function inputHashes(project: Project, engine: EngineInfo): Map<Id, strin
             kind: a.kind,
             options: { ...a.options },
             source,
-            engine: { ...engine, packages: { ...engine.packages } },
+            engine: {
+              webr: engine.webr,
+              r: engine.r,
+              packages: { ...engine.packages },
+              code: { ...(engine.code ?? {}) },
+            },
           });
     visiting.delete(a.id);
     out.set(a.id, hash);

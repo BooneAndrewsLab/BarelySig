@@ -1,0 +1,12 @@
+{
+  "$comment": "The engine users get, pinned (item 04). webr:fetch stages exactly these and fails on drift; change only with `npm run webr:fetch -- --update-lock`, then `npm run oracle:pin`, `npm run oracle:generate` and the parity test.",
+  "webr": "0.6.0",
+  "r": "4.6.0",
+  "packages": {
+    "emmeans": "2.0.3",
+    "estimability": "1.5.1",
+    "mvtnorm": "1.2-4",
+    "numDeriv": "2016.8-1.1",
+    "rlang": "1.2.0"
+  }
+}

@@ -7,6 +7,11 @@
  *                           dependencies, downloaded from the WebR repository
  *   public/webr/repo/lock.json  the exact versions staged
  *
+ * The versions are pinned in src/engine/lock.json (item 04): the script
+ * fails if the repository resolves to anything else, so the engine users
+ * get never changes by itself. `-- --update-lock` rewrites the pin on
+ * purpose.
+ *
  * Downloads are cached in node_modules/.cache/webr-repo, so a rebuild is
  * offline. Run by `npm run webr:fetch` (and before dev/build).
  */
@@ -135,6 +140,36 @@ for (const name of [...need].sort()) {
   const { block } = entry;
   blocks.push(block);
   bytes += data.length;
+}
+const lockPath = join(root, 'src/engine/lock.json');
+interface Lock {
+  readonly $comment?: string;
+  readonly webr: string;
+  readonly r: string;
+  readonly packages: Record<string, string>;
+}
+const pinned = await readJson<Lock>(lockPath);
+if (process.argv.includes('--update-lock')) {
+  await writeFile(
+    lockPath,
+    `${JSON.stringify({ ...pinned, webr: config.webr, packages: lock }, null, 2)}\n`,
+  );
+  console.warn(`updated ${lockPath}: rerun oracle:pin, oracle:generate and the parity test`);
+} else {
+  const drift = [...new Set([...Object.keys(lock), ...Object.keys(pinned.packages)])]
+    .filter((name) => lock[name] !== pinned.packages[name])
+    .map(
+      (name) =>
+        `${name}: pinned ${pinned.packages[name] ?? 'none'}, repository has ${lock[name] ?? 'none'}`,
+    );
+  if (pinned.webr !== config.webr)
+    drift.unshift(`webr: pinned ${pinned.webr}, packages.json has ${config.webr}`);
+  if (drift.length > 0) {
+    throw new Error(
+      `The WebR engine drifted from src/engine/lock.json:\n  ${drift.join('\n  ')}\n` +
+        'Update deliberately with `npm run webr:fetch -- --update-lock`, then oracle:pin, oracle:generate and the parity test.',
+    );
+  }
 }
 await writeFile(join(repoDir, 'PACKAGES'), `${blocks.join('\n\n')}\n`);
 await writeFile(join(out, 'repo/lock.json'), `${JSON.stringify(lock, null, 2)}\n`);

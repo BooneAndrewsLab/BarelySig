@@ -1,10 +1,10 @@
 # Makes the barelysig-r env hold exactly the package versions the app's WebR
-# runs (public/webr/repo/lock.json, written by scripts/webr/fetch.ts), plus
+# runs (src/engine/lock.json, checked by scripts/webr/fetch.ts), plus
 # the reference-only packages used to check our own R (item 01). Installs
 # from the CRAN archive when the current CRAN version differs.
 #   scripts/oracle/run.sh pin
 options(repos = c(CRAN = "https://cloud.r-project.org"), Ncpus = 8L)
-lock <- jsonlite::fromJSON("public/webr/repo/lock.json")
+lock <- jsonlite::fromJSON("src/engine/lock.json")$packages
 reference_only <- c("multcomp", "dunn.test", "fBasics", "car", "drc")
 
 have <- function(p) if (requireNamespace(p, quietly = TRUE)) as.character(packageVersion(p)) else NA

@@ -20,6 +20,8 @@ export interface Fixture {
     readonly setup?: string;
     readonly call: string;
   };
+  /** The analysis options this case uses (item 04), as the oracle wrote them. */
+  readonly options?: Readonly<Record<string, Plain>>;
   /** Relative tolerance for numbers. */
   readonly tolerance: number;
   readonly note?: string;
