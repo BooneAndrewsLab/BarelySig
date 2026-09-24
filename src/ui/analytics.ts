@@ -54,6 +54,7 @@ export const EVENTS = {
   /** Once per visit: `start` (the version), `layout` (desktop/tablet). */
   app: ['start', 'layout'],
   history: ['undo', 'redo'],
+  table: ['new-column', 'new-grouped'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type EventCategory = keyof typeof EVENTS;

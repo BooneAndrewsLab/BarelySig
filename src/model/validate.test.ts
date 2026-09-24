@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { asId } from './ids';
-import { type Table, cellKey, createColumnTable, createGroupedTable } from './table';
+import {
+  type Table,
+  cellKey,
+  createColumnTable,
+  createGroupedTable,
+  duplicateTable,
+} from './table';
 import { validateTable } from './validate';
 
 /** Types a hand-broken table as a table. */
@@ -103,5 +109,28 @@ describe('validateTable', () => {
     ],
   ])('reports %s', (_, table, message) => {
     expect(validateTable(table).join('\n')).toMatch(message);
+  });
+});
+
+describe('duplicateTable', () => {
+  it('copies values and exclusions under fresh ids', () => {
+    const t = createColumnTable({ title: 'T', groups: ['A'], rows: 2 });
+    const [d] = t.dataSets;
+    const [r0] = t.rows;
+    if (!d || !r0) throw new Error('unreachable');
+    const filled: Table = {
+      ...t,
+      dataSets: [{ ...d, subcolumns: [[5, null]], excluded: new Set([cellKey(0, r0.id)]) }],
+    };
+    const copy = duplicateTable(filled, 'T copy');
+    expect(validateTable(copy)).toEqual([]);
+    expect(copy.title).toBe('T copy');
+    expect(copy.id).not.toBe(t.id);
+    expect(copy.rows[0]?.id).not.toBe(r0.id);
+    expect(copy.dataSets[0]?.id).not.toBe(d.id);
+    expect(copy.dataSets[0]?.subcolumns).toEqual([[5, null]]);
+    expect([...(copy.dataSets[0]?.excluded ?? [])]).toEqual([
+      cellKey(0, copy.rows[0]?.id ?? asId('')),
+    ]);
   });
 });

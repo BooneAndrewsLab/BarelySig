@@ -165,3 +165,21 @@ export const findDataSet = (table: Table, id: Id): DataSet | undefined =>
   table.dataSets.find((d) => d.id === id);
 
 export const rowIndex = (table: Table, id: Id): number => table.rows.findIndex((r) => r.id === id);
+
+/** A copy of a table with fresh ids throughout (its exclusions follow the new row ids). */
+export function duplicateTable(table: Table, title: string): Table {
+  const rowIds = new Map(table.rows.map((r) => [r.id, newId('r')]));
+  const rows = table.rows.map((r) => ({ ...r, id: rowIds.get(r.id) ?? newId('r') }));
+  const dataSets = table.dataSets.map((d) => ({
+    ...d,
+    id: newId('ds'),
+    subcolumns: d.subcolumns.map((c) => c.slice()),
+    excluded: new Set(
+      [...d.excluded].map((k) => {
+        const { subcolumn, row } = parseCellKey(k);
+        return cellKey(subcolumn, rowIds.get(row) ?? row);
+      }),
+    ),
+  }));
+  return { ...table, id: newId('t'), title, rows, dataSets };
+}

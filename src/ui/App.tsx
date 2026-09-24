@@ -1,20 +1,81 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+import type { TableType } from '@/model/table';
 
 import { analytics } from './analytics';
-import { Logo } from './Logo';
+import { exampleProject } from './examples';
+import { Home } from './shell/Home';
+import { Navigator } from './shell/Navigator';
+import { NewTableDialog } from './shell/NewTableDialog';
+import { StatusLine } from './shell/StatusLine';
+import { TableSheet } from './shell/TableSheet';
+import { TopBar } from './shell/TopBar';
+import { commandFor } from './shortcuts';
+import { project, store } from './state/store';
+import { useAppState } from './state/useAppState';
 
 export function App() {
+  const state = useAppState();
+  const p = project(state);
+  const [newTable, setNewTable] = useState<TableType | null>(null);
+
   useEffect(() => {
     analytics.start(__APP_VERSION__, globalThis.matchMedia('(max-width: 900px)').matches);
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const cmd = commandFor(e);
+      if (cmd === 'undo') store.undo();
+      else if (cmd === 'redo') store.redo();
+      else return;
+      e.preventDefault();
+    };
+    globalThis.addEventListener('keydown', onKey);
+    return () => {
+      globalThis.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  const table = state.sheet.kind === 'table' ? p.tables.get(state.sheet.id) : undefined;
+
   return (
-    <main className="hello">
-      <h1>
-        <Logo height={72} />
-      </h1>
-      <p className="tagline">No license required. Asterisks included.</p>
-      <p className="version">v{__APP_VERSION__}</p>
-    </main>
+    <div className="app">
+      <TopBar name={p.name} undoLabel={store.undoLabel()} redoLabel={store.redoLabel()} />
+      <Navigator
+        project={p}
+        sheet={state.sheet}
+        onNewTable={() => {
+          setNewTable('column');
+        }}
+      />
+      <main className="main">
+        {table ? (
+          <TableSheet project={p} table={table} />
+        ) : (
+          <Home
+            onNewTable={setNewTable}
+            onExample={() => {
+              store.load(exampleProject());
+            }}
+          />
+        )}
+      </main>
+      <StatusLine notice={state.notice} />
+      {newTable && (
+        <NewTableDialog
+          initialType={newTable}
+          defaultTitle={`Data ${String(p.tables.size + 1)}`}
+          onClose={() => {
+            setNewTable(null);
+          }}
+          onCreate={(t) => {
+            setNewTable(null);
+            store.edit({ op: 'addTable', table: t }, { show: { kind: 'table', id: t.id } });
+            analytics.trackOnce('table', t.type === 'column' ? 'new-column' : 'new-grouped');
+          }}
+        />
+      )}
+    </div>
   );
 }
