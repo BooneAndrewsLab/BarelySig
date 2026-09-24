@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './ui/App';
 import { Capture } from './ui/dev/Capture';
+import { onLaunchFiles, registerServiceWorker } from './ui/pwa';
 import { getSession } from './ui/state/session';
 import './ui/theme.css';
 
@@ -21,6 +22,11 @@ async function restore(): Promise<void> {
   await Promise.race([session.restore().catch(() => undefined), timeout]);
 }
 
+registerServiceWorker();
+
 void (capture ? Promise.resolve() : restore()).finally(() => {
   createRoot(root).render(<StrictMode>{capture ? <Capture /> : <App />}</StrictMode>);
+  onLaunchFiles((file) => {
+    void getSession().openFile(file);
+  });
 });
