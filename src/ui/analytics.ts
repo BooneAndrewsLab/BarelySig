@@ -53,6 +53,7 @@ export function doNotTrack(nav: Partial<Navigator> = globalThis.navigator): bool
 export const EVENTS = {
   /** Once per visit: `start` (the version), `layout` (desktop/tablet). */
   app: ['start', 'layout'],
+  history: ['undo', 'redo'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type EventCategory = keyof typeof EVENTS;
