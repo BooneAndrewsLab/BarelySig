@@ -195,6 +195,12 @@ is automatic and debounced. Analyses can chain (normalize → fit).
     before M4; compare against seaborn renders of the same data.
 - **Export:** SVG and PNG (300/600 DPI) with exact physical size (in/cm)
   for journal column widths; PDF/TIFF later.
+- **Reproducible figures (#43):** every export embeds its *figure
+  recipe* (the graph, what it depends on, the resolved theme, app and
+  engine versions), so opening the exported SVG/PNG restores the exact
+  setup; the `.bsig` keeps an export history of frozen recipes. Store
+  resolved values, never just a theme name — changing a default must never
+  change an old figure.
 
 ## Milestones
 
