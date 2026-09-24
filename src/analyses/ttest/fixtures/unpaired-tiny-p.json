@@ -1,0 +1,23 @@
+{
+  "input": {
+    "a": [1, 1.01, 0.98999999999999999, 1.02, 0.97999999999999998],
+    "b": [5, 5.0099999999999998, 4.9900000000000002, 5.0199999999999996, 4.9800000000000004]
+  },
+  "expected": {
+    "t": -400.00000000000409,
+    "df": 8,
+    "p": 1.7086767930568891e-18,
+    "difference": 4,
+    "ci": [3.976939958647959, 4.023060041352041]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "unpaired <- function(a, b) {\n    r <- t.test(a, b, var.equal = TRUE)\n    list(t = unname(r$statistic), df = unname(r$parameter), p = r$p.value, difference = unname(r$estimate[2] - \n        r$estimate[1]), ci = rev(-r$conf.int[1:2]))\n}",
+    "call": "unpaired(a, b)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "p near 1e-18: compared relatively, so a p rounded to 0 fails."
+}

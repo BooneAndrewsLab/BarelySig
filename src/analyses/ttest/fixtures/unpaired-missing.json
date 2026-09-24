@@ -1,0 +1,23 @@
+{
+  "input": {
+    "a": [1, 2, null, 4, 6],
+    "b": [3, 4, 5, 7, 9, null]
+  },
+  "expected": {
+    "t": -1.5045434532712696,
+    "df": 7,
+    "p": 0.17615452279462415,
+    "difference": 2.3499999999999996,
+    "ci": [-1.3433908284011113, 6.0433908284011109]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "unpaired <- function(a, b) {\n    r <- t.test(a, b, var.equal = TRUE)\n    list(t = unname(r$statistic), df = unname(r$parameter), p = r$p.value, difference = unname(r$estimate[2] - \n        r$estimate[1]), ci = rev(-r$conf.int[1:2]))\n}",
+    "call": "unpaired(a[!is.na(a)], b[!is.na(b)])"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Empty cells drop out of each column; they are not zeros."
+}

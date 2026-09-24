@@ -38,6 +38,9 @@ jobs:
       - name: Format check
         run: npm run format:check
 
+      - name: Stage WebR
+        run: npm run webr:fetch
+
       - name: Test
         run: npm run test:coverage
 
