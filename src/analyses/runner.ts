@@ -25,7 +25,8 @@ export async function runAnalysis(
   const prepared = mod.prepare(analysis as never, project);
   if (!prepared.ok) throw new EngineError('analysis', prepared.reason);
   const out = await engine.run(mod.job(prepared.request), signal);
-  return mod.parse(out.value, prepared.request, out.warnings);
+  // Results are plain data by construction (module.ts), so they are JSON.
+  return mod.parse(out.value, prepared.request, out.warnings) as Json;
 }
 
 export const makeRunner =

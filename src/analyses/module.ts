@@ -7,13 +7,13 @@
  */
 import type { EngineJob } from '@/engine/engine';
 import type { Plain } from '@/engine/convert';
-import type { Json } from '@/model/json';
 import type { Analysis, AnalysisKind, Project } from '@/model/project';
 
 export type Prepared<Req> =
   { readonly ok: true; readonly request: Req } | { readonly ok: false; readonly reason: string };
 
-export interface AnalysisModule<K extends AnalysisKind, Req, Res extends Json> {
+/** `Res` must be plain data (numbers, strings, null, arrays, objects): it is stored as JSON. */
+export interface AnalysisModule<K extends AnalysisKind, Req, Res> {
   readonly kind: K;
   /**
    * Bumped whenever the R code or the result's shape changes: part of the
@@ -31,4 +31,4 @@ export interface AnalysisModule<K extends AnalysisKind, Req, Res extends Json> {
  * One module per analysis kind. The methods are bivariant (method syntax),
  * so a module with a specific request type fits.
  */
-export type Registry = { readonly [K in AnalysisKind]: AnalysisModule<K, unknown, Json> };
+export type Registry = { readonly [K in AnalysisKind]: AnalysisModule<K, unknown, unknown> };

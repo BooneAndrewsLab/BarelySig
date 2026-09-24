@@ -94,8 +94,10 @@ For each selected data set, as Prism's "Column statistics":
   not available, not guessed.
 - **Percentiles** use Prism's method, `(n + 1)·p` with linear
   interpolation (R's `quantile(type = 6)`); R's default (type 7) would
-  give different quartiles for small n. To cross-check against the
-  Statistics Guide's worked example.
+  give different quartiles for small n. Confirmed by GraphPad FAQ 501
+  ("How Prism computes percentiles"): rank `P·(n+1)/100`, Hyndman & Fan
+  definition 6, and the smallest or largest value when the rank falls
+  outside 1…n.
 - **n = 1:** SD, SEM and CI are "not defined (one value)"; **n = 0:** the
   group is reported as having no values. Zero variance gives SD = 0 and a
   zero-width CI.
