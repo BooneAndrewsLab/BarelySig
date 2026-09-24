@@ -1,0 +1,8 @@
+{
+  "source": "LibreOffice Calc (German locale)",
+  "recorded": false,
+  "note": "Constructed from the app's documented clipboard format, not recorded. Replace with a recording from the ?capture page when available.",
+  "clipboard": {
+    "text/plain": "Kontrolle\tBehandelt\n1,5\t2,25\n3,75\t\n1.234,5\t0,001\n"
+  }
+}

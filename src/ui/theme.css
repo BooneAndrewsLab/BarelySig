@@ -691,3 +691,28 @@ select {
   margin-left: auto;
   color: var(--ink-2);
 }
+
+.capture {
+  max-width: 800px;
+  margin: 32px auto;
+  padding: 0 24px;
+}
+
+.capture-target {
+  margin: 16px 0;
+  padding: 40px;
+  text-align: center;
+  color: var(--ink-3);
+  background: var(--sheet);
+  border: 2px dashed var(--rule-strong);
+}
+
+.capture-json {
+  max-height: 50vh;
+  overflow: auto;
+  padding: 12px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  font-size: 12px;
+  white-space: pre-wrap;
+}

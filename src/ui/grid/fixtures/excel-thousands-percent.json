@@ -1,0 +1,8 @@
+{
+  "source": "Excel (Windows)",
+  "recorded": false,
+  "note": "Constructed from the app's documented clipboard format, not recorded. Replace with a recording from the ?capture page when available.",
+  "clipboard": {
+    "text/plain": "Counts\tViability\r\n1,234\t85%\r\n12,500\t92.5%\r\n987\t101%\r\n"
+  }
+}

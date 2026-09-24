@@ -1,0 +1,8 @@
+{
+  "source": "Excel (macOS)",
+  "recorded": false,
+  "note": "Constructed from the app's documented clipboard format, not recorded. Replace with a recording from the ?capture page when available.",
+  "clipboard": {
+    "text/plain": "\"Dose\n(µM)\"\t\"He said \"\"hi\"\"\"\r\n1\t2\r\n"
+  }
+}

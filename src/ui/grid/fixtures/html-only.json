@@ -1,0 +1,8 @@
+{
+  "source": "a web page table",
+  "recorded": false,
+  "note": "Constructed from the app's documented clipboard format, not recorded. Replace with a recording from the ?capture page when available.",
+  "clipboard": {
+    "text/html": "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>&nbsp;</td></tr><tr><td colspan=\"2\">7</td></tr></table>"
+  }
+}

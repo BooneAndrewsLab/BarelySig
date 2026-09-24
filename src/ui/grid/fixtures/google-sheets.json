@@ -1,0 +1,9 @@
+{
+  "source": "Google Sheets (Chrome)",
+  "recorded": false,
+  "note": "Constructed from the app's documented clipboard format, not recorded. Replace with a recording from the ?capture page when available.",
+  "clipboard": {
+    "text/plain": "WT\tKO\n1.5\t2.5\n3\t4",
+    "text/html": "<meta charset=\"utf-8\"><google-sheets-html-origin><style type=\"text/css\"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style><table xmlns=\"http://www.w3.org/1999/xhtml\" cellspacing=\"0\" cellpadding=\"0\" dir=\"ltr\" border=\"1\" data-sheets-root=\"1\"><colgroup><col width=\"100\"/><col width=\"100\"/></colgroup><tbody><tr style=\"height:21px;\"><td>WT</td><td>KO</td></tr><tr style=\"height:21px;\"><td style=\"text-align:right;\">1.5</td><td style=\"text-align:right;\">2.5</td></tr><tr style=\"height:21px;\"><td style=\"text-align:right;\">3</td><td style=\"text-align:right;\">4</td></tr></tbody></table>"
+  }
+}

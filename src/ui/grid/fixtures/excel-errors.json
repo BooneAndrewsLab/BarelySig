@@ -1,0 +1,8 @@
+{
+  "source": "Excel (Windows)",
+  "recorded": false,
+  "note": "Constructed from the app's documented clipboard format, not recorded. Replace with a recording from the ?capture page when available.",
+  "clipboard": {
+    "text/plain": "Ratio\tLog\r\n1.5\t#DIV/0!\r\n#N/A\t0.25\r\n2\t#VALUE!\r\n"
+  }
+}

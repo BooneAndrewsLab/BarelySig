@@ -23,6 +23,7 @@ import { paletteColor } from '@/graphs/palette';
 import type { Edit } from '@/model/edits';
 import { type Table, cellKey } from '@/model/table';
 
+import { copyText, describePaste, pasteInto } from './clipboard';
 import {
   clearRange,
   deleteDataSets,
@@ -33,6 +34,7 @@ import {
   toggleExcluded,
   typeInto,
 } from './commands';
+import { analytics } from '../analytics';
 import { describePos, selectionSummary } from './describe';
 import { GridMenu, type MenuItem } from './GridMenu';
 import { type GridAction, editorExit, gridAction } from './keys';
@@ -236,11 +238,14 @@ export function DataGrid({ table, onEdit, onNotice, onSelection, decimal }: Grid
         return;
       case 'fillDown':
         apply(fillDown(layout, range));
+        analytics.trackOnce('data', 'fill-down');
         return;
       case 'exclude': {
         const edit = toggleExcluded(layout, range);
-        if (edit) apply(edit);
-        else onNotice('Select values to exclude; empty cells have nothing to exclude.', 'info');
+        if (edit) {
+          apply(edit);
+          analytics.trackOnce('data', 'exclude');
+        } else onNotice('Select values to exclude; empty cells have nothing to exclude.', 'info');
         return;
       }
       case 'insertRows':
@@ -252,6 +257,50 @@ export function DataGrid({ table, onEdit, onNotice, onSelection, decimal }: Grid
         return;
     }
   };
+
+  // Clipboard events go to the document when the focused element isn't
+  // editable (the grid), so the grid listens there while it has focus.
+  const clipboardHandler = useRef<(e: ClipboardEvent) => void>(() => undefined);
+  const onClipboard = (e: ClipboardEvent) => {
+    if (editing || document.activeElement !== gridRef.current || !e.clipboardData) return;
+    const data = e.clipboardData;
+    e.preventDefault();
+    if (e.type === 'copy' || e.type === 'cut') {
+      data.setData('text/plain', copyText(layout, range));
+      if (e.type === 'cut') apply(clearRange(layout, range));
+      return;
+    }
+    const clip: Record<string, string> = {};
+    for (const type of data.types) clip[type] = data.getData(type);
+    const result = pasteInto(table, focus, clip, dec, range);
+    if (!result.edit) {
+      onNotice('The clipboard holds nothing to paste here.', 'info');
+      return;
+    }
+    if (!onEdit(result.edit)) return;
+    const said = describePaste(result.notes);
+    onNotice(said.text, said.warning ? 'warning' : 'info');
+    analytics.trackOnce('data', 'paste');
+    const r = result.range;
+    if (r)
+      setNav({
+        sel: { anchor: { row: r.bottom, col: r.right }, focus: { row: r.top, col: r.left } },
+        tabStart: null,
+      });
+  };
+  useEffect(() => {
+    clipboardHandler.current = onClipboard;
+  });
+  useEffect(() => {
+    const handler = (e: ClipboardEvent) => {
+      clipboardHandler.current(e);
+    };
+    for (const type of ['copy', 'cut', 'paste'] as const) document.addEventListener(type, handler);
+    return () => {
+      for (const type of ['copy', 'cut', 'paste'] as const)
+        document.removeEventListener(type, handler);
+    };
+  }, []);
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (editing || e.target !== e.currentTarget) return;

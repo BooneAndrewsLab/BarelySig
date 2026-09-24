@@ -1,0 +1,9 @@
+{
+  "source": "Excel (Windows)",
+  "recorded": false,
+  "note": "Constructed from the app's documented clipboard format, not recorded. Replace with a recording from the ?capture page when available.",
+  "clipboard": {
+    "text/plain": "Control\tDrug A\tDrug B\r\n1.2\t3.4\t5\r\n2.5\t\t6.1\r\n0\t4\t\r\n",
+    "text/html": "<html xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:x=\"urn:schemas-microsoft-com:office:excel\"><head><meta name=ProgId content=Excel.Sheet></head><body link=\"#0563C1\"><!--StartFragment--><table border=0 cellpadding=0 cellspacing=0 width=192><tr height=20><td height=20 width=64>Control</td><td width=64>Drug A</td><td width=64>Drug B</td></tr><tr height=20><td height=20 align=right>1.2</td><td align=right>3.4</td><td align=right>5</td></tr><tr height=20><td height=20 align=right>2.5</td><td></td><td align=right>6.1</td></tr><tr height=20><td height=20 align=right>0</td><td align=right>4</td><td></td></tr><!--EndFragment--></table></body></html>"
+  }
+}
