@@ -42,6 +42,8 @@ export type GroupData =
       readonly sd: number | null;
       /** null when empty, excluded, or the format has no n. */
       readonly n: number | null;
+      /** The limits entered with `mean-lower-upper` (graphs only); null for other formats. */
+      readonly interval: { readonly lower: number | null; readonly upper: number | null } | null;
       /** What the user entered, so results can say so. */
       readonly entered: SummaryStats;
     };
@@ -107,6 +109,16 @@ function summaryAt(table: Table, ds: DataSet, stats: SummaryStats, r: number): G
   };
   const mean = get('mean');
   const n = get('n');
+  if (stats === 'mean-lower-upper') {
+    return {
+      kind: 'summary',
+      mean,
+      sd: null,
+      n: null,
+      interval: { lower: get('lower'), upper: get('upper') },
+      entered: stats,
+    };
+  }
   let sd: number | null;
   const spread = cols[1];
   if (spread === 'sd') sd = get('sd');
@@ -117,7 +129,7 @@ function summaryAt(table: Table, ds: DataSet, stats: SummaryStats, r: number): G
     const cv = get('cv');
     sd = cv === null || mean === null ? null : (cv * Math.abs(mean)) / 100;
   }
-  return { kind: 'summary', mean, sd, n, entered: stats };
+  return { kind: 'summary', mean, sd, n, interval: null, entered: stats };
 }
 
 /** One group of a Column table: its replicates, or its summary data. */

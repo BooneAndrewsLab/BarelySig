@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { downstreamOf } from '@/model/deps';
 import type { Project } from '@/model/project';
@@ -6,6 +6,8 @@ import type { Table } from '@/model/table';
 
 import { Icon } from '../Icon';
 import { formatLabel, tableTypeInfo } from '../formats';
+import { store } from '../state/store';
+import { FormatDialog } from './FormatDialog';
 
 interface Props {
   readonly project: Project;
@@ -17,6 +19,7 @@ interface Props {
 /** A data table's sheet: its title, what kind of table it is, what reads from it, and the grid. */
 export function TableSheet({ project, table, children }: Props) {
   const info = tableTypeInfo(table.type);
+  const [formatting, setFormatting] = useState(false);
   const down = [...downstreamOf(project, table.id)];
   const analyses = down.flatMap((id) => {
     const a = project.analyses.get(id);
@@ -44,8 +47,30 @@ export function TableSheet({ project, table, children }: Props) {
             ))}
           </p>
         )}
+        <button
+          type="button"
+          className="head-action"
+          onClick={() => {
+            setFormatting(true);
+          }}
+        >
+          Change data format…
+        </button>
       </header>
       <div className="sheet-body">{children}</div>
+      {formatting && (
+        <FormatDialog
+          project={project}
+          table={table}
+          onClose={() => {
+            setFormatting(false);
+          }}
+          onApply={(format) => {
+            setFormatting(false);
+            store.edit({ op: 'setFormat', table: table.id, format });
+          }}
+        />
+      )}
     </section>
   );
 }

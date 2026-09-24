@@ -41,3 +41,30 @@ export function buildTable(
     ? createColumnTable({ title, groups: [], format })
     : createGroupedTable({ title, rowTitles: [], groups: [], format });
 }
+
+/** The dialog's choice for a format, and back. */
+export function entryOf(format: EntryFormat): {
+  readonly entry: Entry;
+  readonly replicates: number;
+} {
+  return format.kind === 'summary'
+    ? { entry: format.stats, replicates: 3 }
+    : { entry: 'raw', replicates: format.count };
+}
+
+export function formatOf(type: TableType, entry: Entry, replicates: number): EntryFormat {
+  return entry === 'raw'
+    ? { kind: 'replicates', count: type === 'column' ? 1 : replicates }
+    : { kind: 'summary', stats: entry };
+}
+
+const valuesIn = (table: Table): number =>
+  table.dataSets.reduce(
+    (n, d) => n + d.subcolumns.reduce((m, c) => m + c.filter((v) => v !== null).length, 0),
+    0,
+  );
+
+/** How many values a format change would clear (they don't fit the new format). */
+export function valuesLost(before: Table, after: Table): number {
+  return Math.max(0, valuesIn(before) - valuesIn(after));
+}

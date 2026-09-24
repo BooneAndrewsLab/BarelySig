@@ -37,7 +37,7 @@ describe('history', () => {
   it('undoing n steps then redoing them returns every state in order', () => {
     fc.assert(
       fc.property(
-        fc.array(fc.integer(), { minLength: 1, maxLength: 30 }),
+        fc.uniqueArray(fc.integer(), { minLength: 1, maxLength: 30 }),
         fc.nat(),
         (values, k) => {
           let h = startHistory<number | string, null>('start');

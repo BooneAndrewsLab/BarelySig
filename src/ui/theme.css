@@ -681,3 +681,13 @@ select {
 .grid-menu {
   z-index: 50;
 }
+
+.warning-note {
+  margin: 0 0 8px;
+  color: var(--warning);
+}
+
+.sheet-head .head-action {
+  margin-left: auto;
+  color: var(--ink-2);
+}

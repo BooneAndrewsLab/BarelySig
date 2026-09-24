@@ -9,7 +9,12 @@
  * column of a Grouped table. Everything else is 0-based.
  */
 import type { Id } from '@/model/ids';
-import { type Table, subcolumnCount, summarySubcolumns } from '@/model/table';
+import {
+  type SummarySubcolumn,
+  type Table,
+  subcolumnCount,
+  summarySubcolumns,
+} from '@/model/table';
 
 export interface GridColumn {
   /** Index into `table.dataSets`; spare data sets continue past its end. */
@@ -69,17 +74,21 @@ export const defaultTitle = (dataSetIndex: number): string => `Group ${letters(d
 
 const SPARE_ROWS = 20;
 
+/** Header labels of summary subcolumns; typed by kind, so a new kind can't go unlabelled. */
+const SUBCOLUMN_LABELS: Readonly<Record<SummarySubcolumn, string>> = {
+  mean: 'Mean',
+  sd: 'SD',
+  sem: 'SEM',
+  cv: '%CV',
+  n: 'N',
+  lower: 'Lower',
+  upper: 'Upper',
+};
+
 export function subcolumnLabels(table: Table): readonly string[] {
   const { format } = table;
   if (format.kind === 'summary') {
-    const names: Readonly<Record<string, string>> = {
-      mean: 'Mean',
-      sd: 'SD',
-      sem: 'SEM',
-      cv: '%CV',
-      n: 'N',
-    };
-    return summarySubcolumns(format.stats).map((s) => names[s] ?? s);
+    return summarySubcolumns(format.stats).map((s) => SUBCOLUMN_LABELS[s]);
   }
   return format.count === 1
     ? ['']

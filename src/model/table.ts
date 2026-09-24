@@ -45,9 +45,20 @@ export interface DataSet {
   readonly decimals?: number;
 }
 
-/** Summary data entered instead of replicates. Without n, no test can run. */
+/**
+ * Summary data entered instead of replicates. Without n, no test can run.
+ * `mean-lower-upper` is a mean with the limits of an interval (e.g. a 95%
+ * CI), as Prism's "Mean with upper/lower limits": for graphs only, since an
+ * SD can't be recovered from it without guessing (note 03).
+ */
 export type SummaryStats =
-  'mean-sd-n' | 'mean-sem-n' | 'mean-cv-n' | 'mean-sd' | 'mean-sem' | 'mean-cv';
+  | 'mean-sd-n'
+  | 'mean-sem-n'
+  | 'mean-cv-n'
+  | 'mean-sd'
+  | 'mean-sem'
+  | 'mean-cv'
+  | 'mean-lower-upper';
 
 export const SUMMARY_STATS: readonly SummaryStats[] = [
   'mean-sd-n',
@@ -56,6 +67,7 @@ export const SUMMARY_STATS: readonly SummaryStats[] = [
   'mean-sd',
   'mean-sem',
   'mean-cv',
+  'mean-lower-upper',
 ];
 
 /** What the subcolumns of every data set in a table hold. */
@@ -63,13 +75,21 @@ export type EntryFormat =
   | { readonly kind: 'replicates'; readonly count: number }
   | { readonly kind: 'summary'; readonly stats: SummaryStats };
 
-export type SummarySubcolumn = 'mean' | 'sd' | 'sem' | 'cv' | 'n';
+export type SummarySubcolumn = 'mean' | 'sd' | 'sem' | 'cv' | 'n' | 'lower' | 'upper';
+
+const SUBCOLUMNS: Readonly<Record<SummaryStats, readonly SummarySubcolumn[]>> = {
+  'mean-sd-n': ['mean', 'sd', 'n'],
+  'mean-sem-n': ['mean', 'sem', 'n'],
+  'mean-cv-n': ['mean', 'cv', 'n'],
+  'mean-sd': ['mean', 'sd'],
+  'mean-sem': ['mean', 'sem'],
+  'mean-cv': ['mean', 'cv'],
+  'mean-lower-upper': ['mean', 'lower', 'upper'],
+};
 
 /** The subcolumns of a summary format, in order. CV is a percentage. */
-export function summarySubcolumns(stats: SummaryStats): readonly SummarySubcolumn[] {
-  const [, spread, n] = stats.split('-') as [string, 'sd' | 'sem' | 'cv', string | undefined];
-  return n === undefined ? ['mean', spread] : ['mean', spread, 'n'];
-}
+export const summarySubcolumns = (stats: SummaryStats): readonly SummarySubcolumn[] =>
+  SUBCOLUMNS[stats];
 
 export interface TableBase {
   readonly id: Id;

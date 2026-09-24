@@ -41,6 +41,7 @@ export const SUMMARY_LABELS: Readonly<Record<SummaryStats, string>> = {
   'mean-sd': 'Mean and SD (graphs only)',
   'mean-sem': 'Mean and SEM (graphs only)',
   'mean-cv': 'Mean and %CV (graphs only)',
+  'mean-lower-upper': 'Mean with lower and upper limits, e.g. a 95% CI (graphs only)',
 };
 
 /** How the table's values were entered, for the sheet header. */

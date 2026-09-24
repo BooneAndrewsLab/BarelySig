@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
-import { SUMMARY_STATS, type SummaryStats, type Table, type TableType } from '@/model/table';
+import type { Table, TableType } from '@/model/table';
 
 import { Icon } from '../Icon';
-import { SUMMARY_LABELS, TABLE_TYPES } from '../formats';
+import { TABLE_TYPES } from '../formats';
 import { Dialog } from './Dialog';
+import { EntryFields } from './EntryFields';
 import { type Entry, buildTable } from './tables';
 
 interface Props {
@@ -51,62 +52,14 @@ export function NewTableDialog({ initialType = 'column', defaultTitle, onCreate,
           ))}
         </fieldset>
 
-        <fieldset>
-          <legend>What you will enter</legend>
-          <label className="option">
-            <input
-              type="radio"
-              name="entry"
-              checked={entry === 'raw'}
-              onChange={() => {
-                setEntry('raw');
-              }}
-            />
-            Individual values
-          </label>
-          {type === 'grouped' && entry === 'raw' && (
-            <label className="indent">
-              Replicates per cell{' '}
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={replicates}
-                onChange={(e) => {
-                  setReplicates(e.currentTarget.valueAsNumber);
-                }}
-                aria-invalid={!valid}
-              />
-            </label>
-          )}
-          <label className="option">
-            <input
-              type="radio"
-              name="entry"
-              checked={entry !== 'raw'}
-              onChange={() => {
-                setEntry('mean-sd-n');
-              }}
-            />
-            Summary data, already averaged
-          </label>
-          {entry !== 'raw' && (
-            <select
-              className="indent"
-              aria-label="Summary data"
-              value={entry}
-              onChange={(e) => {
-                setEntry(e.currentTarget.value as SummaryStats);
-              }}
-            >
-              {SUMMARY_STATS.map((s) => (
-                <option key={s} value={s}>
-                  {SUMMARY_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          )}
-        </fieldset>
+        <EntryFields
+          type={type}
+          entry={entry}
+          replicates={replicates}
+          valid={valid}
+          onEntry={setEntry}
+          onReplicates={setReplicates}
+        />
 
         <label className="field">
           Title{' '}

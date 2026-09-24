@@ -140,6 +140,7 @@ describe('columnGroup, summary data', () => {
       mean: 10,
       sd: 2,
       n: 5,
+      interval: null,
       entered: 'mean-sd-n',
     });
   });
@@ -178,6 +179,17 @@ describe('columnGroup, summary data', () => {
       mean: null,
       sd: 2,
       n: null,
+    });
+  });
+
+  it('passes an interval through for graphs, with no SD or n', () => {
+    expect(columnGroup(summary('mean-lower-upper', { a: [10, 8.5, 11.5] }), ds('a'))).toEqual({
+      kind: 'summary',
+      mean: 10,
+      sd: null,
+      n: null,
+      interval: { lower: 8.5, upper: 11.5 },
+      entered: 'mean-lower-upper',
     });
   });
 
@@ -283,8 +295,8 @@ describe('groupedCells', () => {
       },
     );
     expect(groupedCells(t).cells).toEqual([
-      [{ kind: 'summary', mean: 5, sd: 2, n: 4, entered: 'mean-sem-n' }],
-      [{ kind: 'summary', mean: 6, sd: 3, n: 9, entered: 'mean-sem-n' }],
+      [{ kind: 'summary', mean: 5, sd: 2, n: 4, interval: null, entered: 'mean-sem-n' }],
+      [{ kind: 'summary', mean: 6, sd: 3, n: 9, interval: null, entered: 'mean-sem-n' }],
     ]);
   });
 });
