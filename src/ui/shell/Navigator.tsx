@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { Id } from '@/model/ids';
 import type { Project } from '@/model/project';
+import type { NodeState } from '@/model/recompute';
 import { duplicateTable } from '@/model/table';
 
-import { Icon } from '../Icon';
+import { Icon, type IconName } from '../Icon';
 import { tableTypeInfo } from '../formats';
+import { getResults } from '../state/results';
 import { type Sheet, store } from '../state/store';
 import { deletionNote } from './tables';
 
@@ -23,16 +25,28 @@ function copyTitle(project: Project, title: string): string {
   }
 }
 
-function TableItem({
-  project,
-  id,
-  active,
-}: {
-  readonly project: Project;
-  readonly id: Id;
+interface ItemProps {
+  readonly title: string;
+  readonly icon: IconName;
   readonly active: boolean;
-}) {
-  const table = project.tables.get(id);
+  readonly status?: { readonly state: NodeState; readonly label: string } | undefined;
+  readonly onShow: () => void;
+  readonly onRename: (title: string) => void;
+  readonly onDuplicate?: () => void;
+  readonly onDelete: () => void;
+}
+
+/** One navigator entry: shows its sheet; renames in place (double-click, F2); a menu for the rest. */
+function NavItem({
+  title,
+  icon,
+  active,
+  status,
+  onShow,
+  onRename,
+  onDuplicate,
+  onDelete,
+}: ItemProps) {
   const [renaming, setRenaming] = useState(false);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -49,27 +63,14 @@ function TableItem({
     };
   }, [menu]);
 
-  if (!table) return null;
-  const show = () => {
-    store.show({ kind: 'table', id });
-  };
-  const rename = (title: string) => {
+  const rename = (value: string) => {
     setRenaming(false);
-    const t = title.trim();
-    if (t && t !== table.title) store.edit({ op: 'setTableInfo', table: id, title: t });
+    const v = value.trim();
+    if (v && v !== title) onRename(v);
   };
-  const duplicate = () => {
+  const act = (f: () => void) => () => {
     setMenu(false);
-    const copy = duplicateTable(table, copyTitle(project, table.title));
-    const at = project.order.tables.indexOf(id) + 1;
-    store.edit({ op: 'addTable', table: copy, at }, { show: { kind: 'table', id: copy.id } });
-  };
-  const remove = () => {
-    setMenu(false);
-    const note = deletionNote(project, id);
-    if (store.edit({ op: 'removeTable', table: id })) {
-      store.notify(`Deleted “${table.title}”${note}. Undo brings it back (Ctrl+Z).`);
-    }
+    f();
   };
 
   return (
@@ -77,8 +78,8 @@ function TableItem({
       {renaming ? (
         <input
           className="nav-rename"
-          aria-label="Table name"
-          defaultValue={table.title}
+          aria-label="Name"
+          defaultValue={title}
           autoFocus
           onFocus={(e) => {
             e.currentTarget.select();
@@ -96,23 +97,31 @@ function TableItem({
           type="button"
           className="nav-link"
           aria-current={active ? 'page' : undefined}
-          onClick={show}
+          onClick={onShow}
           onDoubleClick={() => {
             setRenaming(true);
           }}
           onKeyDown={(e) => {
             if (e.key === 'F2') setRenaming(true);
-            if (e.key === 'Delete') remove();
+            if (e.key === 'Delete') onDelete();
           }}
         >
-          <Icon name={tableTypeInfo(table.type).icon} size={16} />
-          <span className="nav-title">{table.title}</span>
+          <Icon name={icon} size={16} />
+          <span className="nav-title">{title}</span>
+          {status && status.state !== 'fresh' && (
+            <span
+              className={`nav-status ${status.state}`}
+              role="img"
+              aria-label={status.label}
+              title={status.label}
+            />
+          )}
         </button>
       )}
       <button
         type="button"
         className="nav-more"
-        aria-label={`More for ${table.title}`}
+        aria-label={`More for ${title}`}
         aria-haspopup="menu"
         aria-expanded={menu}
         onClick={() => {
@@ -141,17 +150,18 @@ function TableItem({
           <button
             type="button"
             role="menuitem"
-            onClick={() => {
-              setMenu(false);
+            onClick={act(() => {
               setRenaming(true);
-            }}
+            })}
           >
             Rename
           </button>
-          <button type="button" role="menuitem" onClick={duplicate}>
-            Duplicate
-          </button>
-          <button type="button" role="menuitem" onClick={remove}>
+          {onDuplicate && (
+            <button type="button" role="menuitem" onClick={act(onDuplicate)}>
+              Duplicate
+            </button>
+          )}
+          <button type="button" role="menuitem" onClick={act(onDelete)}>
             Delete
           </button>
         </div>
@@ -160,28 +170,90 @@ function TableItem({
   );
 }
 
+const STATUS_LABEL: Readonly<Record<NodeState, string>> = {
+  fresh: 'Up to date',
+  stale: 'Updating',
+  running: 'Calculating',
+  error: 'Needs attention',
+  blocked: 'Can’t run yet',
+};
+
 export function Navigator({ project, sheet, onNewTable }: Props) {
+  const bridge = getResults();
+  useSyncExternalStore(bridge.subscribe, bridge.getVersion, bridge.getVersion);
+  const tableItems = project.order.tables.flatMap((id) => {
+    const table = project.tables.get(id);
+    if (!table) return [];
+    const remove = () => {
+      const note = deletionNote(project, id);
+      if (store.edit({ op: 'removeTable', table: id })) {
+        store.notify(`Deleted “${table.title}”${note}. Undo brings it back (Ctrl+Z).`);
+      }
+    };
+    return [
+      <NavItem
+        key={id}
+        title={table.title}
+        icon={tableTypeInfo(table.type).icon}
+        active={sheet.kind === 'table' && sheet.id === id}
+        onShow={() => {
+          store.show({ kind: 'table', id });
+        }}
+        onRename={(title) => {
+          store.edit({ op: 'setTableInfo', table: id, title });
+        }}
+        onDuplicate={() => {
+          const copy = duplicateTable(table, copyTitle(project, table.title));
+          store.edit(
+            { op: 'addTable', table: copy, at: project.order.tables.indexOf(id) + 1 },
+            { show: { kind: 'table', id: copy.id } },
+          );
+        }}
+        onDelete={remove}
+      />,
+    ];
+  });
+  const analysisItems = project.order.analyses.flatMap((id: Id) => {
+    const a = project.analyses.get(id);
+    if (!a) return [];
+    const state = bridge.recompute.status(id).state;
+    return [
+      <NavItem
+        key={id}
+        title={a.title}
+        icon={a.kind === 't-test' ? 't-test' : 'descriptive-stats'}
+        active={sheet.kind === 'analysis' && sheet.id === id}
+        status={{ state, label: STATUS_LABEL[state] }}
+        onShow={() => {
+          store.show({ kind: 'analysis', id });
+        }}
+        onRename={(title) => {
+          store.edit({ op: 'setAnalysis', analysis: { ...a, title } });
+        }}
+        onDelete={() => {
+          if (store.edit({ op: 'removeAnalysis', analysis: id })) {
+            store.notify(`Deleted “${a.title}”. Undo brings it back (Ctrl+Z).`);
+          }
+        }}
+      />,
+    ];
+  });
   return (
     <nav className="navigator" aria-label="Project">
       <section>
         <h2>Data tables</h2>
-        <ul>
-          {project.order.tables.map((id) => (
-            <TableItem
-              key={id}
-              project={project}
-              id={id}
-              active={sheet.kind === 'table' && sheet.id === id}
-            />
-          ))}
-        </ul>
+        <ul>{tableItems}</ul>
         <button type="button" className="nav-new" onClick={onNewTable}>
           <Icon name="new-table" size={16} /> New table
         </button>
       </section>
       <section>
         <h2>Results</h2>
-        <p className="nav-empty">Analyses you run on a table appear here.</p>
+        {analysisItems.length > 0 ? (
+          <ul>{analysisItems}</ul>
+        ) : (
+          <p className="nav-empty">Open a table and click Analyze; the results appear here.</p>
+        )}
       </section>
       <section>
         <h2>Graphs</h2>

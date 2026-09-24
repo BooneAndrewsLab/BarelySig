@@ -7,6 +7,7 @@ import type { Table } from '@/model/table';
 import { Icon } from '../Icon';
 import { formatLabel, tableTypeInfo } from '../formats';
 import { store } from '../state/store';
+import { AnalyzeDialog } from './AnalyzeDialog';
 import { FormatDialog } from './FormatDialog';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 export function TableSheet({ project, table, children }: Props) {
   const info = tableTypeInfo(table.type);
   const [formatting, setFormatting] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const down = [...downstreamOf(project, table.id)];
   const analyses = down.flatMap((id) => {
     const a = project.analyses.get(id);
@@ -40,24 +42,54 @@ export function TableSheet({ project, table, children }: Props) {
         {(analyses.length > 0 || graphs.length > 0) && (
           <p className="linked">
             Used by{' '}
-            {[...analyses.map((a) => a.title), ...graphs.map((g) => g.title)].map((t, i) => (
-              <span key={i} className="chip quiet">
-                {t}
+            {analyses.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className="chip quiet"
+                onClick={() => {
+                  store.show({ kind: 'analysis', id: a.id });
+                }}
+              >
+                {a.title}
+              </button>
+            ))}
+            {graphs.map((g) => (
+              <span key={g.id} className="chip quiet">
+                {g.title}
               </span>
             ))}
           </p>
         )}
-        <button
-          type="button"
-          className="head-action"
-          onClick={() => {
-            setFormatting(true);
-          }}
-        >
-          Change data format…
-        </button>
+        <span className="head-actions">
+          <button
+            type="button"
+            onClick={() => {
+              setFormatting(true);
+            }}
+          >
+            Change data format…
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              setAnalyzing(true);
+            }}
+          >
+            <Icon name="analyze" size={16} /> Analyze…
+          </button>
+        </span>
       </header>
       <div className="sheet-body">{children}</div>
+      {analyzing && (
+        <AnalyzeDialog
+          table={table}
+          onClose={() => {
+            setAnalyzing(false);
+          }}
+        />
+      )}
       {formatting && (
         <FormatDialog
           project={project}

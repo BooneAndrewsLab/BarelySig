@@ -6,6 +6,9 @@
  */
 import type { Project } from '@/model/project';
 import type { ProjectStorage } from '@/io/storage';
+import type { Id } from '@/model/ids';
+import type { EngineInfo } from '@/model/inputs';
+import type { ResultEntry } from '@/model/recompute';
 
 import { type AppStore, project } from './store';
 
@@ -24,6 +27,14 @@ export class Autosaver {
     private readonly storage: ProjectStorage,
     private readonly app: string,
     private readonly onError: (e: unknown) => void = () => undefined,
+    /** Results to save with the project, and the engine they came from. */
+    private readonly extras: () => {
+      results: ReadonlyMap<Id, ResultEntry>;
+      engine: EngineInfo | null;
+    } = () => ({
+      results: new Map(),
+      engine: null,
+    }),
   ) {
     this.saved = project(store.getState());
     this.unsubscribe = store.subscribe(() => {
@@ -34,6 +45,22 @@ export class Autosaver {
   /** A project that was just restored from storage counts as saved. */
   markSaved(p: Project): void {
     this.saved = p;
+  }
+
+  /** Results changed (a run finished): save them with the project. */
+  resultsChanged(): void {
+    const s = this.store.getState();
+    const p = project(s);
+    if (!worthSaving(p, true) || this.pending === p) return;
+    this.pending = p;
+    this.schedule();
+  }
+
+  private schedule(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      void this.flush();
+    }, AUTOSAVE_DELAY);
   }
 
   private changed(): void {
@@ -48,10 +75,7 @@ export class Autosaver {
     )
       return;
     this.pending = p;
-    if (this.timer !== undefined) clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
-      void this.flush();
-    }, AUTOSAVE_DELAY);
+    this.schedule();
   }
 
   /** Writes a pending change now (page hidden, or before switching project). */
@@ -62,7 +86,8 @@ export class Autosaver {
     if (!p) return;
     this.pending = null;
     try {
-      await this.storage.save(p, this.app);
+      const { results, engine } = this.extras();
+      await this.storage.save(p, this.app, Date.now(), results, engine);
       this.saved = p;
     } catch (e: unknown) {
       this.onError(e);

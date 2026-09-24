@@ -244,6 +244,24 @@ describe('Recompute', () => {
     rc.dispose();
   });
 
+  it('stops a run on request and does not rerun it until asked', async () => {
+    const { project, set } = setup();
+    const { calls, runner } = controlledRunner();
+    const rc = new Recompute({ runner, engine: ENGINE });
+    rc.setProject(set(project, 1));
+    await vi.advanceTimersByTimeAsync(300);
+    const run = calls[0];
+    rc.stop(A1, 'Stopped.');
+    expect(run?.signal.aborted).toBe(true);
+    await tick();
+    expect(rc.status(A1)).toEqual({ state: 'error', message: 'Stopped.' });
+    expect(calls).toHaveLength(1);
+    rc.retry(A1);
+    await tick();
+    expect(calls).toHaveLength(2);
+    rc.dispose();
+  });
+
   it('does not run an analysis its check refuses', async () => {
     const { project } = setup();
     const { calls, runner } = controlledRunner();

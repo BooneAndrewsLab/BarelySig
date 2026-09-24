@@ -1,7 +1,7 @@
 /** Helpers behind the table dialogs and the navigator (item 03). */
 import { downstreamOf } from '@/model/deps';
 import type { Id } from '@/model/ids';
-import type { Project } from '@/model/project';
+import type { AnalysisSpec, Project } from '@/model/project';
 import {
   type EntryFormat,
   type SummaryStats,
@@ -67,4 +67,12 @@ const valuesIn = (table: Table): number =>
 /** How many values a format change would clear (they don't fit the new format). */
 export function valuesLost(before: Table, after: Table): number {
   return Math.max(0, valuesIn(before) - valuesIn(after));
+}
+
+/** The name an analysis gets: "Unpaired t test of Viability". */
+export function analysisTitle(spec: AnalysisSpec, table: string): string {
+  if (spec.kind === 'descriptive') return `Descriptive statistics of ${table}`;
+  const o = spec.options;
+  const name = o.paired ? 'Paired t test' : o.welch ? 'Welch’s t test' : 'Unpaired t test';
+  return `${name} of ${table}`;
 }

@@ -183,6 +183,33 @@ worker's install, a warm load reads them from the cache (note 01 found
 Chromium re-downloading ~12 MB without it), and a WebR upgrade starts a
 fresh cache. No COOP/COEP (note 01).
 
+## As built
+
+- **Engine** (`src/engine/engine.ts`): every job runs inside R's own
+  `tryCatch`/`withCallingHandlers`, so R errors and warnings come back as
+  values and any JavaScript-side rejection means the engine itself failed.
+  R's global environment is cleared after each job (analysis code that
+  assigns with `<<-` would otherwise leak into the next). Tested against
+  the real WebR under Node, including cancel mid-job and a killed worker.
+- **Code fingerprint:** `EngineInfo.code` holds a hash of each module's R
+  code and result version, so changing an analysis makes its saved
+  results stale.
+- **Stop** records "Stopped" as the result for the current input, so the
+  scheduler doesn't rerun what the user just stopped; "Run again" clears
+  it.
+- **P display never contradicts the asterisks:** a P that would round up
+  across 0.05, 0.01 or 0.001 is truncated instead (0.04996 → "0.0499").
+- **PWA route** is a RegExp with the base path baked in; a function
+  would be serialised into the worker without `base` and never match.
+- **Checked end to end in Chrome** against desktop R: the example's t test
+  (t = 7.654, df = 9, P = 3.1e−5, CI −12.75 to −6.934, F = 1.824) and its
+  descriptive statistics agree; the first run, starting WebR, took 2.3 s;
+  after a reload the saved results showed without starting the engine.
+  Displayed quartiles differ from R's `signif()` only on exact decimal
+  ties (57.425 → 57.43 here, 57.42 in R, from the same double).
+- **Not yet:** a cross-check against the Statistics Guide's worked
+  examples (the oracle is textbook formulas checked against R).
+
 ## Decisions made here
 
 1. **WebR starts on first analysis**, not at page load.

@@ -20,7 +20,10 @@ import { type Project, createProject } from '@/model/project';
 import { analytics } from '../analytics';
 
 /** What the main area shows. */
-export type Sheet = { readonly kind: 'home' } | { readonly kind: 'table'; readonly id: Id };
+export type Sheet =
+  | { readonly kind: 'home' }
+  | { readonly kind: 'table'; readonly id: Id }
+  | { readonly kind: 'analysis'; readonly id: Id };
 
 export const HOME: Sheet = { kind: 'home' };
 
@@ -45,7 +48,8 @@ export const project = (s: AppState): Project => s.history.present;
 
 /** Whether a sheet still exists in the project (a table can be undone away). */
 function exists(p: Project, sheet: Sheet): boolean {
-  return sheet.kind === 'home' || p.tables.has(sheet.id);
+  if (sheet.kind === 'home') return true;
+  return sheet.kind === 'table' ? p.tables.has(sheet.id) : p.analyses.has(sheet.id);
 }
 
 /** The first table, or home: where to go when the open sheet disappears. */

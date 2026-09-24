@@ -64,7 +64,7 @@ describe('app shell', () => {
     createColumnTable();
     fireEvent.click(nav().getByRole('button', { name: 'More for Data 1' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
-    const input = nav().getByRole('textbox', { name: 'Table name' });
+    const input = nav().getByRole('textbox', { name: 'Name' });
     fireEvent.change(input, { target: { value: 'Viability' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(nav().getByRole('button', { name: 'Viability' })).toBeInTheDocument();

@@ -3,16 +3,19 @@
  * store and the browser's storage. Any pending autosave is written before
  * the project changes, so switching never loses the last edit.
  */
-import { BsigError, readBsig, writeBsig } from '@/io/bsig';
+import { BsigError, type SavedProject, readBsig, writeBsig } from '@/io/bsig';
 import { download, fileNameFor } from '@/io/files';
 import { type ProjectStorage, getStorage } from '@/io/storage';
 import type { Id } from '@/model/ids';
 import { newId } from '@/model/ids';
+import type { EngineInfo } from '@/model/inputs';
+import type { ResultEntry } from '@/model/recompute';
 import { type Project, createProject } from '@/model/project';
 
 import { analytics } from '../analytics';
 import { exampleProject } from '../examples';
 import { Autosaver } from './autosave';
+import { type ResultsBridge, getResults } from './results';
 import { type AppStore, project, store } from './store';
 
 const APP = __APP_VERSION__;
@@ -23,13 +26,46 @@ export class Session {
   constructor(
     private readonly appStore: AppStore = store,
     readonly storage: ProjectStorage = getStorage(),
+    private readonly results: () => ResultsBridge | null = () => getResults(),
   ) {
-    this.autosaver = new Autosaver(appStore, storage, APP, () => {
-      appStore.notify(
-        'Couldn’t save to this browser’s storage. Download the project to keep a copy.',
-        'warning',
-      );
+    this.autosaver = new Autosaver(
+      appStore,
+      storage,
+      APP,
+      () => {
+        appStore.notify(
+          'Couldn’t save to this browser’s storage. Download the project to keep a copy.',
+          'warning',
+        );
+      },
+      () => this.extras(),
+    );
+  }
+
+  private extras(): { results: ReadonlyMap<Id, ResultEntry>; engine: EngineInfo | null } {
+    const bridge = this.results();
+    return bridge
+      ? { results: bridge.current(), engine: bridge.info }
+      : { results: new Map(), engine: null };
+  }
+
+  /** Autosaves when results change, so they come back with the project. */
+  watchResults(): () => void {
+    const bridge = this.results();
+    if (!bridge) return () => undefined;
+    let seen = bridge.current();
+    return bridge.subscribe(() => {
+      const now = bridge.current();
+      const changed =
+        now.size !== seen.size ||
+        [...now].some(([id, r]) => seen.get(id)?.inputHash !== r.inputHash);
+      seen = now;
+      if (changed) this.autosaver.resultsChanged();
     });
+  }
+
+  private seed(saved: SavedProject): void {
+    this.results()?.seed(saved.results);
   }
 
   /** Reopens the project changed most recently in this browser, if any. */
@@ -37,6 +73,7 @@ export class Session {
     const saved = await this.storage.latest();
     if (!saved) return;
     this.autosaver.markSaved(saved.project);
+    this.seed(saved);
     this.appStore.load(saved.project);
   }
 
@@ -61,6 +98,7 @@ export class Session {
     }
     await this.autosaver.flush();
     this.autosaver.markSaved(saved.project);
+    this.seed(saved);
     this.appStore.load(saved.project);
   }
 
@@ -77,6 +115,7 @@ export class Session {
       const saved = readBsig(text);
       // A project in the browser is a copy of the file: its own id, so
       // opening the same file twice gives two, never one overwriting another.
+      this.seed(saved);
       await this.replace({ ...saved.project, id: newId('p') }, { fromFile: true });
       this.appStore.notify(`Opened “${file.name}”.`);
       analytics.trackOnce('file', 'open');
@@ -89,7 +128,8 @@ export class Session {
   async download(): Promise<void> {
     const p = project(this.appStore.getState());
     const name = fileNameFor(p.name);
-    const text = writeBsig({ project: p, results: new Map(), engine: null, app: APP });
+    const { results, engine } = this.extras();
+    const text = writeBsig({ project: p, results, engine, app: APP });
     if (!(await download(name, text))) return;
     this.appStore.markDownloaded();
     this.appStore.notify(`Downloaded “${name}”.`);

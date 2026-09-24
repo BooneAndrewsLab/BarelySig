@@ -9,6 +9,7 @@ import { Navigator } from './shell/Navigator';
 import { ProjectMenu } from './shell/ProjectMenu';
 import { NewTableDialog } from './shell/NewTableDialog';
 import { StatusLine } from './shell/StatusLine';
+import { ResultsSheet } from './results/ResultsSheet';
 import { TableSheet } from './shell/TableSheet';
 import { TopBar } from './shell/TopBar';
 import { commandFor } from './shortcuts';
@@ -75,6 +76,7 @@ export function App() {
   }, []);
 
   const table = state.sheet.kind === 'table' ? p.tables.get(state.sheet.id) : undefined;
+  const analysis = state.sheet.kind === 'analysis' ? p.analyses.get(state.sheet.id) : undefined;
 
   return (
     <div className="app">
@@ -123,7 +125,9 @@ export function App() {
         }}
       />
       <main className="main">
-        {table ? (
+        {analysis ? (
+          <ResultsSheet key={analysis.id} project={p} analysis={analysis} />
+        ) : table ? (
           <TableSheet project={p} table={table}>
             <DataGrid
               key={table.id}

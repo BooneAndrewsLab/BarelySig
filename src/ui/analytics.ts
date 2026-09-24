@@ -57,6 +57,7 @@ export const EVENTS = {
   table: ['new-column', 'new-grouped'],
   data: ['paste', 'fill-down', 'exclude'],
   file: ['open', 'download'],
+  analysis: ['new-descriptive', 'new-t-test'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type EventCategory = keyof typeof EVENTS;

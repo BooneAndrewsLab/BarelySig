@@ -688,9 +688,20 @@ select {
   color: var(--warning);
 }
 
-.sheet-head .head-action {
+.sheet-head .head-action,
+.sheet-head .head-actions {
   margin-left: auto;
-  color: var(--ink-2);
+}
+
+.head-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.head-actions .primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .capture {
@@ -768,4 +779,121 @@ select {
   border: 2px dashed var(--bs-ink);
   border-radius: 8px;
   pointer-events: none;
+}
+
+/* --- results ----------------------------------------------------------- */
+
+.link-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
+
+.results-body {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 20px 24px;
+  max-width: 820px;
+}
+
+.reading {
+  margin: 4px 0 6px;
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 68ch;
+}
+
+.method {
+  margin: 0 0 16px;
+  color: var(--ink-2);
+}
+
+.results-table {
+  border-collapse: collapse;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+  min-width: min(560px, 100%);
+}
+
+.results-table th,
+.results-table td {
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.results-table th[scope='row'] {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.results-table td {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.results-table thead th {
+  text-align: right;
+  font-weight: 600;
+  background: var(--header);
+}
+
+.results-table tr.section th {
+  padding-top: 12px;
+  font-weight: 600;
+  background: var(--header);
+}
+
+.results-scroll {
+  overflow-x: auto;
+}
+
+.legend,
+.hint {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.hint {
+  margin: 2px 0 6px 26px;
+}
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 16px;
+  padding: 10px 14px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-3);
+}
+
+.status-banner.error {
+  border-left-color: var(--error);
+}
+
+.warnings {
+  color: var(--warning);
+  font-size: 13px;
+}
+
+.nav-status {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+
+.nav-status.error,
+.nav-status.blocked {
+  background: var(--error);
+}
+
+.nav-status.running {
+  background: var(--bs-accent);
 }

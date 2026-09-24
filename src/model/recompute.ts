@@ -197,6 +197,19 @@ export class Recompute {
     return worst;
   }
 
+  /**
+   * Stops an analysis the user doesn't want to wait for: its current input
+   * gets `message` as its result (so it isn't rerun at once), and a run in
+   * progress is cancelled. `retry` runs it again.
+   */
+  stop(id: Id, message: string): void {
+    const h = this.hashes.get(id);
+    if (h == null) return;
+    this.results.put(id, { inputHash: h, ok: false, error: message });
+    if (this.running?.id === id) this.running.abort.abort();
+    this.changed();
+  }
+
   /** Forgets an error so the analysis runs again (e.g. after the engine was restarted). */
   retry(id: Id): void {
     const h = this.hashes.get(id);

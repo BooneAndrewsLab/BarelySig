@@ -272,7 +272,12 @@ the target).
   summary data incl. mean with limits (#11), undo/redo (#12), autosave to
   IndexedDB, open and download (#13). `npm run dev`, then `/?capture`
   records a clipboard as a fixture.
-- Next: 0.4 — engine worker, PWA cache, descriptive stats, t-tests.
+- 0.4 (analysis pipeline, note 04): engine over WebR with cancel,
+  restart and plain errors, packages pinned in `src/engine/lock.json`
+  (#14); PWA with WebR cached on first use (#15); descriptive statistics
+  (#16) and t tests (#17) with oracle fixtures; results sheets, the
+  Analyze dialog and saved results (#18).
+- Next: 0.5 — style note, graph renderer, bar/beeswarm, brackets, export.
 
 ## Tooling
 
@@ -280,7 +285,9 @@ the target).
   `export PATH=$HOME/Programs/miniconda3/envs/node/bin:$PATH`
 - `npm run check` (typecheck, lint, format, stage WebR, test) before every
   commit;
-  `npm run dev`, `npm run build`.
+  `npm run dev`, `npm run build`. Gate commits on its exit status
+  (`npm run check && git commit …`): a failing check once reached main
+  because the commit ran regardless.
 - R oracle: conda env `barelysig-r` — `r-base=4.6.0`, `compilers`, `make`,
   `pkg-config` from conda-forge; R packages from CRAN inside it, because
   conda-forge hadn't rebuilt them for R 4.6 (2026-09): jsonlite, multcomp,

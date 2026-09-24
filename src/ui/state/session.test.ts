@@ -21,7 +21,7 @@ const withTable = (name: string) =>
 function setup() {
   const store = new AppStore(createProject('Untitled project'));
   const storage = new ProjectStorage(new BarelySigDb(`test-${newId('x')}`));
-  return { store, storage, session: new Session(store, storage) };
+  return { store, storage, session: new Session(store, storage, () => null) };
 }
 
 describe('autosave', () => {
@@ -117,5 +117,71 @@ describe('Session', () => {
     );
     expect(store.getState().downloaded).toBe(project(store.getState()));
     expect(store.getState().notice?.text).toBe('Downloaded “Figure 2.bsig”.');
+  });
+});
+
+describe('results with the project', () => {
+  it('shows saved results at once on opening, without running again, and saves them back', async () => {
+    const { ResultsBridge } = await import('./results');
+    const { readBsig } = await import('@/io/bsig');
+    const { asId } = await import('@/model/ids');
+    const p0 = withTable('With results');
+    const t = [...p0.tables.values()][0];
+    if (!t) throw new Error('unreachable');
+    const p = applyEdit(p0, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_1'),
+        title: 'Stats',
+        kind: 'descriptive',
+        options: {},
+        input: { kind: 'table', table: t.id, dataSets: t.dataSets.map((d) => d.id) },
+      },
+    });
+    // Compute the hash the app would, and save a result under it.
+    const store = new AppStore(createProject('Untitled project'));
+    const runs: unknown[] = [];
+    const bridge = new ResultsBridge(store, {
+      debounceMs: 0,
+      runner: (job) => {
+        runs.push(job);
+        return new Promise(() => undefined);
+      },
+    });
+    store.load(p);
+    const hash = bridge.recompute.inputHash(asId('a_1'));
+    if (!hash) throw new Error('no hash');
+    const text = writeBsig({
+      project: p,
+      results: new Map([
+        [asId('a_1'), { inputHash: hash, ok: true, value: { groups: [], warnings: [] } }],
+      ]),
+      engine: bridge.info,
+      app: '0.3.0',
+    });
+    store.load(createProject('Other'));
+    const storage = new ProjectStorage(new BarelySigDb(`test-${newId('x')}`));
+    const session = new Session(store, storage, () => bridge);
+    await session.openFile(new File([text], 'r.bsig'));
+    expect(bridge.recompute.status(asId('a_1')).state).toBe('fresh');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(runs).toHaveLength(0);
+    // Downloading writes the result back out.
+    let saved = '';
+    (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker = () =>
+      Promise.resolve({
+        createWritable: () =>
+          Promise.resolve({
+            write: (s: string) => {
+              saved = s;
+              return Promise.resolve();
+            },
+            close: () => Promise.resolve(),
+          }),
+      });
+    await session.download();
+    delete (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    expect(readBsig(saved).results.get(asId('a_1'))).toMatchObject({ inputHash: hash, ok: true });
+    bridge.dispose();
   });
 });

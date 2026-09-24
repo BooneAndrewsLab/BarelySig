@@ -18,6 +18,7 @@ const capture =
 async function restore(): Promise<void> {
   const session = getSession();
   session.listen();
+  session.watchResults();
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, 1500));
   await Promise.race([session.restore().catch(() => undefined), timeout]);
 }

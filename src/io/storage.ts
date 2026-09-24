@@ -8,7 +8,9 @@ import Dexie, { type EntityTable } from 'dexie';
 
 import type { Id } from '@/model/ids';
 import { asId } from '@/model/ids';
+import type { EngineInfo } from '@/model/inputs';
 import type { Project } from '@/model/project';
+import type { ResultEntry } from '@/model/recompute';
 
 import { type SavedProject, readBsig, writeBsig } from './bsig';
 
@@ -41,8 +43,14 @@ export class BarelySigDb extends Dexie {
 export class ProjectStorage {
   constructor(private readonly db: BarelySigDb = new BarelySigDb()) {}
 
-  async save(project: Project, app: string, now = Date.now()): Promise<void> {
-    const text = writeBsig({ project, results: new Map(), engine: null, app });
+  async save(
+    project: Project,
+    app: string,
+    now = Date.now(),
+    results: ReadonlyMap<Id, ResultEntry> = new Map(),
+    engine: EngineInfo | null = null,
+  ): Promise<void> {
+    const text = writeBsig({ project, results, engine, app });
     await this.db.projects.put({
       id: project.id,
       name: project.name,
