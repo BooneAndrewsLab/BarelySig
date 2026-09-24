@@ -198,7 +198,10 @@ is automatic and debounced. Analyses can chain (normalize → fit).
 - **Reproducible figures (#43):** every export embeds its *figure
   recipe* (the graph, what it depends on, the resolved theme, app and
   engine versions), so opening the exported SVG/PNG restores the exact
-  setup; the `.bsig` keeps an export history of frozen recipes. Store
+  setup — on by default, with a checkbox to leave the data out. Every
+  export also says in its file metadata (never on the image) that it was
+  made with BarelySig, which version, and where to open it to edit. The
+  `.bsig` keeps an export history of frozen recipes. Store
   resolved values, never just a theme name — changing a default must never
   change an old figure.
 
