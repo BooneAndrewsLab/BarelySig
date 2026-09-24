@@ -266,7 +266,13 @@ the target).
   invariants and analysis-input selectors (#5); derived dependency
   graph, input hashes and debounced recompute (#6); `.bsig` with
   migrations and fast-check round trips (#7).
-- Next: 0.3 — app shell and the data grid (#8–#13).
+- 0.3 (data entry, note 03): app shell and navigator (#8), own data grid
+  with Excel keys (#9), paste/copy (#10, code done; open until real
+  clipboard captures replace the constructed fixtures, see the issue),
+  summary data incl. mean with limits (#11), undo/redo (#12), autosave to
+  IndexedDB, open and download (#13). `npm run dev`, then `/?capture`
+  records a clipboard as a fixture.
+- Next: 0.4 — engine worker, PWA cache, descriptive stats, t-tests.
 
 ## Tooling
 

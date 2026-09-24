@@ -56,6 +56,7 @@ export const EVENTS = {
   history: ['undo', 'redo'],
   table: ['new-column', 'new-grouped'],
   data: ['paste', 'fill-down', 'exclude'],
+  file: ['open', 'download'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type EventCategory = keyof typeof EVENTS;

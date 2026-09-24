@@ -96,9 +96,10 @@ describe('app shell', () => {
     expect(screen.getByRole('button', { name: 'Untitled project' })).toBeInTheDocument();
   });
 
-  it('opens the example project', () => {
+  it('opens the example project', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Try an example' }));
+    await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' });
     expect(
       nav().getAllByRole('button', {
         name: /^(Cell viability|Growth by genotype) \(example data\)$/,

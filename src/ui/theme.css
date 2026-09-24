@@ -118,6 +118,7 @@ select {
 .bar-actions {
   margin-left: auto;
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 
@@ -715,4 +716,56 @@ select {
   border: 1px solid var(--rule);
   font-size: 12px;
   white-space: pre-wrap;
+}
+
+.save-state {
+  margin-right: 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.project-menu {
+  position: relative;
+}
+
+.project-menu .menu {
+  min-width: 260px;
+}
+
+.menu-label {
+  margin: 6px 10px 2px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.menu .recent {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-when {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.drop-hint {
+  position: fixed;
+  inset: 12px;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 600;
+  background: rgb(243 242 242 / 85%);
+  border: 2px dashed var(--bs-ink);
+  border-radius: 8px;
+  pointer-events: none;
 }
