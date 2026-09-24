@@ -1,6 +1,8 @@
 # 02. Data model: tables, project, dependency graph
 
-Proposed, 2026-09-24 (#4). For review before #5–#7 are built on it.
+Accepted 2026-09-24 (#4), all five decisions as recommended.
+Implemented in #5–#7; where the code differs from the sketches below, see
+"As built".
 
 ## What was asked
 
@@ -109,7 +111,7 @@ Notes on the choices:
   array order.
 - **Column tables have ragged columns** as far as the user sees; in the
   model every subcolumn has `rows.length` cells and the short ones end in
-  `null`. Trailing empty rows are trimmed on save.
+  `null`. (Trailing empty rows are not trimmed on save; see "As built".)
 - **Summary data is a format, not a different table.** A Column table
   with `mean-sd-n` has one row and three subcolumns per data set. The
   table type still decides which analyses are offered; the format decides
@@ -240,7 +242,7 @@ table ──▶ analysis ──▶ analysis (chained, e.g. normalise → fit)
 }
 ```
 
-- Plain JSON, UTF-8. Maps become objects keyed by id; `ReadonlySet`s
+- Plain JSON, UTF-8. Maps become arrays in navigator order; `ReadonlySet`s
   become sorted arrays; cells stay `number | null` (the model never holds
   NaN or Inf, so JSON can carry every cell).
 - **Results are saved** with their input hashes. Opening a project shows
@@ -267,17 +269,78 @@ table ──▶ analysis ──▶ analysis (chained, e.g. normalise → fit)
 - **Mutable model with change events.** Harder undo, harder to prove a
   result is fresh, unsafe to share with the worker.
 
-## Decisions for review
+## Decisions
+
+Accepted as recommended:
 
 1. **Excluded values** (Prism's struck-through cells) are in the model
-   from the start. Recommended: yes — cheap now, a migration later.
-2. **Results are cached in the `.bsig`.** Recommended: yes, for instant
-   reopen and for #43; costs file size only for big result tables.
+   from the start.
+2. **Results are cached in the `.bsig`.**
 3. **Numbers, not typed strings, in cells**, with per-data-set display
-   decimals. Recommended: yes.
-4. **Colours on the table** (as the brief says), overridable per graph.
-   Recommended: yes.
-5. **One project-wide undo history.** Recommended: yes.
+   decimals.
+4. **Colours on the table**, overridable per graph.
+5. **One project-wide undo history.**
+
+## As built
+
+Code: `src/model/` (`table`, `project`, `edits`, `validate`,
+`selectors`, `deps`, `inputs`, `recompute`, `json`, `ids`) and
+`src/io/bsig.ts`. Where it differs from, or adds to, the sketches above:
+
+- **Edits are data.** `applyEdit(project, edit)` takes a discriminated
+  union (`setCells`, `insertRows`, `setFormat`, `addAnalysis`, …, and
+  `batch` for one undo step made of several). An edit that would break
+  an invariant throws `EditError` and changes nothing. `describeEdit`
+  gives the "Undo …" label; `op` is what analytics may count.
+- **Writing a cell clears its exclusion**, and only cells holding a value
+  can be excluded (excluding a selection skips its blanks). A new value
+  is new data.
+- **`setFormat` keeps what means the same** under both formats:
+  replicates when only their count changes; mean, n and a matching
+  SD/SEM/CV between summary formats. Everything else starts empty
+  (undo brings it back). A Column table going to summary data keeps its
+  first row.
+- **Deleting cascades along data dependencies.** Deleting a table or an
+  analysis deletes the analyses that read it (transitively) and the
+  graphs that plot them. A graph that only *draws* a deleted analysis
+  (brackets) keeps going and loses those brackets. Deleting a data set
+  removes it from analyses' inputs.
+- **`order` also lists analyses** (Prism's Results section), and
+  analysis inputs and graph sources carry a `kind` tag.
+- **Graphs, layouts and export records are provisional**: only the fields
+  the dependency graph and the file need. The graph note (#19/#20) and
+  #43 extend them.
+- **Selectors, empty cells.** In a Column table, blanks after a group's
+  last value are not "missing": a group can simply be shorter than the
+  others, so only blanks before the last value count as dropped. In a
+  Grouped table every empty replicate counts. CV→SD uses the size of the
+  mean (`cv·|mean|/100`); SEM without n and empty or excluded stats come
+  out as `null`, for the analysis to explain.
+- **Input hashes** are 128 bits (four MurmurHash3 lanes) over canonical
+  JSON (sorted keys): synchronous and available outside a secure context,
+  unlike `crypto.subtle`. They cover the data sets read (values,
+  exclusions, titles), the table's format and rows (ids and titles), the
+  analysis kind and options, and the engine (WebR, R, package versions).
+  Renaming the analysis or table, colours, decimals and notes don't make
+  results stale; renaming a group or row level does, since results are
+  labelled by them. Chained analyses hash their upstream's input hash.
+- **Result store** keeps the last 8 results per analysis, keyed by input
+  hash, so undoing a few edits finds results without rerunning. Errors
+  are results too (not retried until the input changes or `retry`).
+- **Recompute**: `Recompute` debounces 300 ms, runs one analysis at a
+  time in dependency order, and aborts a superseded run (an `AbortSignal`
+  to the runner, which restarts WebR) only after it has run 3 s. An
+  aborted run stores nothing. An optional `check` hook lets an analysis
+  refuse its input (`blocked`, with a message) without running.
+- **File.** Sections are arrays in navigator order, so a file can't hold
+  an order that disagrees with its contents. Fields are written in a
+  fixed order, so the same project always gives the same text. Reading
+  decodes field by field (a damaged file names the field, e.g.
+  `file.project.tables[0].dataSets[1].subcolumns[0][3] should be a
+  number`), then runs `validateProject`. `-0` is stored as `0`.
+- **Trailing empty rows are not trimmed on save**: row ids are part of
+  the input hash, so trimming would make saved results stale on reopen.
+  The grid shows spare blank rows without adding them to the model.
 
 ## Not in this note
 

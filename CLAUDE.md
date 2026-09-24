@@ -262,7 +262,11 @@ the target).
 - Milestones and issues #1–#42 on GitHub.
 - 0.1 done: WebR spike (item 01, #1, #2); R oracle, fixture harness and
   engine parity test (#3).
-- Next: 0.2 — design note 02, the data model (#4).
+- 0.2 done: design note 02 accepted (#4); typed tables, named edits,
+  invariants and analysis-input selectors (#5); derived dependency
+  graph, input hashes and debounced recompute (#6); `.bsig` with
+  migrations and fast-check round trips (#7).
+- Next: 0.3 — app shell and the data grid (#8–#13).
 
 ## Tooling
 
