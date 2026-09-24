@@ -196,17 +196,21 @@ is automatic and debounced. Analyses can chain (normalize → fit).
 - **Export:** SVG and PNG (300/600 DPI) with exact physical size (in/cm)
   for journal column widths; PDF/TIFF later.
 
-## Milestones (draft — to be agreed, then moved to GitHub milestones)
+## Milestones
 
-| # | Milestone | Exit criterion |
-|---|---|---|
-| M0 | Foundations | Scaffold + CI (done); WebR spike recorded in item 01 (channel, cold/warm load, package availability); R oracle env |
-| M1 | Model | Column + Grouped tables, project model, dependency graph, `.bsig` format with migrations — all unit-tested; design note written first |
-| M2 | Data entry | App shell with Prism-style navigator (Data Tables / Results / Graphs); own grid with Excel paste; raw + summary entry; IndexedDB autosave; open/save |
-| M3 | Analysis pipeline | `runAnalysis` in a worker; descriptive stats, unpaired/paired/Welch t-tests with R fixtures in CI; live recompute |
-| M4 | First graph | Graph theme model + "Modern" default; bar and beeswarm dot plots, error bars, significance brackets, SVG/PNG export with physical size and DPI — "figure for lab meeting tomorrow" |
-| M5 | MVP statistics | Mann-Whitney, Wilcoxon, one-way ANOVA (Tukey, Dunnett, Šidák/Bonferroni), Kruskal-Wallis + Dunn's, two-way ANOVA + post-hoc, Shapiro-Wilk, D'Agostino-Pearson |
-| M6 | Formatting & MVP polish | Click-to-format inspector, box/violin, grouped bars, wet-lab usability pass → first public release |
+On GitHub (`gh api repos/BooneAndrewsLab/BarelySig/milestones`), one issue
+per piece of work, versioned as PlasmidPop's are:
+
+| Milestone | Headline |
+|---|---|
+| 0.1 — Foundations | WebR spike (note 01), package availability, R oracle + fixture harness |
+| 0.2 — Data model | Note 02; Column + Grouped tables, dependency graph, `.bsig` |
+| 0.3 — Data entry | App shell, own grid, Excel paste, summary data, undo, autosave |
+| 0.4 — Analysis pipeline | Engine worker, PWA cache, descriptive stats, t-tests, results sheets |
+| 0.5 — First graph | Style note, renderer, bar/beeswarm, brackets, SVG/PNG export |
+| 0.6 — MVP statistics | Nonparametric, one-/two-way ANOVA + post-hoc, normality, test chooser |
+| 1.0 — Formatting and first release | Inspector, box/violin, grouped bars, guide, e2e, public release |
+| Phase 2 — Serious contender | Split into versions after 1.0 |
 
 **Phase 2:** XY tables with nonlinear regression (dose-response library,
 EC50/IC50 with CIs, constraints, shared parameters, extra sum-of-squares /
@@ -228,11 +232,14 @@ the target).
 
 - Repo: `BooneAndrewsLab/BarelySig`, private. **Not published to Pages
   yet**; CI checks only. When publishing, add `deploy.yml` deploying on
-  GitHub Releases only, as PlasmidPop does, with the Matomo env set there.
+  GitHub Releases only, as PlasmidPop does, with the Matomo env set there:
+  `VITE_MATOMO_URL=https://boonelab.ccbr.utoronto.ca/matomo/`,
+  `VITE_MATOMO_SITE_ID=7` (#36).
 - Scaffold done: Vite/React/TS, ESLint, Prettier, Vitest, CI, logo
   lockup page, Matomo module (no site id yet).
 - `barelysig-r` conda env created (R 4.6.0 + oracle packages).
-- Next: M0 — the WebR spike (item 01).
+- Milestones and issues #1–#42 on GitHub.
+- Next: 0.1 — the WebR spike (#1, #2) and the R oracle (#3).
 
 ## Open questions
 
@@ -240,7 +247,6 @@ the target).
 2. WASM availability of needed R packages (`multcomp`/`mvtnorm` for
    Dunnett, a Dunn's test package or our own R, `survival`, `drc` or an
    `nls`-based alternative)?
-3. Matomo site id for BarelySig.
 
 ## Tooling
 
