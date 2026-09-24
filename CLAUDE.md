@@ -316,6 +316,13 @@ docs/design/   numbered design notes
 
 - Small, reviewable commits; each model change ships with tests. Reference
   issues (`Fixes #N`).
+- **One short-lived branch per piece of work** (one per issue while
+  working through a milestone), fast-forwarded into `main` when green;
+  `main` stays releasable, hotfixes branch from the last release tag.
+- **Keep the user guide in step with the code** (once it exists, #34):
+  any change a user can notice updates its guide page in the same
+  commit; a new feature gets a page or section with a short how-to.
+- File follow-ups as issues, not as "not yet" lists in notes.
 - No `any`. Discriminated unions for table, analysis and graph types.
 - Keep WebR behind our own interface so the engine can be swapped.
 - The main thread never blocks on computation.
