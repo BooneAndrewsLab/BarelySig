@@ -10,3 +10,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 02 | [Data model: tables, project, dependency graph](02-data-model.md) | #4–#7 |
 | 03 | [Data entry: shell, grid, paste, history, saving](03-data-entry.md) | #8–#13 |
 | 04 | [Analysis pipeline: engine, analysis modules, results sheets](04-analysis-pipeline.md) | #14–#18 |
+| 05 | [Graphs: style, model, rendering, export, recipes](05-graphs.md) | #19–#23, #43 |
