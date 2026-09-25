@@ -18,7 +18,8 @@ import type { Table } from './table';
 export type AnalysisSpec =
   | { readonly kind: 'descriptive'; readonly options: DescriptiveOptions }
   | { readonly kind: 't-test'; readonly options: TTestOptions }
-  | { readonly kind: 'rank-test'; readonly options: RankTestOptions };
+  | { readonly kind: 'rank-test'; readonly options: RankTestOptions }
+  | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions };
 
 export type AnalysisKind = AnalysisSpec['kind'];
 
@@ -40,12 +41,35 @@ export interface RankTestOptions {
   readonly zeros: 'wilcoxon' | 'pratt';
 }
 
+/** Multiple comparisons that assume equal SDs (after ordinary ANOVA), note 06. */
+export const EQUAL_SD_ALL = ['tukey', 'bonferroni', 'sidak'] as const;
+export const EQUAL_SD_CONTROL = ['dunnett', 'bonferroni', 'sidak'] as const;
+/** ... and those that don't (after Welch's ANOVA): each pair's own SDs and df. */
+export const WELCH_ALL = ['games-howell', 'dunnett-t3', 'tamhane-t2'] as const;
+export const WELCH_CONTROL = ['dunnett-t3', 'tamhane-t2'] as const;
+
+export type AllPairsTest = (typeof EQUAL_SD_ALL)[number] | (typeof WELCH_ALL)[number];
+export type ControlTest = (typeof EQUAL_SD_CONTROL)[number] | (typeof WELCH_CONTROL)[number];
+
+/** Which pairs of groups to compare after an ANOVA, and how. */
+export type Comparisons =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'all'; readonly test: AllPairsTest }
+  | { readonly kind: 'control'; readonly control: Id; readonly test: ControlTest };
+
+export interface OneWayOptions {
+  /** Don't assume equal SDs: Welch's and the Brown-Forsythe ANOVA. Prism's default: off. */
+  readonly welch: boolean;
+  readonly comparisons: Comparisons;
+}
+
 export const DEFAULT_OPTIONS: {
   readonly [K in AnalysisKind]: Extract<AnalysisSpec, { kind: K }>['options'];
 } = {
   descriptive: {},
   't-test': { paired: false, welch: false, tails: 'two' },
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
+  'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
 };
 
 /** What an analysis reads: data sets of a table, or another analysis's results. */

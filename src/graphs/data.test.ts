@@ -17,6 +17,7 @@ import {
   summaryId,
   withBracket,
   withGraphSummaries,
+  withPair,
 } from './data';
 
 function setup() {
@@ -133,6 +134,55 @@ describe('graph data', () => {
       id === 'a_r' ? tResult(0.04, ko.id, wt.id) : undefined,
     );
     expect(r.ok && r.input.brackets).toEqual([{ id: 'a_r', from: 1, to: 0, label: '*' }]);
+  });
+
+  it('draws a bracket per post-hoc comparison, each of which can be hidden', () => {
+    const { p: base, graph, t, wt, ko, het } = setup();
+    const p = applyEdit(base, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_1w'),
+        title: 'ANOVA',
+        kind: 'one-way-anova',
+        options: { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
+        input: { kind: 'table', table: t.id, dataSets: [wt.id, ko.id, het.id] },
+      },
+    });
+    const on = withBracket(graph, asId('a_1w'), true);
+    const choice = bracketChoices(p, on).find((c) => c.id === 'a_1w');
+    expect(choice?.pairs.map((x) => [x.label, x.shown])).toEqual([
+      ['WT vs. KO', true],
+      ['WT vs. Het', true],
+      ['KO vs. Het', true],
+    ]);
+    const pair = (a: string, b: string, pv: number) => ({ a: { id: a }, b: { id: b }, p: pv });
+    const results = (id: string): ResultEntry | undefined =>
+      id === 'a_1w'
+        ? {
+            inputHash: 'h',
+            ok: true,
+            value: {
+              pairs: [
+                pair(wt.id, ko.id, 0.0005),
+                pair(wt.id, het.id, 0.3),
+                pair(ko.id, het.id, 0.04),
+              ],
+            } as unknown as Json,
+          }
+        : undefined;
+    const only = { ...on, analyses: [asId('a_1w')] };
+    expect(bracketsOf(graphInput(p, only, results))).toEqual([
+      { id: `a_1w/${wt.id}/${ko.id}`, from: 0, to: 1, label: '***' },
+      { id: `a_1w/${wt.id}/${het.id}`, from: 0, to: 2, label: 'ns' },
+      { id: `a_1w/${ko.id}/${het.id}`, from: 1, to: 2, label: '*' },
+    ]);
+    const hidden = withPair(only, `a_1w/${wt.id}/${het.id}`, false);
+    expect(bracketsOf(graphInput(p, hidden, results))?.map((b) => b.label)).toEqual(['***', '*']);
+    expect(
+      bracketChoices(p, hidden)
+        .find((c) => c.id === 'a_1w')
+        ?.pairs.map((x) => x.shown),
+    ).toEqual([true, false, true]);
   });
 
   it('shows no bracket while the t test is outdated or for groups not plotted', () => {

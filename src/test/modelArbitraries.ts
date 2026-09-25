@@ -1,13 +1,18 @@
 import fc from 'fast-check';
 
 import { type Edit, EditError, applyEdit } from '@/model/edits';
-import { type Id, newId } from '@/model/ids';
+import { type Id, asId, newId } from '@/model/ids';
 import type { Cell } from '@/model/missing';
 import {
   type Analysis,
   type AnalysisSpec,
+  type Comparisons,
   type Project,
   DEFAULT_OPTIONS,
+  EQUAL_SD_ALL,
+  EQUAL_SD_CONTROL,
+  WELCH_ALL,
+  WELCH_CONTROL,
   createProject,
   GRAPH_DEFAULTS,
 } from '@/model/project';
@@ -67,6 +72,23 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
       zeros: fc.constantFrom('wilcoxon' as const, 'pratt' as const),
     })
     .map((o): AnalysisSpec => ({ kind: 'rank-test', options: { ...o } })),
+  fc
+    .record({
+      welch: fc.boolean(),
+      comparisons: fc.oneof(
+        fc.constant<Comparisons>({ kind: 'none' }),
+        fc
+          .constantFrom(...EQUAL_SD_ALL, ...WELCH_ALL)
+          .map((test): Comparisons => ({ kind: 'all', test })),
+        fc
+          .record({
+            control: fc.string({ minLength: 1, maxLength: 6 }).map(asId),
+            test: fc.constantFrom(...EQUAL_SD_CONTROL, ...WELCH_CONTROL),
+          })
+          .map((c): Comparisons => ({ kind: 'control', control: c.control, test: c.test })),
+      ),
+    })
+    .map((o): AnalysisSpec => ({ kind: 'one-way-anova', options: { ...o } })),
 );
 
 export type Shape =

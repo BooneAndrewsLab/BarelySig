@@ -9,6 +9,10 @@ cd "$root"
 rscript() { mamba run -n barelysig-r Rscript "$@"; }
 case "${1:-}" in
   pin) rscript scripts/oracle/pin.R ;;
-  generate) rscript scripts/oracle/generate.R "${@:2}" ;;
+  generate)
+    rscript scripts/oracle/generate.R "${@:2}"
+    # Written in the repository's JSON style, so `npm run check` accepts them as written.
+    npx --no-install prettier --write --log-level warn 'src/analyses/*/fixtures/*.json'
+    ;;
   *) echo "usage: $0 pin|generate [analysis-id...]" >&2; exit 2 ;;
 esac

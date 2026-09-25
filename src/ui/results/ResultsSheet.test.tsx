@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { OneWayResult } from '@/analyses/oneway/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import { applyEdit } from '@/model/edits';
@@ -333,6 +334,115 @@ describe('results sheets', () => {
     expect(
       within(table).getByRole('rowheader', { name: 'Sum of signed ranks (W)' }).closest('tr'),
     ).toHaveTextContent('21');
+  });
+
+  it('runs a one-way ANOVA with Dunnett’s comparisons against a chosen control', async () => {
+    const g = (id: string, title: string, mean: number) => ({
+      id,
+      title,
+      n: 3,
+      mean,
+      sd: 1,
+      median: mean,
+      dropped: null,
+    });
+    const r: OneWayResult = {
+      from: 'values',
+      welch: false,
+      groups: [g('a', 'WT', 2), g('b', 'KO', 5), g('c', 'Het', 2.5)],
+      anova: {
+        ssBetween: 15.5,
+        ssWithin: 6,
+        ssTotal: 21.5,
+        dfBetween: 2,
+        dfWithin: 6,
+        dfTotal: 8,
+        msBetween: 7.75,
+        msWithin: 1,
+        f: 7.75,
+        p: 0.0217,
+        rSquared: 0.7209,
+      },
+      bartlett: null,
+      brownForsythe: { f: 0.2, dfn: 2, dfd: 6, p: 0.82 },
+      welchAnova: null,
+      brownForsytheAnova: null,
+      comparisons: { kind: 'control', control: 'a' as never, test: 'dunnett' },
+      pairs: [
+        {
+          a: { id: 'a', title: 'WT' },
+          b: { id: 'b', title: 'KO' },
+          diff: -3,
+          se: 0.8165,
+          df: 6,
+          statistic: 3.674,
+          ciLower: -5.2,
+          ciUpper: -0.8,
+          p: 0.0151,
+        },
+        {
+          a: { id: 'a', title: 'WT' },
+          b: { id: 'c', title: 'Het' },
+          diff: -0.5,
+          se: 0.8165,
+          df: 6,
+          statistic: 0.6124,
+          ciLower: -2.7,
+          ciUpper: 1.7,
+          p: 0.7751,
+        },
+      ],
+      warnings: [],
+    };
+    const tbl = project(store.getState()).tables.get(tableId);
+    const het = tbl?.dataSets[2];
+    if (!tbl || !het) throw new Error('unreachable');
+    act(() => {
+      store.edit({
+        op: 'setCells',
+        table: tableId,
+        cells: tbl.rows.map((row, i) => ({
+          dataSet: het.id,
+          subcolumn: 0,
+          row: row.id,
+          value: i + 2,
+        })),
+      });
+    });
+    let asked: Job | undefined;
+    answer = (job) => {
+      asked = job;
+      return Promise.resolve(r as unknown as Json);
+    };
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /One-way ANOVA/ }));
+    fireEvent.click(within(dialog).getByRole('radio', { name: /with a control group/ }));
+    expect(within(dialog).getByRole('combobox', { name: 'Multiple comparisons test' })).toHaveValue(
+      'dunnett',
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
+    await screen.findByText(
+      /^The means of the 3 groups are not all the same \(P = 0\.0217\).* Dunnett’s comparisons: WT and KO \(P = 0\.0151\) differ; the other pair shows no evidence of a difference\.$/,
+    );
+    const t = project(store.getState()).tables.get(tableId);
+    expect(asked?.analysis).toMatchObject({
+      kind: 'one-way-anova',
+      options: {
+        welch: false,
+        comparisons: { kind: 'control', control: t?.dataSets[0]?.id, test: 'dunnett' },
+      },
+    });
+    const mc = screen.getByRole('table', { name: 'Multiple comparisons' });
+    expect(
+      within(mc).getByRole('rowheader', { name: 'WT vs. KO' }).closest('tr'),
+    ).toHaveTextContent('WT vs. KO-3-5.2 to -0.8Yes*0.0151');
+    expect(
+      within(screen.getByRole('table', { name: 'ANOVA table' }))
+        .getByRole('rowheader', { name: 'Treatment (between columns)' })
+        .closest('tr'),
+    ).toHaveTextContent('F (2, 6) = 7.75P = 0.0217');
   });
 
   it('keeps the analysis linked: its table shows it, and it opens its table', async () => {

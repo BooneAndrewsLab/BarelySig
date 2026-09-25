@@ -57,7 +57,7 @@ export const EVENTS = {
   table: ['new-column', 'new-grouped'],
   data: ['paste', 'fill-down', 'exclude'],
   file: ['open', 'download'],
-  analysis: ['new-descriptive', 'new-t-test', 'new-rank-test'],
+  analysis: ['new-descriptive', 'new-t-test', 'new-rank-test', 'new-one-way-anova'],
   graph: ['new-column', 'export-svg', 'export-png'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 

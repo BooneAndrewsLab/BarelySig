@@ -5,6 +5,7 @@
  * not the chance the result is "real", and a non-significant result is
  * no evidence of a difference, not evidence of none.
  */
+import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
@@ -106,6 +107,69 @@ export function rankTestReading(r: RankTestResult): string {
   text += floorNote(r);
   if (r.tails === 'one') {
     text += ` A one-tailed P is only valid if you predicted, before collecting the data, that ${B} would be ${higher} than ${A}.`;
+  }
+  return text;
+}
+
+/** "Tukey’s", "Dunnett’s T3": the comparison test's name, as a possessive. */
+export const COMPARISON_TEST: Readonly<Record<string, string>> = {
+  tukey: 'Tukey’s',
+  dunnett: 'Dunnett’s',
+  bonferroni: 'Bonferroni’s',
+  sidak: 'Šidák’s',
+  'games-howell': 'Games-Howell’s',
+  'dunnett-t3': 'Dunnett’s T3',
+  'tamhane-t2': 'Tamhane’s T2',
+};
+
+/** The P a one-way reading goes by: Welch's when the SDs aren't assumed equal. */
+export const oneWayP = (r: OneWayResult): number => r.welchAnova?.p ?? r.anova.p;
+
+export function oneWayMethod(r: OneWayResult): string {
+  const anova = r.welch
+    ? 'Welch’s and Brown-Forsythe ANOVA, not assuming the groups have the same SD'
+    : 'Ordinary one-way ANOVA, assuming all groups have the same SD';
+  const c = r.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons.`;
+  const from = r.from === 'summary' ? ' Computed from summary data (mean, SD and n).' : '';
+  return `${anova}.${comps}${from}`;
+}
+
+const joinAnd = (xs: readonly string[]): string =>
+  xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1] ?? ''}`;
+
+export function oneWayReading(r: OneWayResult): string {
+  const p = oneWayP(r);
+  const phrase = pPhrase(p);
+  const often = howOften(p);
+  const k = String(r.groups.length);
+  let text =
+    p < 0.05
+      ? `The means of the ${k} groups are not all the same (${phrase}): at least one differs from the others. If all groups truly had the same mean, differences at least this large would turn up in ${often} like this one.`
+      : `There is no evidence that the means of the ${k} groups differ (${phrase}). If they truly had the same mean, differences at least this large would turn up in ${often}. That doesn’t show the means are the same; the experiment may be too small to see a difference.`;
+  if (r.comparisons.kind !== 'none' && r.pairs.length > 0) {
+    const sig = r.pairs.filter((c) => c.p < 0.05);
+    const name = COMPARISON_TEST[r.comparisons.test] ?? r.comparisons.test;
+    if (sig.length === 0) {
+      text += ` ${name} comparisons find no pair that differs after adjusting for the number of comparisons.`;
+      if (p < 0.05)
+        text +=
+          ' That can happen when the difference is spread over several groups rather than between two.';
+    } else {
+      const pairs = sig.map((c) => `${c.a.title} and ${c.b.title} (${pPhrase(c.p)})`);
+      const rest = r.pairs.length - sig.length;
+      text += ` ${name} comparisons: ${joinAnd(pairs)} differ`;
+      text +=
+        rest === 0
+          ? '.'
+          : `; the other ${rest === 1 ? 'pair shows' : `${String(rest)} pairs show`} no evidence of a difference.`;
+      if (p >= 0.05)
+        text +=
+          ' The overall ANOVA and the comparisons ask different questions, so they can disagree near the threshold.';
+    }
   }
   return text;
 }

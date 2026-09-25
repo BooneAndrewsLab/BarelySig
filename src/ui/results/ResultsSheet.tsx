@@ -7,6 +7,7 @@
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { Analysis, Project } from '@/model/project';
@@ -17,8 +18,16 @@ import { Icon } from '../Icon';
 import { AnalyzeDialog } from '../shell/AnalyzeDialog';
 import { getResults } from '../state/results';
 import { store } from '../state/store';
-import { STAR_SCHEME, dfText, interval, levelText, pValue, sig, stars } from './format';
-import { rankTestMethod, rankTestReading, tTestMethod, tTestReading } from './reading';
+import { STAR_SCHEME, dfText, interval, levelText, pPhrase, pValue, sig, stars } from './format';
+import {
+  COMPARISON_TEST,
+  oneWayMethod,
+  oneWayReading,
+  rankTestMethod,
+  rankTestReading,
+  tTestMethod,
+  tTestReading,
+} from './reading';
 
 interface Props {
   readonly project: Project;
@@ -258,6 +267,229 @@ function RankTestView({ r }: { readonly r: RankTestResult }) {
   );
 }
 
+/** A table with column headers, for ANOVA tables and multiple comparisons. */
+function Grid(props: {
+  readonly label: string;
+  readonly head: readonly string[];
+  readonly rows: readonly (readonly string[])[];
+}) {
+  return (
+    <div className="results-scroll">
+      <table className="results-table wide" aria-label={props.label}>
+        <thead>
+          <tr>
+            {props.head.map((h, i) => (
+              <th key={i} scope="col">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {props.rows.map((r, i) => (
+            <tr key={i}>
+              {r.map((c, j) =>
+                j === 0 ? (
+                  <th key={j} scope="row">
+                    {c}
+                  </th>
+                ) : (
+                  <td key={j}>{c}</td>
+                ),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const fText = (name: string, f: FTest) =>
+  `${name} (${dfText(f.dfn)}, ${dfText(f.dfd)}) = ${sig(f.f)}`;
+
+function fSection(title: string, name: string, f: FTest, question: string): Section {
+  return [
+    title,
+    [
+      [`${name} (DFn, DFd)`, fText(name, f)],
+      ['P value', pValue(f.p)],
+      ['P value summary', stars(f.p)],
+      [question, yesNo(f.p)],
+    ],
+  ];
+}
+
+function OneWayView({ r }: { readonly r: OneWayResult }) {
+  const a = r.anova;
+  const sections: Section[] = [];
+  if (r.welchAnova && r.brownForsytheAnova) {
+    sections.push(
+      fSection(
+        'Brown-Forsythe ANOVA test',
+        'F*',
+        r.brownForsytheAnova,
+        'Significant difference among means (P < 0.05)?',
+      ),
+      fSection(
+        'Welch’s ANOVA test',
+        'W',
+        r.welchAnova,
+        'Significant difference among means (P < 0.05)?',
+      ),
+    );
+  } else {
+    sections.push([
+      'ANOVA summary',
+      [
+        ['F', sig(a.f)],
+        ['P value', pValue(a.p)],
+        ['P value summary', stars(a.p)],
+        ['Significant difference among means (P < 0.05)?', yesNo(a.p)],
+        ['R squared', sig(a.rSquared)],
+      ],
+    ]);
+  }
+  sections.push(
+    r.brownForsythe
+      ? fSection(
+          'Brown-Forsythe test (are the SDs equal?)',
+          'F',
+          r.brownForsythe,
+          'Are the SDs significantly different (P < 0.05)?',
+        )
+      : [
+          'Brown-Forsythe test (are the SDs equal?)',
+          [
+            [
+              'Brown-Forsythe test',
+              r.from === 'summary'
+                ? 'Needs the values (it compares distances from each group’s median)'
+                : 'Not defined: no group has any scatter',
+            ],
+          ],
+        ],
+  );
+  sections.push([
+    'Bartlett’s test (are the SDs equal?)',
+    r.bartlett
+      ? [
+          ['Bartlett’s statistic (corrected)', sig(r.bartlett.statistic)],
+          ['P value', pValue(r.bartlett.p)],
+          ['P value summary', stars(r.bartlett.p)],
+          ['Are the SDs significantly different (P < 0.05)?', yesNo(r.bartlett.p)],
+        ]
+      : [
+          [
+            'Bartlett’s test',
+            'Not run: needs at least five values, with some scatter, in every group',
+          ],
+        ],
+  ]);
+  const c = r.comparisons;
+  const name = c.kind === 'none' ? '' : (COMPARISON_TEST[c.test] ?? c.test);
+  const qName = c.kind !== 'none' && (c.test === 'tukey' || c.test === 'games-howell') ? 'q' : 't';
+  return (
+    <>
+      <p className="reading">{oneWayReading(r)}</p>
+      <p className="method">{oneWayMethod(r)}</p>
+      <Sections sections={sections} />
+      {!r.welch && (
+        <Grid
+          label="ANOVA table"
+          head={['ANOVA table', 'SS', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+          rows={[
+            [
+              'Treatment (between columns)',
+              sig(a.ssBetween),
+              dfText(a.dfBetween),
+              sig(a.msBetween),
+              `F (${dfText(a.dfBetween)}, ${dfText(a.dfWithin)}) = ${sig(a.f)}`,
+              pPhrase(a.p),
+            ],
+            [
+              'Residual (within columns)',
+              sig(a.ssWithin),
+              dfText(a.dfWithin),
+              sig(a.msWithin),
+              '',
+              '',
+            ],
+            ['Total', sig(a.ssTotal), dfText(a.dfTotal), '', '', ''],
+          ]}
+        />
+      )}
+      <Grid
+        label="Data summary"
+        head={['Data summary', 'n', 'Mean', 'SD', ...(r.from === 'values' ? ['Median'] : [])]}
+        rows={r.groups.map((g) => [
+          `${g.title}${droppedText(g.dropped)}`,
+          String(g.n),
+          sig(g.mean),
+          sig(g.sd),
+          ...(r.from === 'values' ? [sig(g.median)] : []),
+        ])}
+      />
+      {r.pairs.length > 0 && (
+        <>
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${name} multiple comparisons test`,
+              'Mean diff.',
+              '95.00% CI of diff.',
+              'Significant?',
+              'Summary',
+              'Adjusted P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              interval(x.ciLower, x.ciUpper),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+          <Grid
+            label="Test details"
+            head={[
+              'Test details',
+              'Mean 1',
+              'Mean 2',
+              'Mean diff.',
+              'SE of diff.',
+              'n1',
+              'n2',
+              qName,
+              'DF',
+            ]}
+            rows={r.pairs.map((x) => {
+              const g1 = r.groups.find((g) => g.id === x.a.id);
+              const g2 = r.groups.find((g) => g.id === x.b.id);
+              return [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(g1?.mean ?? null),
+                sig(g2?.mean ?? null),
+                sig(x.diff),
+                sig(x.se),
+                String(g1?.n ?? ''),
+                String(g2?.n ?? ''),
+                sig(x.statistic),
+                dfText(x.df),
+              ];
+            })}
+          />
+        </>
+      )}
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
+        reports it.
+      </p>
+    </>
+  );
+}
+
 const DESCRIPTIVE_ROWS: readonly (readonly [
   string,
   (g: DescriptiveResult['groups'][number]) => string,
@@ -412,6 +644,9 @@ export function ResultsSheet({ project, analysis }: Props) {
         <Status analysis={analysis} />
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} />
+        )}
+        {value !== null && analysis.kind === 'one-way-anova' && (
+          <OneWayView r={value as unknown as OneWayResult} />
         )}
         {value !== null && analysis.kind === 'rank-test' && (
           <RankTestView r={value as unknown as RankTestResult} />

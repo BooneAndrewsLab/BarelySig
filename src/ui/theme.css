@@ -387,6 +387,12 @@ select {
   padding: 3px 0;
 }
 
+/* One comparison of a post-hoc test, under its analysis (note 06). */
+.option.nested {
+  margin-left: 24px;
+  font-size: 0.93em;
+}
+
 .indent {
   display: block;
   margin: 2px 0 6px 26px;

@@ -22,19 +22,25 @@ import { asId } from '@/model/ids';
 import type { EngineInfo } from '@/model/inputs';
 import type { Json } from '@/model/json';
 import type { Cell } from '@/model/missing';
-import type {
-  Analysis,
-  AnalysisInput,
-  AnalysisSpec,
-  ExportRecord,
-  ColumnPlot,
-  Graph,
-  GraphFormat,
-  GraphSource,
-  Layout,
-  Project,
-  RankTestOptions,
-  TTestOptions,
+import {
+  type Analysis,
+  type AnalysisInput,
+  type AnalysisSpec,
+  type Comparisons,
+  EQUAL_SD_ALL,
+  EQUAL_SD_CONTROL,
+  type OneWayOptions,
+  WELCH_ALL,
+  WELCH_CONTROL,
+  type ExportRecord,
+  type ColumnPlot,
+  type Graph,
+  type GraphFormat,
+  type GraphSource,
+  type Layout,
+  type Project,
+  type RankTestOptions,
+  type TTestOptions,
 } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
 import {
@@ -124,6 +130,19 @@ function optionsJson(a: AnalysisSpec): Json {
       return { paired: a.options.paired, welch: a.options.welch, tails: a.options.tails };
     case 'rank-test':
       return { paired: a.options.paired, tails: a.options.tails, zeros: a.options.zeros };
+    case 'one-way-anova':
+      return { welch: a.options.welch, comparisons: comparisonsJson(a.options.comparisons) };
+  }
+}
+
+function comparisonsJson(c: Comparisons): Json {
+  switch (c.kind) {
+    case 'none':
+      return { kind: 'none' };
+    case 'all':
+      return { kind: 'all', test: c.test };
+    case 'control':
+      return { kind: 'control', control: c.control, test: c.test };
   }
 }
 
@@ -335,6 +354,13 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       };
       return { kind, options };
     }
+    case 'one-way-anova': {
+      const options: OneWayOptions = {
+        welch: bool(opts['welch'], q.key('welch')),
+        comparisons: comparisons(opts['comparisons'], q.key('comparisons')),
+      };
+      return { kind, options };
+    }
     case 'rank-test': {
       const options: RankTestOptions = {
         paired: bool(opts['paired'], q.key('paired')),
@@ -345,6 +371,26 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     }
     default:
       return p.key('kind').fail(`is an analysis this version does not know ("${kind}")`);
+  }
+}
+
+function comparisons(v: Json | undefined, p: Path): Comparisons {
+  const o = obj(v, p);
+  const kind = oneOf(o['kind'], p.key('kind'), ['none', 'all', 'control'] as const);
+  switch (kind) {
+    case 'none':
+      return { kind };
+    case 'all':
+      return {
+        kind,
+        test: oneOf(o['test'], p.key('test'), [...EQUAL_SD_ALL, ...WELCH_ALL]),
+      };
+    case 'control':
+      return {
+        kind,
+        control: id(o['control'], p.key('control')),
+        test: oneOf(o['test'], p.key('test'), [...EQUAL_SD_CONTROL, ...WELCH_CONTROL]),
+      };
   }
 }
 

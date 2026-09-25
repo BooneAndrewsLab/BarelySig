@@ -1,0 +1,93 @@
+{
+  "input": {
+    "g1": [4, 6],
+    "g2": [9, 12],
+    "g3": [5, 8]
+  },
+  "expected": {
+    "k": 3,
+    "n_total": 6,
+    "ss_between": 32.3333333333333,
+    "ss_within": 11.000000000000002,
+    "ss_total": 43.3333333333333,
+    "df_between": 2,
+    "df_within": 3,
+    "df_total": 5,
+    "ms_between": 16.16666666666665,
+    "ms_within": 3.6666666666666674,
+    "f": 4.4090909090909038,
+    "p": 0.12789568177415944,
+    "r_squared": 0.74615384615384595,
+    "bartlett": null,
+    "groups": [
+      {
+        "n": 2,
+        "mean": 5,
+        "sd": 1.4142135623730951,
+        "median": 5
+      },
+      {
+        "n": 2,
+        "mean": 10.5,
+        "sd": 2.1213203435596424,
+        "median": 10.5
+      },
+      {
+        "n": 2,
+        "mean": 6.5,
+        "sd": 2.1213203435596424,
+        "median": 6.5
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -5.5,
+        "se": 1.9148542155126764,
+        "df": 3,
+        "statistic": 4.0620192023179795,
+        "ci_lower": -13.501721864963494,
+        "ci_upper": 2.501721864963498,
+        "p": 0.12445823219111807
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -1.5,
+        "se": 1.9148542155126764,
+        "df": 3,
+        "statistic": 1.1078234188139946,
+        "ci_lower": -9.5017218649634962,
+        "ci_upper": 6.5017218649634971,
+        "p": 0.73742075315362987
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": 4,
+        "se": 1.9148542155126764,
+        "df": 3,
+        "statistic": 2.9541957835039856,
+        "ci_lower": -4.0017218649634971,
+        "ci_upper": 12.001721864963496,
+        "p": 0.23924368685837061
+      }
+    ],
+    "brown_forsythe_sd": null
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    alpha <- 0.05\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    raw <- function(m, s, n) if (n == 1) \n        m\n    else as.numeric(scale(seq_len(n))) * s + m\n    gauss <- local({\n        i <- 1:11\n        b <- i/sqrt(4 * i^2 - 1)\n        e <- eigen(diag(0, 12) + `[<-`(matrix(0, 12, 12), cbind(c(i, i + 1), c(i + \n            1, i)), c(b, b)), symmetric = TRUE)\n        list(x = e$values, w = 2 * e$vectors[1, ]^2)\n    })\n    on_pieces <- function(br) {\n        a <- head(br, -1)\n        h <- diff(br)/2\n        list(x = as.vector(outer(gauss$x, h) + rep(a + h, each = 12)), w = as.vector(outer(gauss$w, \n            h)))\n    }\n    x_nodes <- function(c, df) {\n        top <- qchisq(1e-16, df, lower.tail = FALSE)\n        k <- df * (seq(0.5, 3 * sqrt(df) + 10, by = 0.5)/c)^2\n        on_pieces(sort(unique(c(0, qchisq(c(1e-13, 1e-10, 1e-07, 1e-04, 0.01, 0.2, \n            0.5, 0.8, 0.99, 1 - 1e-07), df), k[k < top], top))))\n    }\n    dunnett <- function(c, lam, df) {\n        sig <- sqrt(1 - lam^2)\n        xn <- x_nodes(c, df)\n        zt <- on_pieces(seq(-1, 1, length.out = 61))\n        given_x <- vapply(xn$x, function(x) {\n            s <- sqrt(x/df)\n            reach <- (c * s + 9)/min(lam) + 2\n            z <- reach * zt$x\n            q <- pmin(pnorm(outer(z, lam, function(z, l) (-c * s - l * z))/rep(sig, \n                each = length(z))) + pnorm(outer(z, lam, function(z, l) (c * s - \n                l * z))/rep(sig, each = length(z)), lower.tail = FALSE), 1)\n            reach * sum(zt$w * dnorm(z) * (1 - exp(rowSums(log1p(-q))))) + 2 * pnorm(-reach)\n        }, 0)\n        min(1, sum(xn$w * dchisq(xn$x, df) * given_x))\n    }\n    smm <- function(c, k, df) {\n        xn <- x_nodes(c, df)\n        min(1, sum(xn$w * dchisq(xn$x, df) * (1 - exp(k * log1p(-2 * pnorm(c * sqrt(xn$x/df), \n            lower.tail = FALSE))))))\n    }\n    critical <- function(p) uniroot(function(c) p(c) - alpha, c(0.5, 50), tol = 1e-13)$root\n    oneway <- function(groups, welch = FALSE, comps = \"all\", control = 1, test = \"tukey\", \n        from = \"values\") {\n        k <- length(groups)\n        n <- vapply(groups, length, 0)\n        m <- vapply(groups, mean, 0)\n        v <- vapply(groups, function(x) if (length(x) > 1) \n            var(x)\n        else 0, 0)\n        y <- unlist(groups)\n        g <- factor(rep(seq_len(k), n))\n        fit <- aov(y ~ g)\n        tab <- summary(fit)[[1]]\n        out <- list(k = k, n_total = sum(n), ss_between = tab[1, \"Sum Sq\"], ss_within = tab[2, \n            \"Sum Sq\"], ss_total = sum(tab[, \"Sum Sq\"]), df_between = tab[1, \"Df\"], \n            df_within = tab[2, \"Df\"], df_total = sum(n) - 1, ms_between = tab[1, \n                \"Mean Sq\"], ms_within = tab[2, \"Mean Sq\"], f = tab[1, \"F value\"], \n            p = tab[1, \"Pr(>F)\"], r_squared = tab[1, \"Sum Sq\"]/sum(tab[, \"Sum Sq\"]))\n        out$bartlett <- if (all(n >= 5) && all(v > 0)) {\n            b <- bartlett.test(groups)\n            list(statistic = unname(b$statistic), df = unname(b$parameter), p = b$p.value)\n        }\n        else {\n            NA\n        }\n        if (welch) {\n            w <- oneway.test(y ~ g, var.equal = FALSE)\n            out$welch <- list(statistic = unname(w$statistic), dfn = unname(w$parameter[1]), \n                dfd = unname(w$parameter[2]), p = w$p.value)\n            N <- sum(n)\n            den <- (1 - n/N) * v\n            fstar <- tab[1, \"Sum Sq\"]/sum(den)\n            dfd <- sum(den)^2/sum(den^2/(n - 1))\n            out$brown_forsythe <- list(statistic = fstar, dfn = k - 1, dfd = dfd, \n                p = pf(fstar, k - 1, dfd, lower.tail = FALSE))\n        }\n        out$groups <- lapply(seq_len(k), function(i) {\n            r <- list(n = n[i], mean = m[i], sd = if (n[i] > 1) sd(groups[[i]]) else NA)\n            if (from == \"values\") \n                r$median <- median(groups[[i]])\n            r\n        })\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else comparisons(groups, fit, welch, comps, control, test)\n        out$brown_forsythe_sd <- if (from == \"values\") {\n            dev <- abs(y - ave(y, g, FUN = median))\n            if (sum((dev - ave(dev, g))^2) > 0) {\n                bt <- summary(aov(dev ~ g))[[1]]\n                list(statistic = bt[1, \"F value\"], dfn = bt[1, \"Df\"], dfd = bt[2, \n                  \"Df\"], p = bt[1, \"Pr(>F)\"])\n            }\n            else NA\n        }\n        else {\n            NA\n        }\n        out\n    }\n    comparisons <- function(groups, fit, welch, comps, control, test) {\n        k <- length(groups)\n        n <- vapply(groups, length, 0)\n        m <- vapply(groups, mean, 0)\n        v <- vapply(groups, function(x) if (length(x) > 1) \n            var(x)\n        else 0, 0)\n        mse <- sum(residuals(fit)^2)/fit$df.residual\n        df <- fit$df.residual\n        pairs <- unname(if (comps == \"all\") {\n            do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n        }\n        else {\n            cbind(control, seq_len(k)[-control])\n        })\n        K <- nrow(pairs)\n        hsd <- if (test == \"tukey\") \n            TukeyHSD(fit, conf.level = 1 - alpha)$g\n        else NULL\n        if (test == \"dunnett\") {\n            others <- pairs[, 2]\n            lam <- sqrt(n[others]/(n[others] + n[control]))\n            dunnett_crit <- critical(function(c) dunnett(c, lam, df))\n        }\n        lapply(seq_len(K), function(x) {\n            i <- pairs[x, 1]\n            j <- pairs[x, 2]\n            d <- m[i] - m[j]\n            if (welch) {\n                se <- sqrt(v[i]/n[i] + v[j]/n[j])\n                nu <- se^4/((v[i]/n[i])^2/(n[i] - 1) + (v[j]/n[j])^2/(n[j] - 1))\n            }\n            else {\n                se <- sqrt(mse * (1/n[i] + 1/n[j]))\n                nu <- df\n            }\n            t <- abs(d)/se\n            r <- switch(test, tukey = {\n                h <- hsd[paste0(j, \"-\", i), ]\n                list(stat = sqrt(2) * t, lower = -h[[\"upr\"]], upper = -h[[\"lwr\"]], \n                  p = h[[\"p adj\"]])\n            }, `games-howell` = {\n                half <- qtukey(1 - alpha, k, nu)/sqrt(2) * se\n                list(stat = sqrt(2) * t, lower = d - half, upper = d + half, p = ptukey(sqrt(2) * \n                  t, k, nu, lower.tail = FALSE))\n            }, bonferroni = {\n                half <- qt(1 - alpha/(2 * K), nu) * se\n                list(stat = t, lower = d - half, upper = d + half, p = min(1, K * \n                  2 * pt(t, nu, lower.tail = FALSE)))\n            }, sidak = , `tamhane-t2` = {\n                a1 <- 1 - (1 - alpha)^(1/K)\n                half <- qt(1 - a1/2, nu) * se\n                p1 <- 2 * pt(t, nu, lower.tail = FALSE)\n                list(stat = t, lower = d - half, upper = d + half, p = 1 - exp(K * \n                  log1p(-p1)))\n            }, dunnett = {\n                half <- dunnett_crit * se\n                list(stat = t, lower = d - half, upper = d + half, p = dunnett(t, \n                  lam, df))\n            }, `dunnett-t3` = {\n                half <- critical(function(c) smm(c, K, nu)) * se\n                list(stat = t, lower = d - half, upper = d + half, p = smm(t, K, \n                  nu))\n            })\n            list(i = i, j = j, diff = d, se = se, df = nu, statistic = r$stat, ci_lower = r$lower, \n                ci_upper = r$upper, p = r$p)\n        })\n    }\n    summary_case <- function(means, sds, ns, ...) {\n        groups <- lapply(seq_along(means), function(i) raw(means[i], sds[i], ns[i]))\n        oneway(groups, ..., from = \"summary\")\n    }\n}",
+    "call": "oneway(groups_of(g1, g2, g3))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "options": {
+    "welch": false,
+    "comparisons": "all",
+    "test": "tukey"
+  }
+}

@@ -5,7 +5,7 @@
  * of the comparisons it draws.
  */
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
-import { comparisons, gives } from '@/analyses/pairwise';
+import { comparisons, gives, pairsOf } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
 import type { Analysis, Graph, Project } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
@@ -154,24 +154,50 @@ export function graphInput(
   };
 }
 
+export interface BracketChoice {
+  readonly id: Id;
+  readonly title: string;
+  readonly shown: boolean;
+  /** Each comparison of a post-hoc test, which can be hidden on its own; empty for a single comparison. */
+  readonly pairs: readonly {
+    readonly key: string;
+    readonly label: string;
+    readonly shown: boolean;
+  }[];
+}
+
 /** The analyses of a graph's table that give brackets, whether the graph draws them or could (note 05, "offers its brackets"). */
-export function bracketChoices(
-  project: Project,
-  graph: Graph,
-): { readonly id: Id; readonly title: string; readonly shown: boolean }[] {
+export function bracketChoices(project: Project, graph: Graph): BracketChoice[] {
   const table = graphTable(project, graph);
   if (!table) return [];
+  const titleOf = (id: string) => table.dataSets.find((d) => d.id === id)?.title ?? '?';
   return project.order.analyses.flatMap((id) => {
     const a = project.analyses.get(id);
     if (!a || !gives(a) || a.input.kind !== 'table' || a.input.table !== table.id) return [];
+    const shown = graph.analyses.includes(id) && !graph.format.hiddenBrackets.includes(id);
+    const pairs = pairsOf(a).filter((x) => x.key !== id);
     return [
       {
         id,
         title: a.title,
-        shown: graph.analyses.includes(id) && !graph.format.hiddenBrackets.includes(id),
+        shown,
+        pairs: pairs.map((x) => ({
+          key: x.key,
+          label: `${titleOf(x.a)} vs. ${titleOf(x.b)}`,
+          shown: shown && !graph.format.hiddenBrackets.includes(x.key),
+        })),
       },
     ];
   });
+}
+
+/** The graph with one comparison's bracket (by key) shown or hidden, its analysis staying on. */
+export function withPair(graph: Graph, key: string, show: boolean): Graph {
+  const hidden = graph.format.hiddenBrackets.filter((x) => x !== key);
+  return {
+    ...graph,
+    format: { ...graph.format, hiddenBrackets: show ? hidden : [...hidden, key] },
+  };
 }
 
 /** The graph with an analysis's brackets shown or hidden. */

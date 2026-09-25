@@ -10,9 +10,17 @@ import {
   type Analysis,
   type AnalysisKind,
   type AnalysisSpec,
+  type AllPairsTest,
+  type Comparisons,
+  type ControlTest,
   DEFAULT_OPTIONS,
+  EQUAL_SD_ALL,
+  EQUAL_SD_CONTROL,
+  type OneWayOptions,
   type RankTestOptions,
   type TTestOptions,
+  WELCH_ALL,
+  WELCH_CONTROL,
 } from '@/model/project';
 import type { Table, TableType } from '@/model/table';
 
@@ -59,6 +67,12 @@ const KINDS: readonly KindInfo[] = [
     blurb: 'Compare two groups by ranks, without assuming a bell-shaped distribution.',
     tables: ['column'],
     groups: 2,
+  },
+  {
+    kind: 'one-way-anova',
+    name: 'One-way ANOVA',
+    blurb: 'Compare the means of three or more groups, then which pairs differ.',
+    tables: ['column'],
   },
 ];
 
@@ -249,6 +263,154 @@ function RankTestFields(props: {
   );
 }
 
+const TEST_LABEL: Readonly<Record<AllPairsTest | ControlTest, string>> = {
+  tukey: 'Tukey (recommended)',
+  dunnett: 'Dunnett (recommended)',
+  bonferroni: 'Bonferroni',
+  sidak: 'Šidák',
+  'games-howell': 'Games-Howell (recommended for large samples)',
+  'dunnett-t3': 'Dunnett T3 (recommended with fewer than 50 per group)',
+  'tamhane-t2': 'Tamhane T2',
+};
+
+/** The comparisons after a change of SD assumption or goal: the recommended test when the old one no longer fits. */
+function fitComparisons(welch: boolean, c: Comparisons): Comparisons {
+  if (c.kind === 'all') {
+    const ok: readonly AllPairsTest[] = welch ? WELCH_ALL : EQUAL_SD_ALL;
+    return ok.includes(c.test) ? c : { kind: 'all', test: welch ? 'dunnett-t3' : 'tukey' };
+  }
+  if (c.kind === 'control') {
+    const ok: readonly ControlTest[] = welch ? WELCH_CONTROL : EQUAL_SD_CONTROL;
+    return ok.includes(c.test) ? c : { ...c, test: welch ? 'dunnett-t3' : 'dunnett' };
+  }
+  return c;
+}
+
+function OneWayFields(props: {
+  readonly o: OneWayOptions;
+  readonly groups: readonly { readonly id: Id; readonly title: string }[];
+  readonly set: (o: OneWayOptions) => void;
+}) {
+  const { o, set, groups } = props;
+  const c = o.comparisons;
+  const firstId = groups[0]?.id;
+  const controlId = c.kind === 'control' ? c.control : firstId;
+  const tests: readonly (AllPairsTest | ControlTest)[] =
+    c.kind === 'all'
+      ? o.welch
+        ? WELCH_ALL
+        : EQUAL_SD_ALL
+      : o.welch
+        ? WELCH_CONTROL
+        : EQUAL_SD_CONTROL;
+  const goal = (kind: Comparisons['kind']) => {
+    const next: Comparisons =
+      kind === 'none'
+        ? { kind }
+        : kind === 'all'
+          ? { kind, test: o.welch ? 'dunnett-t3' : 'tukey' }
+          : { kind, control: controlId ?? ('' as Id), test: o.welch ? 'dunnett-t3' : 'dunnett' };
+    set({ ...o, comparisons: next });
+  };
+  return (
+    <>
+      <fieldset>
+        <legend>Standard deviations</legend>
+        <label className="option">
+          <input
+            type="checkbox"
+            checked={o.welch}
+            onChange={(e) => {
+              const welch = e.currentTarget.checked;
+              set({ welch, comparisons: fitComparisons(welch, o.comparisons) });
+            }}
+          />
+          Don’t assume all groups have the same SD (Welch’s and Brown-Forsythe ANOVA)
+        </label>
+        <p className="hint">
+          Off by default, as in Prism. The results include tests of whether the SDs differ.
+        </p>
+      </fieldset>
+      <fieldset>
+        <legend>Which groups differ? (multiple comparisons)</legend>
+        <Radio
+          name="goal"
+          checked={c.kind === 'all'}
+          onPick={() => {
+            goal('all');
+          }}
+        >
+          Compare every group with every other group
+        </Radio>
+        <Radio
+          name="goal"
+          checked={c.kind === 'control'}
+          onPick={() => {
+            goal('control');
+          }}
+        >
+          Compare every group with a control group
+        </Radio>
+        <Radio
+          name="goal"
+          checked={c.kind === 'none'}
+          onPick={() => {
+            goal('none');
+          }}
+        >
+          Only the overall ANOVA
+        </Radio>
+        {c.kind === 'control' && (
+          <label className="option">
+            Control group{' '}
+            <select
+              value={c.control}
+              onChange={(e) => {
+                set({ ...o, comparisons: { ...c, control: e.currentTarget.value as Id } });
+              }}
+            >
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title || '(untitled)'}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {c.kind !== 'none' && (
+          <label className="option">
+            Test{' '}
+            <select
+              aria-label="Multiple comparisons test"
+              value={c.test}
+              onChange={(e) => {
+                const test = e.currentTarget.value;
+                set({
+                  ...o,
+                  comparisons:
+                    c.kind === 'all'
+                      ? { kind: 'all', test: test as AllPairsTest }
+                      : { ...c, test: test as ControlTest },
+                });
+              }}
+            >
+              {tests.map((t) => (
+                <option key={t} value={t}>
+                  {TEST_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <p className="hint">
+          Each P value is adjusted for the number of comparisons, so the 5% chance of a false
+          “significant” applies to the whole set, not to each pair.
+        </p>
+      </fieldset>
+    </>
+  );
+}
+
 export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const summary = table.format.kind === 'summary';
   const kinds = KINDS.filter((k) => k.tables.includes(table.type));
@@ -283,6 +445,19 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         };
       case 'rank-test':
         return { kind, options: options['rank-test'] };
+      case 'one-way-anova': {
+        const o = options['one-way-anova'];
+        const c = o.comparisons;
+        // A control must be one of the groups analysed; the first, unless another was picked.
+        const control = c.kind === 'control' && !picked.includes(c.control) ? picked[0] : undefined;
+        return {
+          kind,
+          options:
+            control !== undefined && c.kind === 'control'
+              ? { ...o, comparisons: { ...c, control } }
+              : o,
+        };
+      }
     }
   };
 
@@ -368,6 +543,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             summary={summary}
             set={(o) => {
               set('t-test', o);
+            }}
+          />
+        )}
+        {kind === 'one-way-anova' && (
+          <OneWayFields
+            o={options['one-way-anova']}
+            groups={table.dataSets.filter((d) => picked.includes(d.id))}
+            set={(o) => {
+              set('one-way-anova', o);
             }}
           />
         )}

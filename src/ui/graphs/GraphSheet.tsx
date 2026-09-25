@@ -6,7 +6,7 @@
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
 
-import { bracketChoices, graphInput, summaryId, withBracket } from '@/graphs/data';
+import { bracketChoices, graphInput, summaryId, withBracket, withPair } from '@/graphs/data';
 import { describePlot, layoutColumn } from '@/graphs/layout';
 import { sceneToSvg } from '@/graphs/svg';
 import type { Json } from '@/model/json';
@@ -190,19 +190,37 @@ export function GraphSheet({ project, graph }: Props) {
               </p>
             )}
             {choices.map((c) => (
-              <label key={c.id} className="option">
-                <input
-                  type="checkbox"
-                  checked={c.shown}
-                  onChange={(e) => {
-                    store.edit({
-                      op: 'setGraph',
-                      graph: withBracket(graph, c.id, e.currentTarget.checked),
-                    });
-                  }}
-                />
-                {c.title}
-              </label>
+              <div key={c.id}>
+                <label className="option">
+                  <input
+                    type="checkbox"
+                    checked={c.shown}
+                    onChange={(e) => {
+                      store.edit({
+                        op: 'setGraph',
+                        graph: withBracket(graph, c.id, e.currentTarget.checked),
+                      });
+                    }}
+                  />
+                  {c.title}
+                </label>
+                {c.shown &&
+                  c.pairs.map((x) => (
+                    <label key={x.key} className="option nested">
+                      <input
+                        type="checkbox"
+                        checked={x.shown}
+                        onChange={(e) => {
+                          store.edit({
+                            op: 'setGraph',
+                            graph: withPair(graph, x.key, e.currentTarget.checked),
+                          });
+                        }}
+                      />
+                      {x.label}
+                    </label>
+                  ))}
+              </div>
             ))}
             {choices.length > 0 && (
               <>

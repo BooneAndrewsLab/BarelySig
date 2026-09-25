@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import type { OneWayResult } from '@/analyses/oneway/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
-import { rankTestMethod, rankTestReading, tTestMethod, tTestReading } from './reading';
+import {
+  oneWayMethod,
+  oneWayReading,
+  rankTestMethod,
+  rankTestReading,
+  tTestMethod,
+  tTestReading,
+} from './reading';
 
 const base: TTestResult = {
   test: 'unpaired',
@@ -129,6 +137,48 @@ describe('rank-test readings', () => {
     );
     expect(rankTestReading({ ...wx, p: 0.03, pTwo: 0.03, pairs: 7 })).toMatch(
       /^KO tends to be lower than WT within the same subjects \(P = 0\.0300\)/,
+    );
+  });
+});
+
+describe('one-way ANOVA readings', () => {
+  const r = {
+    from: 'values',
+    welch: false,
+    groups: [
+      { id: 'a', title: 'WT' },
+      { id: 'b', title: 'KO' },
+      { id: 'c', title: 'Het' },
+    ],
+    anova: { p: 0.2 },
+    welchAnova: null,
+    comparisons: { kind: 'all', test: 'tukey' },
+    pairs: [
+      { a: { title: 'WT' }, b: { title: 'KO' }, p: 0.04 },
+      { a: { title: 'WT' }, b: { title: 'Het' }, p: 0.5 },
+      { a: { title: 'KO' }, b: { title: 'Het' }, p: 0.6 },
+    ],
+  } as unknown as OneWayResult;
+
+  it('says when the ANOVA and a comparison disagree, never calling means the same', () => {
+    expect(oneWayReading(r)).toBe(
+      'There is no evidence that the means of the 3 groups differ (P = 0.2000). If they truly had the same mean, differences at least this large would turn up in about 20% of experiments. That doesn’t show the means are the same; the experiment may be too small to see a difference. Tukey’s comparisons: WT and KO (P = 0.0400) differ; the other 2 pairs show no evidence of a difference. The overall ANOVA and the comparisons ask different questions, so they can disagree near the threshold.',
+    );
+  });
+
+  it('goes by Welch’s P when the SDs aren’t assumed equal, and names the method', () => {
+    const w = {
+      ...r,
+      welch: true,
+      welchAnova: { f: 9, dfn: 2, dfd: 5.1, p: 0.003 },
+      comparisons: { kind: 'control', control: 'a', test: 'dunnett-t3' },
+      pairs: [],
+    } as unknown as OneWayResult;
+    expect(oneWayReading(w)).toMatch(
+      /^The means of the 3 groups are not all the same \(P = 0\.0030\)/,
+    );
+    expect(oneWayMethod(w)).toBe(
+      'Welch’s and Brown-Forsythe ANOVA, not assuming the groups have the same SD. Dunnett’s T3 multiple comparisons (each group against the control), with P values adjusted for the number of comparisons.',
     );
   });
 });

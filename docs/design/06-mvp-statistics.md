@@ -161,11 +161,11 @@ floating comparison.
   - Dunnett (single step, as Prism): the exact probability for a set of
     comparisons with a shared control. Their correlations are ρᵢⱼ =
     λᵢλⱼ, so P(max |Tᵢ| ≥ c) is a two-dimensional integral (Dunnett
-    1955). We integrate it with R's `integrate`, taking the complement
-    inside the integral (`-expm1(Σ log1p(-qᵢ))`) so small P values keep
-    their digits. This is deterministic, unlike mvtnorm's randomised
-    QMC. The CI's critical value comes from `uniroot` on the same
-    function.
+    1955). We integrate it numerically (see As built), taking the
+    complement inside the integral (`-expm1(Σ log1p(-qᵢ))`) so small P
+    values keep their digits. This is deterministic, unlike mvtnorm's
+    randomised QMC. The CI's critical value comes from `uniroot` on the
+    same function.
   - Šidák: P = 1 − (1 − p)^K (`-expm1(K·log1p(-p))`), CI with t at
     1 − (1 − α)^(1/K). The FAQ 1688 PDF prints the Šidák P with a typo.
   - Bonferroni: P = min(1, K·p), CI with t at α/K.
@@ -340,6 +340,36 @@ n ≥ 8, an empty cell, one value per cell).
   every fixture whose reference package WebR doesn't ship.
 - **P display:** "> 0.9999" when P rounds to 1, everywhere.
 
+### One-way ANOVA (#25)
+
+- **Dunnett and Dunnett T3 by fixed Gauss-Legendre rules** (8 nodes per
+  piece), vectorised over S and Z0: about 45 ms per P in desktop R.
+  Nested adaptive `integrate` gave the same numbers but took seconds, and
+  a CI's critical value needs about 15 of them. The pieces over S follow
+  its quantiles and steps of 1/c around s ≈ √df / c. The pieces over Z0
+  are scaled to where every comparison is certain to exceed c; the
+  normal tail beyond is added exactly. Across random designs (2–8
+  comparisons, df 3–200, c up to 150, P down to 1e-144) it agrees with
+  careful adaptive quadrature to 7·10⁻¹⁰.
+- **Why not mvtnorm:** `pmvt` computes 1 − P(inside), which cancels
+  digits for a small P. At P = 5·10⁻¹² it was off by 4.5·10⁻⁵ however
+  many points it used, and it refuses the non-integer df of Welch
+  comparisons. It stays a check (1e-4, and for T3 a bracket between the
+  whole df either side), with multcomp for Dunnett.
+- **Reference:** the same probabilities, discretised differently (over the
+  chi-square variable, 12-node rule, other breakpoints); R's own `aov`,
+  `TukeyHSD`, `oneway.test`, `bartlett.test`, `pairwise.t.test` for the
+  rest; car (Brown-Forsythe test of SDs) and onewaytests (Brown-Forsythe
+  ANOVA) as checks.
+- **With Welch's option** the sheet shows Welch's and the Brown-Forsythe
+  ANOVA instead of the ordinary F, and the reading goes by Welch's P, so
+  nothing contradicts the choice. Two groups are allowed (then F = t²).
+- **Against a control** the rows read "Control vs. X", diff = control − X.
+- **Oracle lessons:** a named number (from `cbind(i, …)`) comes back from
+  WebR as a one-key object, while jsonlite writes it as a number, so
+  reference code unnames. `scripts/oracle/run.sh generate` now formats the
+  fixtures with Prettier as it writes them.
+
 ## Decisions made here
 
 1. **Exact rank-test P values with ties**, by counting over doubled
@@ -347,8 +377,8 @@ n ≥ 8, an empty cell, one value per cell).
    pairs).
 2. **Kruskal-Wallis P is approximate** until an exact algorithm with a
    reference exists (follow-up).
-3. **Dunnett by numerical integration**, deterministic and precise for
-   small P, instead of randomised QMC.
+3. **Dunnett by numerical integration** (fixed Gauss-Legendre rules),
+   deterministic and precise for small P, instead of randomised QMC.
 4. **Welch comparisons: Games-Howell, Dunnett T3, Tamhane T2**, Prism's
    three.
 5. **Two-way: Type III, one family per row/column, least-squares means**
