@@ -67,6 +67,7 @@ export const EVENTS = {
     'new-normality',
   ],
   graph: ['new-column', 'new-grouped', 'export-svg', 'export-png'],
+  help: ['page'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type EventCategory = keyof typeof EVENTS;

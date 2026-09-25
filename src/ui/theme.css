@@ -1259,3 +1259,8 @@ select {
   margin: 6px 0 0;
   padding-left: 18px;
 }
+
+.link.small {
+  font-size: 12px;
+  font-weight: 400;
+}

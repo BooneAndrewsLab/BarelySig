@@ -3,6 +3,7 @@
  * brackets, theme and size. Shown in the inspector when no element of the
  * graph is selected.
  */
+import { openGuide } from '../help/openGuide';
 import { bracketChoices, withBracket, withPair } from '@/graphs/data';
 import {
   type ColumnPlot,
@@ -237,7 +238,18 @@ export function GraphSettings({ project, graph }: Props) {
       </fieldset>
       {hasErrorBars(plot) && (
         <fieldset>
-          <legend>Error bars</legend>
+          <legend>
+            Error bars{' '}
+            <button
+              type="button"
+              className="link small"
+              onClick={() => {
+                openGuide('12-graphs#error-bars');
+              }}
+            >
+              SD, SEM or CI?
+            </button>
+          </legend>
           <select
             aria-label="Error bars"
             value={plot.error}

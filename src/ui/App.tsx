@@ -1,3 +1,4 @@
+import { HelpButton } from './help/HelpButton';
 import { useEffect, useRef, useState } from 'react';
 
 import type { TableType } from '@/model/table';
@@ -113,6 +114,7 @@ export function App() {
         >
           Download
         </button>
+        <HelpButton />
         <input
           ref={fileInput}
           type="file"

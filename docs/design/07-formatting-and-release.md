@@ -378,6 +378,20 @@ Deferred to Phase 2 as planned.
   ones it was opened with (formatting the graph doesn't end it).
 - A long vector (a violin's density) that changed is one line, not 64.
 
+### User guide (#34)
+
+- Ported from PlasmidPop: the Markdown subset, the dialog (a list of
+  pages and the page), the **?** button in the bar and the `?` key
+  (except where typing: text fields and the data grid), and
+  `openGuide()` for deep links: "How to read these results" on every
+  results sheet, "SD, SEM or CI?" beside the error bars.
+- Sixteen pages in `docs/guide/`. The parser also reads `_emphasis_`,
+  since Prettier (run on the docs by `npm run check`) rewrites
+  `*emphasis*` that way. Lists are flat: the parser has no nesting.
+- Tests: every link resolves (sections too) and none leaves the site,
+  every analysis kind has a page, the words a results sheet uses are
+  explained somewhere.
+
 ## Decisions made here
 
 1. **Overrides in `GraphFormat`, style as a flat record over a fixed

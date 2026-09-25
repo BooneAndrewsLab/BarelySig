@@ -4,6 +4,8 @@
  * plain sentence on top for a t test. A result is shown only when it is
  * current: outdated results are never shown as if they were.
  */
+import { ANALYSIS_PAGE } from '../help/guide';
+import { openGuide } from '../help/openGuide';
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
@@ -921,6 +923,17 @@ export function ResultsSheet({ project, analysis }: Props) {
           >
             <Icon name={KIND_ICON[analysis.kind]} size={16} />
             Data: {source.title}
+          </button>
+        )}
+        {analysis.kind !== 'graph-summary' && (
+          <button
+            type="button"
+            className="head-action link"
+            onClick={() => {
+              openGuide(ANALYSIS_PAGE[analysis.kind]);
+            }}
+          >
+            How to read these results
           </button>
         )}
         <button
