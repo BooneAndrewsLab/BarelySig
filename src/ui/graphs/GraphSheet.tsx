@@ -185,7 +185,9 @@ export function GraphSheet({ project, graph }: Props) {
           <fieldset>
             <legend>Significance</legend>
             {choices.length === 0 && (
-              <p className="hint flush">Run a t test on this table to add its bracket.</p>
+              <p className="hint flush">
+                Compare groups of this table (a t test, for example) to add brackets.
+              </p>
             )}
             {choices.map((c) => (
               <label key={c.id} className="option">

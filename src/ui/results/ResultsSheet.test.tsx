@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import { applyEdit } from '@/model/edits';
 import type { Json } from '@/model/json';
@@ -239,6 +240,99 @@ describe('results sheets', () => {
     expect(
       within(table).getByRole('rowheader', { name: 'Coefficient of variation' }).closest('tr'),
     ).toHaveTextContent('50%—');
+  });
+
+  it('runs a Mann-Whitney test, with its exact P, U, medians and the achieved CI level', async () => {
+    const r: MannWhitneyResult = {
+      test: 'mann-whitney',
+      tails: 'two',
+      a: { id: 'a', title: 'WT', median: 2 },
+      b: { id: 'b', title: 'KO', median: 5 },
+      exact: true,
+      pTwo: 0.1,
+      pOne: 0.05,
+      p: 0.1,
+      hodgesLehmann: 3,
+      ci: { lower: 1, upper: 5, level: 0.9 },
+      dropped: { a: null, b: null, rows: null },
+      warnings: [],
+      u: 0,
+      nA: 3,
+      nB: 3,
+      rankSumA: 6,
+      rankSumB: 15,
+      meanRankA: 2,
+      meanRankB: 5,
+      difference: 3,
+    };
+    answer = () => Promise.resolve(r as unknown as Json);
+    render(<App />);
+    analyze(/Mann-Whitney/);
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Mann-Whitney test of Viability' }),
+    ).toBeInTheDocument();
+    await screen.findByText(
+      /^There is no evidence that values in WT and KO differ \(P = 0\.1000\)/,
+    );
+    expect(
+      screen.getByText(/can’t give P < 0\.05 however different the groups are/),
+    ).toBeInTheDocument();
+    const table = screen.getByRole('table');
+    const row = (label: string) =>
+      within(table).getByRole('rowheader', { name: label }).closest('tr');
+    expect(row('Exact or approximate P value?')).toHaveTextContent('Exact');
+    expect(row('Mann-Whitney U')).toHaveTextContent('0');
+    expect(row('Difference: actual (KO − WT)')).toHaveTextContent('3');
+    expect(
+      row('90.00% CI of difference (the widest possible with so few values)'),
+    ).toHaveTextContent('1 to 5');
+  });
+
+  it('runs a Wilcoxon test when paired, saying how zero differences were handled', async () => {
+    const r: WilcoxonResult = {
+      test: 'wilcoxon',
+      tails: 'two',
+      a: { id: 'a', title: 'WT', median: 2 },
+      b: { id: 'b', title: 'KO', median: 5 },
+      exact: true,
+      pTwo: 0.03125,
+      pOne: 0.015625,
+      p: 0.03125,
+      hodgesLehmann: 3,
+      ci: { lower: 1, upper: 5, level: 0.9688 },
+      dropped: { a: null, b: null, rows: 1 },
+      warnings: [],
+      zeros: 'pratt',
+      w: 21,
+      sumPositive: 21,
+      sumNegative: -0,
+      pairs: 7,
+      zeroPairs: 1,
+      medianDifference: 3,
+      pairing: { r: 0.8, p: 0.02 },
+    };
+    answer = (job) => {
+      expect(job.analysis).toMatchObject({ options: { paired: true, zeros: 'pratt' } });
+      return Promise.resolve(r as unknown as Json);
+    };
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Mann-Whitney/ }));
+    fireEvent.click(within(dialog).getByRole('radio', { name: /^Paired/ }));
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Pratt/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Wilcoxon test of Viability' }),
+    ).toBeInTheDocument();
+    await screen.findByText(
+      /^KO tends to be higher than WT within the same subjects \(P = 0\.0313\)/,
+    );
+    expect(screen.getByText(/counted for neither side \(Pratt’s method\)/)).toBeInTheDocument();
+    const table = screen.getByRole('table');
+    expect(
+      within(table).getByRole('rowheader', { name: 'Sum of signed ranks (W)' }).closest('tr'),
+    ).toHaveTextContent('21');
   });
 
   it('keeps the analysis linked: its table shows it, and it opens its table', async () => {

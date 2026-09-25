@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react';
 
+import { gives } from '@/analyses/pairwise';
 import { downstreamOf } from '@/model/deps';
 import { newId } from '@/model/ids';
 import { GRAPH_DEFAULTS, type Project } from '@/model/project';
@@ -84,12 +85,9 @@ export function TableSheet({ project, table, children }: Props) {
               type="button"
               onClick={() => {
                 const id = newId('g');
-                // Brackets of the table's t tests come along (note 05).
+                // Brackets of the table's comparisons come along (notes 05, 06).
                 const tests = [...project.analyses.values()]
-                  .filter(
-                    (a) =>
-                      a.kind === 't-test' && a.input.kind === 'table' && a.input.table === table.id,
-                  )
+                  .filter((a) => gives(a) && a.input.kind === 'table' && a.input.table === table.id)
                   .map((a) => a.id);
                 store.edit(
                   {

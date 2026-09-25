@@ -22,10 +22,11 @@ export function stars(p: number, scheme: StarScheme = 'prism'): string {
   return 'ns';
 }
 
-/** A P value as Prism shows it: four decimals, "< 0.0001" below that, never 0. */
+/** A P value as Prism shows it: four decimals, "< 0.0001" below that, never 0, and "> 0.9999" for 1. */
 export function pValue(p: number): string {
   if (!(p >= 0)) return '—';
   if (p < 0.0001) return '< 0.0001';
+  if (p >= 0.99995) return '> 0.9999';
   const s = p.toFixed(4);
   // Rounding must not carry a P across a threshold it is below: 0.04996
   // would show as "0.0500" next to a "*". Such a P is cut instead ("0.0499").
@@ -40,7 +41,7 @@ const THRESHOLDS = [0.05, 0.01, 0.001];
 /** "P = 0.0021" or "P < 0.0001", for sentences. */
 export function pPhrase(p: number): string {
   const v = pValue(p);
-  return v.startsWith('<') ? `P ${v}` : `P = ${v}`;
+  return v.startsWith('<') || v.startsWith('>') ? `P ${v}` : `P = ${v}`;
 }
 
 /** A number to four significant digits, as Prism's results; "—" when not available. */
@@ -67,3 +68,6 @@ export function howOften(p: number): string {
   if (pct < 1) return `about ${sig(pct, 1)}% of experiments`;
   return `about ${String(Math.round(pct))}% of experiments`;
 }
+
+/** A confidence level as a percentage, as Prism labels rank-test intervals: "96.83%". */
+export const levelText = (level: number): string => `${(level * 100).toFixed(2)}%`;

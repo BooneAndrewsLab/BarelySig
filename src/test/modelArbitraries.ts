@@ -5,6 +5,7 @@ import { type Id, newId } from '@/model/ids';
 import type { Cell } from '@/model/missing';
 import {
   type Analysis,
+  type AnalysisSpec,
   type Project,
   DEFAULT_OPTIONS,
   createProject,
@@ -47,6 +48,26 @@ export const formatArb: fc.Arbitrary<EntryFormat> = fc.oneof(
 const idx = fc.nat(50);
 const small = fc.integer({ min: 0, max: 5 });
 const title = fc.string({ maxLength: 6 });
+const tails = fc.constantFrom('two' as const, 'one' as const);
+
+/**
+ * Every analysis kind with every option it can take (the `.bsig` round
+ * trip can only see a field the generator fills). Records are spread into
+ * plain objects: fast-check makes them without a prototype.
+ */
+export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
+  fc.constant<AnalysisSpec>({ kind: 'descriptive', options: DEFAULT_OPTIONS.descriptive }),
+  fc
+    .record({ paired: fc.boolean(), welch: fc.boolean(), tails })
+    .map((o): AnalysisSpec => ({ kind: 't-test', options: { ...o } })),
+  fc
+    .record({
+      paired: fc.boolean(),
+      tails,
+      zeros: fc.constantFrom('wilcoxon' as const, 'pratt' as const),
+    })
+    .map((o): AnalysisSpec => ({ kind: 'rank-test', options: { ...o } })),
+);
 
 export type Shape =
   | {
@@ -103,7 +124,7 @@ export type Shape =
       readonly k: 'analysis';
       readonly t: number;
       readonly ds: readonly number[];
-      readonly ttest: boolean;
+      readonly spec: AnalysisSpec;
     }
   | { readonly k: 'chained'; readonly a: number }
   | { readonly k: 'rewire'; readonly a: number; readonly to: number }
@@ -210,7 +231,7 @@ export const shapeArb: fc.Arbitrary<Shape> = fc.oneof(
       k: fc.constant('analysis'),
       t: idx,
       ds: fc.array(idx, { maxLength: 3 }),
-      ttest: fc.boolean(),
+      spec: analysisSpec,
     }),
     weight: 2,
   },
@@ -357,10 +378,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
         title: 'A',
         input: { kind: 'table' as const, table: table.id, dataSets },
       };
-      const a: Analysis = s.ttest
-        ? { ...base, kind: 't-test', options: DEFAULT_OPTIONS['t-test'] }
-        : { ...base, kind: 'descriptive', options: {} };
-      return { op: 'addAnalysis', analysis: a };
+      return { op: 'addAnalysis', analysis: { ...base, ...s.spec } as Analysis };
     }
     case 'chained': {
       const up = pick(p.order.analyses, s.a);

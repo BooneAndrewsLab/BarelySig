@@ -7,16 +7,18 @@
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { Analysis, Project } from '@/model/project';
 import type { Dropped } from '@/model/selectors';
 
+import { KIND_ICON } from '../analysisKinds';
 import { Icon } from '../Icon';
 import { AnalyzeDialog } from '../shell/AnalyzeDialog';
 import { getResults } from '../state/results';
 import { store } from '../state/store';
-import { STAR_SCHEME, dfText, interval, pValue, sig, stars } from './format';
-import { tTestMethod, tTestReading } from './reading';
+import { STAR_SCHEME, dfText, interval, levelText, pValue, sig, stars } from './format';
+import { rankTestMethod, rankTestReading, tTestMethod, tTestReading } from './reading';
 
 interface Props {
   readonly project: Project;
@@ -150,6 +152,108 @@ function TTestView({ r }: { readonly r: TTestResult }) {
       <p className="method">{tTestMethod(r)}</p>
       <Sections sections={sections} />
       <p className="legend">Asterisks: {STAR_SCHEME}.</p>
+    </>
+  );
+}
+
+/** "96.83% CI of difference", with a warning when so few values can't reach 95%. */
+function rankCi(r: RankTestResult, what: string): Row {
+  const short = r.ci.level < 0.95 ? ' (the widest possible with so few values)' : '';
+  return [`${levelText(r.ci.level)} CI of ${what}${short}`, interval(r.ci.lower, r.ci.upper)];
+}
+
+function RankTestView({ r }: { readonly r: RankTestResult }) {
+  const head: Row[] = [
+    ['P value', pValue(r.p)],
+    ['Exact or approximate P value?', r.exact ? 'Exact' : 'Approximate'],
+    ['P value summary', stars(r.p)],
+    ['Significantly different (P < 0.05)?', yesNo(r.p)],
+    ['One- or two-tailed P value?', r.tails === 'two' ? 'Two-tailed' : 'One-tailed'],
+  ];
+  const sections: Section[] = [];
+  if (r.test === 'mann-whitney') {
+    sections.push([
+      'Mann-Whitney test',
+      [
+        ...head,
+        [`Sum of ranks in ${r.a.title}, ${r.b.title}`, `${sig(r.rankSumA)}, ${sig(r.rankSumB)}`],
+        [`Mean rank of ${r.a.title}, ${r.b.title}`, `${sig(r.meanRankA)}, ${sig(r.meanRankB)}`],
+        ['Mann-Whitney U', sig(r.u)],
+      ],
+    ]);
+    sections.push([
+      'Difference between medians',
+      [
+        [`Median of ${r.a.title}`, sig(r.a.median)],
+        [`Median of ${r.b.title}`, sig(r.b.median)],
+        [`Difference: actual (${r.b.title} − ${r.a.title})`, sig(r.difference)],
+        ['Difference: Hodges-Lehmann', sig(r.hodgesLehmann)],
+        rankCi(r, 'difference'),
+      ],
+    ]);
+    sections.push([
+      'Data analyzed',
+      [
+        [`Sample size, ${r.a.title}`, `${String(r.nA)}${droppedText(r.dropped.a)}`],
+        [`Sample size, ${r.b.title}`, `${String(r.nB)}${droppedText(r.dropped.b)}`],
+      ],
+    ]);
+  } else {
+    sections.push([
+      'Wilcoxon matched-pairs signed-rank test',
+      [
+        ...head,
+        [`Sum of positive ranks (${r.b.title} higher)`, sig(r.sumPositive)],
+        [`Sum of negative ranks (${r.b.title} lower)`, sig(r.sumNegative)],
+        ['Sum of signed ranks (W)', sig(r.w)],
+      ],
+    ]);
+    sections.push([
+      'Median of differences',
+      [
+        [`Median of ${r.a.title}`, sig(r.a.median)],
+        [`Median of ${r.b.title}`, sig(r.b.median)],
+        [`Median of differences (${r.b.title} − ${r.a.title})`, sig(r.medianDifference)],
+        ['Hodges-Lehmann estimate', sig(r.hodgesLehmann)],
+        rankCi(r, 'median difference'),
+      ],
+    ]);
+    sections.push([
+      'How effective was the pairing?',
+      r.pairing === null
+        ? [['Spearman r', 'Needs at least three pairs, with some variation in each group']]
+        : [
+            ['Spearman r', sig(r.pairing.r)],
+            ['P value (one tailed)', pValue(r.pairing.p)],
+            ['P value summary', stars(r.pairing.p)],
+            ['Was the pairing significantly effective?', yesNo(r.pairing.p)],
+          ],
+    ]);
+    sections.push([
+      'Data analyzed',
+      [
+        ['Number of pairs', String(r.pairs)],
+        [
+          r.zeros === 'pratt'
+            ? 'Pairs with no difference (ranked, no sign: Pratt’s method)'
+            : 'Pairs with no difference (left out: Wilcoxon’s method)',
+          String(r.zeroPairs),
+        ],
+        ...(r.dropped.rows
+          ? ([['Rows left out (a value missing on one side)', String(r.dropped.rows)]] as Row[])
+          : []),
+      ],
+    ]);
+  }
+  return (
+    <>
+      <p className="reading">{rankTestReading(r)}</p>
+      <p className="method">{rankTestMethod(r)}</p>
+      <Sections sections={sections} />
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. A rank test’s confidence level can’t be exactly 95%; the level
+        shown is the one achieved.
+      </p>
     </>
   );
 }
@@ -290,7 +394,7 @@ export function ResultsSheet({ project, analysis }: Props) {
               store.show({ kind: 'table', id: source.id });
             }}
           >
-            <Icon name={analysis.kind === 't-test' ? 't-test' : 'descriptive-stats'} size={16} />
+            <Icon name={KIND_ICON[analysis.kind]} size={16} />
             Data: {source.title}
           </button>
         )}
@@ -308,6 +412,9 @@ export function ResultsSheet({ project, analysis }: Props) {
         <Status analysis={analysis} />
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} />
+        )}
+        {value !== null && analysis.kind === 'rank-test' && (
+          <RankTestView r={value as unknown as RankTestResult} />
         )}
         {value !== null && analysis.kind === 'descriptive' && (
           <DescriptiveView r={value as unknown as DescriptiveResult} />

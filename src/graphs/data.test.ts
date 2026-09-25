@@ -10,10 +10,12 @@ import { createColumnTable } from '@/model/table';
 
 import {
   type GraphInput,
+  bracketChoices,
   graphInput,
   graphOfSummary,
   summaryAnalysis,
   summaryId,
+  withBracket,
   withGraphSummaries,
 } from './data';
 
@@ -108,6 +110,29 @@ describe('graph data', () => {
     expect(bracketsOf(graphInput(p, ns, results(0.3)))).toEqual([]);
     const hidden = { ...graph, format: { ...graph.format, hiddenBrackets: [asId('a_t')] } };
     expect(bracketsOf(graphInput(p, hidden, results(0.003)))).toEqual([]);
+  });
+
+  it('draws a rank test’s bracket like a t test’s, and offers both', () => {
+    const { p: base, graph, t, wt, ko } = setup();
+    const p = applyEdit(base, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_r'),
+        title: 'Mann-Whitney',
+        kind: 'rank-test',
+        options: { paired: false, tails: 'two', zeros: 'wilcoxon' },
+        input: { kind: 'table', table: t.id, dataSets: [ko.id, wt.id] },
+      },
+    });
+    expect(bracketChoices(p, graph).map((c) => [c.id, c.shown])).toEqual([
+      ['a_t', true],
+      ['a_r', false],
+    ]);
+    const shown = withBracket(graph, asId('a_r'), true);
+    const r = graphInput(p, shown, (id) =>
+      id === 'a_r' ? tResult(0.04, ko.id, wt.id) : undefined,
+    );
+    expect(r.ok && r.input.brackets).toEqual([{ id: 'a_r', from: 1, to: 0, label: '*' }]);
   });
 
   it('shows no bracket while the t test is outdated or for groups not plotted', () => {

@@ -5,6 +5,7 @@ import type { Project } from '@/model/project';
 import type { NodeState } from '@/model/recompute';
 import { duplicateTable } from '@/model/table';
 
+import { KIND_ICON } from '../analysisKinds';
 import { Icon, type IconName } from '../Icon';
 import { tableTypeInfo } from '../formats';
 import { getResults } from '../state/results';
@@ -221,7 +222,7 @@ export function Navigator({ project, sheet, onNewTable }: Props) {
       <NavItem
         key={id}
         title={a.title}
-        icon={a.kind === 't-test' ? 't-test' : 'descriptive-stats'}
+        icon={KIND_ICON[a.kind]}
         active={sheet.kind === 'analysis' && sheet.id === id}
         status={{ state, label: STATUS_LABEL[state] }}
         onShow={() => {

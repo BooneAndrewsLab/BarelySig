@@ -310,6 +310,36 @@ variance, an extreme outlier, a very small P; plus each test's
 boundary (exact/approximate threshold, Bartlett's n ≥ 5, D'Agostino's
 n ≥ 8, an empty cell, one value per cell).
 
+## As built
+
+### Rank tests (#24)
+
+- **Speed.** Counting the tied rank sum is one vector update per score
+  and group size, pruned to reachable sums and to sizes that can still
+  reach m, over scores divided by their common divisor. It is capped at
+  5·10⁷ cell updates: 100 against 100 tied values takes 2.5 s in WebR.
+  Beyond the cap, and for very lopsided groups (e.g. 60 tied values
+  against 200), the normal approximation is used and labelled
+  "approximate", although Prism would still count exactly. Without ties
+  R's `dwilcox` counts U, up to m·n = 5·10⁴.
+- **CI:** the classic order statistics whenever U's (or the signed
+  rank's) distribution can be counted (m·n ≤ 5·10⁴; up to 1000 pairs),
+  else R's asymptotic interval. R 4.6's `wilcox.test` now inverts its
+  exact test with ties for the CI, which gives a different interval with
+  ties; the oracle compares with R only on untied data.
+- **Spearman (pairing):** exact (R's AS 89) up to 9 untied pairs, else
+  the t approximation; R's Edgeworth series between 10 and 1289 pairs
+  matches neither R's exact count nor Prism. Exact to 17 pairs is #48.
+- **One-tailed P** is the tail in the observed direction, from the same
+  count.
+- **Oracle:** brute-force enumeration of every split or sign pattern,
+  `pwilcox`/`psignrank` where there are no ties, the normal formula
+  above the thresholds; confirmed against `wilcox.test` and coin's exact
+  tests (`checked`). One case (30 against 32, heavy ties) takes its P from
+  coin directly, so the parity test skips it; the parity test now skips
+  every fixture whose reference package WebR doesn't ship.
+- **P display:** "> 0.9999" when P rounds to 1, everywhere.
+
 ## Decisions made here
 
 1. **Exact rank-test P values with ties**, by counting over doubled

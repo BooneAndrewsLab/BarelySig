@@ -17,7 +17,8 @@ import type { Table } from './table';
 /** Options of each analysis kind, as the analysis dialog sets them. Defaults match Prism's. */
 export type AnalysisSpec =
   | { readonly kind: 'descriptive'; readonly options: DescriptiveOptions }
-  | { readonly kind: 't-test'; readonly options: TTestOptions };
+  | { readonly kind: 't-test'; readonly options: TTestOptions }
+  | { readonly kind: 'rank-test'; readonly options: RankTestOptions };
 
 export type AnalysisKind = AnalysisSpec['kind'];
 
@@ -31,11 +32,20 @@ export interface TTestOptions {
   readonly tails: 'two' | 'one';
 }
 
+/** Mann-Whitney (unpaired) or Wilcoxon matched pairs (paired), note 06. */
+export interface RankTestOptions {
+  readonly paired: boolean;
+  readonly tails: 'two' | 'one';
+  /** Pairs with no difference: dropped (Wilcoxon's method, Prism's default) or ranked (Pratt's). */
+  readonly zeros: 'wilcoxon' | 'pratt';
+}
+
 export const DEFAULT_OPTIONS: {
   readonly [K in AnalysisKind]: Extract<AnalysisSpec, { kind: K }>['options'];
 } = {
   descriptive: {},
   't-test': { paired: false, welch: false, tails: 'two' },
+  'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
 };
 
 /** What an analysis reads: data sets of a table, or another analysis's results. */
@@ -81,8 +91,11 @@ export interface GraphFormat {
   /** Asterisk thresholds; unset = Prism's (up to ****), 'apa' stops at ***. */
   readonly starScheme?: 'apa';
   readonly showNs: boolean;
-  /** t tests whose brackets the user hid. */
-  readonly hiddenBrackets: readonly Id[];
+  /**
+   * Brackets the user hid, by key: an analysis id (all of its brackets), or
+   * `<analysis>/<data set A>/<data set B>` for one of its comparisons (note 06).
+   */
+  readonly hiddenBrackets: readonly string[];
 }
 
 export interface Graph {

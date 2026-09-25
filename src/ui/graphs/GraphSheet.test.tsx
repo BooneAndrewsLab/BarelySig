@@ -139,7 +139,9 @@ describe('significance brackets on the graph', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
     await screen.findByRole('img', { name: /Bars/ });
-    expect(screen.getByText('Run a t test on this table to add its bracket.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Compare groups of this table (a t test, for example) to add brackets.'),
+    ).toBeInTheDocument();
     act(() => {
       store.edit({
         op: 'addAnalysis',

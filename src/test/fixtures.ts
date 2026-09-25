@@ -19,6 +19,14 @@ export interface Fixture {
     /** Helper definitions evaluated before `call`, if any. */
     readonly setup?: string;
     readonly call: string;
+    /**
+     * A second reference, run only in desktop R when the fixture was
+     * written (item 06), e.g. a package WebR doesn't ship.
+     */
+    readonly checked?: {
+      readonly packages: Readonly<Record<string, string>>;
+      readonly code: string;
+    };
   };
   /** The analysis options this case uses (item 04), as the oracle wrote them. */
   readonly options?: Readonly<Record<string, Plain>>;

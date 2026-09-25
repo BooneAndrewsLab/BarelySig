@@ -1,0 +1,45 @@
+{
+  "input": {
+    "a": [24, 27, null, 22, 29, 26, 30],
+    "b": [28, 30, 33, 27, null, 31, 35.5]
+  },
+  "expected": {
+    "exact": true,
+    "p_two": 0.0625,
+    "p_one": 0.03125,
+    "w": 15,
+    "sum_positive": 15,
+    "sum_negative": -0,
+    "n_pairs": 5,
+    "n_zero": 0,
+    "median_a": 26,
+    "median_b": 30,
+    "median_difference": 5,
+    "hodges_lehmann": 4.5,
+    "ci_lower": 3,
+    "ci_upper": 5.5,
+    "ci_level": 0.9375,
+    "pairing_r": 0.8999999999999998,
+    "pairing_p": 0.041666666666666664
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    eps <- 1e-09\n    drop_na <- function(x) x[!is.na(x)]\n    ci <- function(sorted, q, p) {\n        k <- max(1, q(0.025))\n        list(ci_lower = sorted[k], ci_upper = sorted[length(sorted) + 1 - k], ci_level = 1 - \n            2 * p(k - 1))\n    }\n    tails <- function(stat, obs, mu, prob = rep(1/length(stat), length(stat))) {\n        list(p_two = min(1, sum(prob[abs(stat - mu) >= abs(obs - mu) - eps])), p_one = if (obs >= \n            mu) sum(prob[stat >= obs - eps]) else sum(prob[stat <= obs + eps]))\n    }\n    normal <- function(obs, mu, v) {\n        z <- (abs(obs - mu) - 0.5)/sqrt(v)\n        list(p_two = min(1, 2 * pnorm(-z)), p_one = pnorm(-z))\n    }\n    mann_whitney <- function(a, b, how = c(\"enumerate\", \"pwilcox\", \"normal\")) {\n        how <- match.arg(how)\n        a <- drop_na(a)\n        b <- drop_na(b)\n        na <- length(a)\n        nb <- length(b)\n        n <- na + nb\n        r <- rank(c(a, b))\n        rb <- sum(r[na + seq_len(nb)])\n        ub <- rb - nb * (nb + 1)/2\n        p <- switch(how, enumerate = tails(apply(combn(n, nb), 2, function(i) sum(r[i])), \n            rb, nb * (n + 1)/2), pwilcox = {\n            u <- 0:(na * nb)\n            tails(u, ub, na * nb/2, dwilcox(u, nb, na))\n        }, normal = {\n            t <- table(r)\n            normal(ub, na * nb/2, na * nb/12 * ((n + 1) - sum(t^3 - t)/(n * (n - \n                1))))\n        })\n        diffs <- sort(outer(b, a, \"-\"))\n        c(list(exact = how != \"normal\"), p, list(u = min(ub, na * nb - ub), n_a = na, \n            n_b = nb, rank_sum_a = sum(r) - rb, rank_sum_b = rb, mean_rank_a = (sum(r) - \n                rb)/na, mean_rank_b = rb/nb, median_a = median(a), median_b = median(b), \n            difference = median(b) - median(a), hodges_lehmann = median(diffs)), \n            ci(diffs, function(x) qwilcox(x, na, nb), function(x) pwilcox(x, na, \n                nb)))\n    }\n    wilcoxon <- function(a, b, pratt = FALSE, how = c(\"enumerate\", \"psignrank\", \"normal\")) {\n        how <- match.arg(how)\n        keep <- !is.na(a) & !is.na(b)\n        a <- a[keep]\n        b <- b[keep]\n        d <- round(b - a, 10)\n        n <- length(d)\n        r_all <- rank(abs(d))\n        nz <- d != 0\n        r <- if (pratt) \n            r_all[nz]\n        else rank(abs(d[nz]))\n        dd <- d[nz]\n        tplus <- sum(r[dd > 0])\n        p <- switch(how, enumerate = tails(as.vector(as.matrix(expand.grid(rep(list(0:1), \n            length(r)))) %*% r), tplus, sum(r)/2), psignrank = {\n            v <- 0:(n * (n + 1)/2)\n            tails(v, tplus, sum(r)/2, dsignrank(v, n))\n        }, normal = normal(tplus, sum(r)/2, sum(r^2)/4))\n        w <- outer(d, d, \"+\")/2\n        w <- sort(w[upper.tri(w, diag = TRUE)])\n        ra <- rank(a)\n        rb <- rank(b)\n        rs <- suppressWarnings(cor(ra, rb))\n        pr <- if (n <= 2 || sd(ra) == 0 || sd(rb) == 0) {\n            list(pairing_r = NA, pairing_p = NA)\n        }\n        else if (n <= 9 && !anyDuplicated(a) && !anyDuplicated(b)) {\n            perms <- function(v) if (length(v) == 1) \n                matrix(v)\n            else do.call(rbind, lapply(seq_along(v), function(i) cbind(v[i], perms(v[-i]))))\n            all_r <- apply(perms(seq_len(n)), 1, function(p) cor(seq_len(n), p))\n            list(pairing_r = rs, pairing_p = mean(all_r >= cor(ra, rb) - eps))\n        }\n        else {\n            list(pairing_r = rs, pairing_p = pt(rs * sqrt((n - 2)/(1 - rs^2)), n - \n                2, lower.tail = FALSE))\n        }\n        c(list(exact = how != \"normal\"), p, list(w = tplus - sum(r[dd < 0]), sum_positive = tplus, \n            sum_negative = -sum(r[dd < 0]), n_pairs = n, n_zero = sum(!nz), median_a = median(a), \n            median_b = median(b), median_difference = median(d), hodges_lehmann = median(w)), \n            ci(w, function(x) qsignrank(x, n), function(x) psignrank(x, n)), pr)\n    }\n}",
+    "call": "wilcoxon(a, b)",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0"
+      },
+      "code": "{\n    keep <- !is.na(a) & !is.na(b)\n    w <- wilcox.test(b[keep], a[keep], paired = TRUE, exact = TRUE, conf.int = TRUE)\n    d <- round(b[keep] - a[keep], 10)\n    untied <- !anyDuplicated(abs(d)) && all(d != 0)\n    close(expected$p_two, w$p.value) && close(expected$hodges_lehmann, w$estimate, \n        1e-06) && (!untied || close(c(expected$ci_lower, expected$ci_upper), w$conf.int[1:2])) && \n        (is.na(expected$pairing_p) || sum(keep) > 9 || close(expected$pairing_p, \n            cor.test(a[keep], b[keep], method = \"spearman\", alternative = \"greater\")$p.value, \n            1e-06))\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "A row missing on either side drops out of the pairing.",
+  "options": {
+    "paired": true,
+    "zeros": "wilcoxon"
+  }
+}

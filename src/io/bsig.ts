@@ -33,6 +33,7 @@ import type {
   GraphSource,
   Layout,
   Project,
+  RankTestOptions,
   TTestOptions,
 } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
@@ -111,7 +112,19 @@ function analysisJson(a: Analysis): Json {
     a.input.kind === 'table'
       ? { kind: 'table', table: a.input.table, dataSets: a.input.dataSets }
       : { kind: 'analysis', analysis: a.input.analysis };
-  return { id: a.id, title: a.title, kind: a.kind, options: { ...a.options }, input };
+  return { id: a.id, title: a.title, kind: a.kind, options: optionsJson(a), input };
+}
+
+/** Each kind's options, field by field in a fixed order (never spread: key order would leak in). */
+function optionsJson(a: AnalysisSpec): Json {
+  switch (a.kind) {
+    case 'descriptive':
+      return {};
+    case 't-test':
+      return { paired: a.options.paired, welch: a.options.welch, tails: a.options.tails };
+    case 'rank-test':
+      return { paired: a.options.paired, tails: a.options.tails, zeros: a.options.zeros };
+  }
 }
 
 function graphJson(g: Graph): Json {
@@ -319,6 +332,14 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
         paired: bool(opts['paired'], q.key('paired')),
         welch: bool(opts['welch'], q.key('welch')),
         tails,
+      };
+      return { kind, options };
+    }
+    case 'rank-test': {
+      const options: RankTestOptions = {
+        paired: bool(opts['paired'], q.key('paired')),
+        tails: oneOf(opts['tails'], q.key('tails'), ['two', 'one'] as const),
+        zeros: oneOf(opts['zeros'], q.key('zeros'), ['wilcoxon', 'pratt'] as const),
       };
       return { kind, options };
     }

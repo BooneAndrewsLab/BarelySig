@@ -2,10 +2,10 @@
  * From project to layout input (note 05): which data sets a graph plots,
  * their colours and values, the summary statistics behind its bars and
  * error bars (a virtual descriptive analysis run by R), and the brackets
- * of the t tests it draws.
+ * of the comparisons it draws.
  */
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
-import type { TTestResult } from '@/analyses/ttest/types';
+import { comparisons, gives } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
 import type { Analysis, Graph, Project } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
@@ -122,23 +122,21 @@ export function graphInput(
   for (const id of graph.analyses) {
     const a = project.analyses.get(id);
     const r = result(id);
-    if (
-      a?.kind !== 't-test' ||
-      a.input.kind !== 'table' ||
-      graph.format.hiddenBrackets.includes(id) ||
-      !r?.ok
-    )
+    if (!a || !gives(a) || a.input.kind !== 'table' || graph.format.hiddenBrackets.includes(id))
       continue;
-    const t = r.value as unknown as TTestResult;
-    const from = sets.findIndex((x) => x.ds.id === t.a.id);
-    const to = sets.findIndex((x) => x.ds.id === t.b.id);
-    if (from < 0 || to < 0) continue;
-    const label =
-      graph.format.bracketLabels === 'exact'
-        ? pPhrase(t.p)
-        : stars(t.p, graph.format.starScheme ?? 'prism');
-    if (label === 'ns' && !graph.format.showNs) continue;
-    brackets.push({ id, from, to, label });
+    if (!r?.ok) continue;
+    for (const c of comparisons(a, r.value)) {
+      if (c.key !== id && graph.format.hiddenBrackets.includes(c.key)) continue;
+      const from = sets.findIndex((x) => x.ds.id === c.a);
+      const to = sets.findIndex((x) => x.ds.id === c.b);
+      if (from < 0 || to < 0) continue;
+      const label =
+        graph.format.bracketLabels === 'exact'
+          ? pPhrase(c.p)
+          : stars(c.p, graph.format.starScheme ?? 'prism');
+      if (label === 'ns' && !graph.format.showNs) continue;
+      brackets.push({ id: c.key, from, to, label });
+    }
   }
   return {
     ok: true,
@@ -156,7 +154,7 @@ export function graphInput(
   };
 }
 
-/** The t tests of a graph's table, whether the graph draws them or could (note 05, "offers its brackets"). */
+/** The analyses of a graph's table that give brackets, whether the graph draws them or could (note 05, "offers its brackets"). */
 export function bracketChoices(
   project: Project,
   graph: Graph,
@@ -165,7 +163,7 @@ export function bracketChoices(
   if (!table) return [];
   return project.order.analyses.flatMap((id) => {
     const a = project.analyses.get(id);
-    if (a?.kind !== 't-test' || a.input.kind !== 'table' || a.input.table !== table.id) return [];
+    if (!a || !gives(a) || a.input.kind !== 'table' || a.input.table !== table.id) return [];
     return [
       {
         id,
@@ -176,7 +174,7 @@ export function bracketChoices(
   });
 }
 
-/** The graph with a t test's bracket shown or hidden. */
+/** The graph with an analysis's brackets shown or hidden. */
 export function withBracket(graph: Graph, id: Id, show: boolean): Graph {
   const analyses = show && !graph.analyses.includes(id) ? [...graph.analyses, id] : graph.analyses;
   const hidden = graph.format.hiddenBrackets.filter((x) => x !== id);

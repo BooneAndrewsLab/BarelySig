@@ -11,6 +11,8 @@ import {
   createGroupedTable,
 } from '@/model/table';
 
+import { testName } from '../analysisKinds';
+
 const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`;
 
 /** What deleting a table takes with it, in words: "with 2 analyses and 1 graph". */
@@ -71,8 +73,5 @@ export function valuesLost(before: Table, after: Table): number {
 
 /** The name an analysis gets: "Unpaired t test of Viability". */
 export function analysisTitle(spec: AnalysisSpec, table: string): string {
-  if (spec.kind === 'descriptive') return `Descriptive statistics of ${table}`;
-  const o = spec.options;
-  const name = o.paired ? 'Paired t test' : o.welch ? 'Welch’s t test' : 'Unpaired t test';
-  return `${name} of ${table}`;
+  return `${testName(spec)} of ${table}`;
 }

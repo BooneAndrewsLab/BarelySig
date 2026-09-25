@@ -11,10 +11,20 @@ import type { RObject, WebR } from 'webr';
 import { fromR, type RJs } from '@/engine/convert';
 import { ENGINE } from '@/engine/engineInfo';
 
-import { loadFixtures, mismatches } from './fixtures';
+import { type Fixture, loadFixtures, mismatches } from './fixtures';
 import { startNodeWebR } from './webrNode';
 
 const fixtures = loadFixtures();
+
+/**
+ * A fixture whose reference call needs a package WebR doesn't ship (an
+ * oracle-only reference such as coin) can't run here; its analysis's own
+ * test still checks the app against it (item 06).
+ */
+const referencePackages = (f: Fixture) =>
+  Object.keys(f.reference.packages).filter((p) => p !== 'stats');
+const inWebR = (f: Fixture) => referencePackages(f).every((p) => p in ENGINE.packages);
+const runnable = fixtures.filter(inWebR);
 
 describe('engine parity with desktop R', () => {
   let webR: WebR;
@@ -36,27 +46,35 @@ describe('engine parity with desktop R', () => {
     expect(version).toContain(`R version ${ENGINE.r} `);
   });
 
-  it.each(fixtures.map((f) => [f.id, f] as const))('%s', async (_id, f) => {
-    const packages = Object.keys(f.reference.packages).filter((p) => p !== 'stats');
-    if (packages.length > 0) await webR.installPackages(packages, { quiet: true });
-    const shelter = await new webR.Shelter();
-    try {
-      const inputs: Record<string, RObject> = Object.fromEntries(
-        await Promise.all(
-          Object.entries(f.input).map(async ([k, v]): Promise<[string, RObject]> => [
-            k,
-            await new shelter.RDouble([...v]),
-          ]),
-        ),
-      );
-      const env = await new shelter.REnvironment(inputs);
-      for (const p of packages) await shelter.evalR(`library(${p})`, { env });
-      if (f.reference.setup !== undefined) await shelter.evalR(f.reference.setup, { env });
-      const result = await shelter.evalR(f.reference.call, { env });
-      const actual = fromR((await result.toJs()) as RJs);
-      expect(mismatches(actual, f.expected, f.tolerance)).toEqual([]);
-    } finally {
-      await shelter.purge();
-    }
+  it('runs most fixtures (the rest use reference-only packages)', () => {
+    expect(runnable.length).toBeGreaterThan(fixtures.length / 2);
   });
+
+  it.each(runnable.map((f) => [f.id, f] as const))(
+    '%s',
+    async (_id, f) => {
+      const packages = referencePackages(f);
+      if (packages.length > 0) await webR.installPackages(packages, { quiet: true });
+      const shelter = await new webR.Shelter();
+      try {
+        const inputs: Record<string, RObject> = Object.fromEntries(
+          await Promise.all(
+            Object.entries(f.input).map(async ([k, v]): Promise<[string, RObject]> => [
+              k,
+              await new shelter.RDouble([...v]),
+            ]),
+          ),
+        );
+        const env = await new shelter.REnvironment(inputs);
+        for (const p of packages) await shelter.evalR(`library(${p})`, { env });
+        if (f.reference.setup !== undefined) await shelter.evalR(f.reference.setup, { env });
+        const result = await shelter.evalR(f.reference.call, { env });
+        const actual = fromR((await result.toJs()) as RJs);
+        expect(mismatches(actual, f.expected, f.tolerance)).toEqual([]);
+      } finally {
+        await shelter.purge();
+      }
+    },
+    60_000,
+  );
 });

@@ -34,26 +34,49 @@ as_arrays <- function(input) lapply(input, function(v) if (length(v) == 1) I(v) 
 
 code <- function(e) paste(deparse(e, width.cutoff = 80L), collapse = "\n")
 
+# `check` (optional) is a second, independent reference run only here, in
+# desktop R, after the expected values are computed: an expression that
+# sees the input, the setup and `expected`, and stops if they disagree. It
+# may use reference packages WebR doesn't ship (`check_packages`); it is
+# recorded as `reference.checked` for provenance, and the parity test
+# doesn't run it (item 06).
+versions_of <- function(packages) {
+  as.list(vapply(packages, function(p) as.character(packageVersion(p)), ""))
+}
+
 fixture <- function(name, input, expr, setup = NULL, packages = character(),
-                    tolerance = 1e-6, note = NULL, options = NULL) {
+                    tolerance = 1e-6, note = NULL, options = NULL,
+                    check = NULL, check_packages = character()) {
   expr <- substitute(expr)
-  for (p in packages) suppressPackageStartupMessages(library(p, character.only = TRUE))
+  check <- substitute(check)
+  # A check kept in a variable of the oracle (a quoted expression) is used as such.
+  if (is.symbol(check)) check <- eval(check, parent.frame())
+  for (p in c(packages, check_packages)) suppressPackageStartupMessages(library(p, character.only = TRUE))
   env <- list2env(input, parent = globalenv())
   if (!is.null(setup)) eval(setup, envir = env)
   expected <- eval(expr, envir = env)
   if (!is.list(expected) || is.null(names(expected))) stop(name, ": expression must return a named list")
-  versions <- vapply(c("stats", packages), function(p) as.character(packageVersion(p)), "")
+  if (!is.null(check)) {
+    # The check sees the input, the setup's definitions, `expected` and the
+    # oracle's own helpers.
+    cenv <- list2env(c(as.list(env), list(expected = expected)), parent = parent.frame())
+    ok <- tryCatch(eval(check, envir = cenv), error = function(e) stop(name, ": check failed: ", conditionMessage(e)))
+    if (!isTRUE(ok)) stop(name, ": check did not return TRUE")
+  }
   out <- list(
     input = as_arrays(input),
     expected = encode(expected),
     reference = list(
       r = R.version.string,
-      packages = as.list(versions),
+      packages = versions_of(c("stats", packages)),
       setup = if (is.null(setup)) NULL else code(setup),
       call = code(expr)
     ),
     tolerance = tolerance
   )
+  if (!is.null(check)) {
+    out$reference$checked <- list(packages = versions_of(c("stats", check_packages)), code = code(check))
+  }
   if (!is.null(note)) out$note <- note
   # The analysis options this case uses, for the app's own test (item 04).
   if (!is.null(options)) out$options <- options
