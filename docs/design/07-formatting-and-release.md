@@ -436,6 +436,22 @@ left to the UI revamp (milestone 9); this pass fixed words and traps:
 - Advice to log-transform now says how (a column of logs made in the
   spreadsheet), since the app can't transform values.
 
+### First public release (#36)
+
+- Ready: `deploy.yml` (on a published release: check, e2e at the Pages
+  base, build with Matomo site 7, deploy), version 1.0.0,
+  `CITATION.cff`, release notes in `docs/releases/1.0.0.md`, README.
+  The e2e test also passed against a `/BarelySig/` build locally (fonts,
+  WebR and icons resolve under the base).
+- Left to the user: making the repository public, enabling Pages, Zenodo,
+  and publishing the release. The user also asked (2026-09-25) for a UI
+  revamp (milestone 9) before the release.
+
+### Clipboard captures (#44)
+
+Still open: needs Excel, Google Sheets, LibreOffice and Numbers, none on
+this machine.
+
 ## Decisions made here
 
 1. **Overrides in `GraphFormat`, style as a flat record over a fixed

@@ -1,6 +1,6 @@
 {
   "name": "barelysig",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Browser-based statistics and graphing for wet-lab scientists",
   "private": true,
   "license": "MIT",

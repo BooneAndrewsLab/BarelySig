@@ -1,0 +1,64 @@
+name: Deploy to GitHub Pages
+
+# Builds the PWA and publishes it to GitHub Pages when a GitHub Release is
+# published, so the live site is always a release: the version a Zenodo DOI
+# names is the version users are running (as PlasmidPop). A push to main is
+# checked by ci.yml and deploys nothing. "Run workflow" redeploys by hand;
+# run it from a release tag, since it builds whatever ref it is started on.
+# Pages is enabled in the repository settings with "GitHub Actions" as
+# source. The site is served under /<repo>/, which BASE_PATH passes to Vite.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_PATH: /${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      # The release build, served under the Pages base, through the whole
+      # workflow with WebR, before anything is published.
+      - name: End-to-end tests at the site's base
+        run: npm run e2e
+      - name: Build
+        run: npm run build
+        env:
+          # Usage statistics: cookieless, counts of features only (docs/guide/15-files.md).
+          # Unset = tracker off, which is what local and CI builds get.
+          VITE_MATOMO_URL: https://boonelab.ccbr.utoronto.ca/matomo/
+          VITE_MATOMO_SITE_ID: '7'
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

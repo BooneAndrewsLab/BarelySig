@@ -249,13 +249,16 @@ qPCR, plate readers).
 storage, accounts, mobile-first layouts (tablets must not break; desktop is
 the target).
 
-## Status (2026-09-24)
+## Status (2026-09-25)
 
-- Repo: `BooneAndrewsLab/BarelySig`, private. **Not published to Pages
-  yet**; CI checks only. When publishing, add `deploy.yml` deploying on
-  GitHub Releases only, as PlasmidPop does, with the Matomo env set there:
-  `VITE_MATOMO_URL=https://boonelab.ccbr.utoronto.ca/matomo/`,
-  `VITE_MATOMO_SITE_ID=7` (#36).
+- Repo: `BooneAndrewsLab/BarelySig`, private, **not published yet**.
+  `deploy.yml` is ready: on a published GitHub Release it runs the check
+  and the e2e tests at the Pages base, builds with the Matomo env
+  (`VITE_MATOMO_URL=https://boonelab.ccbr.utoronto.ca/matomo/`,
+  `VITE_MATOMO_SITE_ID=7`) and deploys. Version 1.0.0, `CITATION.cff`,
+  release notes in `docs/releases/1.0.0.md`. Left to the user (#36):
+  make the repo public, enable Pages (source: GitHub Actions), connect
+  Zenodo, publish the release; then add the DOI to `CITATION.cff`.
 - Scaffold done: Vite/React/TS, ESLint, Prettier, Vitest, CI, logo
   lockup page, Matomo module (no site id yet).
 - `barelysig-r` conda env created (R 4.6.0 + oracle packages).
@@ -298,7 +301,18 @@ the target).
   Brackets come from every pairwise analysis, one per comparison.
   Follow-ups: #48 (exact Spearman), #49 (exact Kruskal-Wallis), #50
   (repeated measures, Friedman), #51, #52 (two-way edge cases).
-- Next: 1.0 — inspector, box/violin, grouped bars, guide, e2e, release.
+- 1.0 built (note 07): click-to-format inspector and draggable brackets
+  (#30, #45); box and violin plots from an internal `graph-summary`
+  analysis with its own oracle (#31); grouped bars with two-way brackets
+  (#32); exact Kruskal-Wallis P for small samples (#49); "numbers under a
+  newer engine" notice for reopened figures (#46); user guide in
+  `docs/guide/` shown by the ? button (#34); usability pass (#33, follow-ups
+  #53, #54); Playwright e2e in CI (#35). Exact Spearman moved to Phase 2
+  (#48). Open in 1.0: #36 (the user's release steps) and #44 (real
+  clipboard captures, needs the apps).
+- Milestone 9 "UI revamp" (created 2026-09-25, empty): the user will add
+  ideas as issues; it lands before the public release.
+- Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
 
