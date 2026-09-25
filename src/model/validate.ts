@@ -158,6 +158,11 @@ export function validateProject(project: Project): string[] {
         ? project.tables.get(g.source.table)
         : project.analyses.get(g.source.analysis);
     if (!src) problems.push(`graph ${g.id}: its source does not exist`);
+    if (g.source.kind === 'table') {
+      const t = project.tables.get(g.source.table);
+      if (t && (t.type === 'grouped') !== (g.plot.kind === 'grouped-bars'))
+        problems.push(`graph ${g.id}: a ${g.plot.kind} plot of a ${t.type} table`);
+    }
     if (g.source.kind === 'table' && g.dataSets) {
       const t = project.tables.get(g.source.table);
       for (const d of g.dataSets) {

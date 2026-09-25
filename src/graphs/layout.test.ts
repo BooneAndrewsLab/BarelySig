@@ -266,7 +266,8 @@ describe('layoutColumn', () => {
         fc.boolean(),
         fc.array(fc.integer({ min: -10, max: 15 }), { minLength: 5, maxLength: 5 }),
         fc.constantFrom(undefined, 45, 90),
-        (vals, plot, pairs, classic, offsets, xAngle) => {
+        fc.constantFrom('none', 'interleaved', 'separated', 'top-legend'),
+        (vals, plot, pairs, classic, offsets, xAngle, clustering) => {
           const groups = vals.map((v, i) => dist(i, v));
           const brackets = pairs.map(([a, b], i) => ({
             id: `b${String(i)}`,
@@ -275,8 +276,35 @@ describe('layoutColumn', () => {
             label: '**',
             offset: offsets[i],
           }));
+          // Grouped: the groups in clusters of two (the last one maybe alone).
+          const clusters =
+            clustering === 'none'
+              ? undefined
+              : Array.from({ length: Math.ceil(groups.length / 2) }, (_, c) => ({
+                  title: `Cluster ${String(c)} of the experiment`,
+                  size: Math.min(2, groups.length - 2 * c),
+                }));
+          const legend =
+            clustering === 'interleaved' || clustering === 'top-legend'
+              ? {
+                  at: clustering === 'top-legend' ? ('top' as const) : ('right' as const),
+                  entries: [
+                    { id: 'a', title: 'Wild type', color: '#0173b2' },
+                    { id: 'b', title: 'Knockout', color: '#de8f05' },
+                  ],
+                }
+              : undefined;
           const s = layoutColumn(
-            base({ plot, groups, brackets, theme: classic ? CLASSIC : MODERN, xAngle }),
+            base({
+              plot,
+              groups,
+              brackets,
+              theme: classic ? CLASSIC : MODERN,
+              xAngle,
+              clusters,
+              legend,
+              barLabels: clustering === 'separated',
+            }),
           );
           // Once brackets have squeezed the plot to its minimum height (10 pt),
           // something has to give: brackets or labels may then run off the page.
@@ -504,6 +532,85 @@ describe('box and violin plots (note 07)', () => {
       'Boxes: median and quartiles; whiskers: Tukey (the most extreme values within 1.5 × IQR of the box); points: values beyond the whiskers',
     );
     expect(describePlot({ kind: 'violin', inner: 'none', smoothing: 2 })).toMatch(/bandwidth × 2;/);
+  });
+});
+
+describe('clusters and legends (note 07)', () => {
+  const texts = (s: Scene, role: string) =>
+    of(s, role).map((m) => (m.kind === 'text' ? m.text : ''));
+  const cells = [
+    { ...group(0, [1, 2, 3], 'WT'), id: 'r1/a', series: 'a' },
+    { ...group(1, [3, 4, 5], 'KO'), id: 'r1/b', series: 'b' },
+    { ...group(0, [2, 3, 4], 'WT'), id: 'r2/a', series: 'a' },
+    { ...group(1, [6, 7, 8], 'KO'), id: 'r2/b', series: 'b' },
+  ];
+  const clustered = (over: Partial<LayoutInput> = {}) =>
+    layoutColumn(
+      base({
+        groups: cells,
+        clusters: [
+          { title: 'Day 1', size: 2 },
+          { title: 'Day 2', size: 2 },
+        ],
+        legend: {
+          at: 'right',
+          entries: [
+            { id: 'a', title: 'WT', color: '#0173b2' },
+            { id: 'b', title: 'KO', color: '#de8f05' },
+          ],
+        },
+        ...over,
+      }),
+    );
+  const centreX = (m: Mark) => (box(m).x0 + box(m).x1) / 2;
+
+  it('puts the bars of a cluster together, with the cluster’s title under them', () => {
+    const s = clustered();
+    const xs = of(s, 'bar').map(centreX);
+    expect(xs).toHaveLength(4);
+    const [a = 0, b = 0, c = 0] = xs;
+    expect(b - a).toBeLessThan(c - b);
+    expect(texts(s, 'cluster-label')).toEqual(['Day 1', 'Day 2']);
+    expect(of(s, 'group-label')).toHaveLength(0);
+    // The marks of a cell belong to its data set, for click-to-format.
+    expect(new Set(of(s, 'bar').map((m) => m.ref))).toEqual(new Set(['a', 'b']));
+  });
+
+  it('draws a legend at the right, which narrows the plot, or above it', () => {
+    const right = clustered();
+    expect(texts(right, 'legend-label')).toEqual(['WT', 'KO']);
+    expect(of(right, 'legend-swatch')).toHaveLength(2);
+    const plain = clustered({ legend: undefined });
+    const width = (x: Scene) => {
+      const ax = of(x, 'axis-x')[0];
+      return ax ? box(ax).x1 - box(ax).x0 : 0;
+    };
+    expect(width(right)).toBeLessThan(width(plain));
+    const top = clustered({
+      legend: { at: 'top', entries: [{ id: 'a', title: 'WT', color: '#000' }] },
+    });
+    const label = of(top, 'legend-label')[0];
+    const axisTop = of(top, 'axis-y')[0];
+    if (!label || !axisTop) throw new Error('shape');
+    expect(box(label).y1).toBeLessThan(box(axisTop).y0);
+  });
+
+  it('labels each bar and its cluster when separated', () => {
+    const s = clustered({ barLabels: true, legend: undefined });
+    expect(texts(s, 'group-label')).toEqual(['WT', 'KO', 'WT', 'KO']);
+    const bar = of(s, 'group-label')[0];
+    const cluster = of(s, 'cluster-label')[0];
+    if (!bar || !cluster) throw new Error('shape');
+    expect(box(cluster).y0).toBeGreaterThan(box(bar).y1 - 0.01);
+  });
+
+  it('draws brackets between bars of a cluster', () => {
+    const s = clustered({ brackets: [{ id: 'k', from: 2, to: 3, label: '**' }] });
+    const b = of(s, 'bracket')[0];
+    const bars = of(s, 'bar');
+    if (!b || bars.length < 4) throw new Error('shape');
+    expect(box(b).x0).toBeGreaterThan(centreX(at(bars, 2)) - 0.01);
+    expect(box(b).x1).toBeLessThan(centreX(at(bars, 3)) + 0.01);
   });
 });
 

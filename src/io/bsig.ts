@@ -34,7 +34,7 @@ import {
   WELCH_ALL,
   WELCH_CONTROL,
   type ExportRecord,
-  type ColumnPlot,
+  type GraphPlot,
   type Graph,
   type GraphFormat,
   type GraphSource,
@@ -189,8 +189,15 @@ function sortedRecord<V extends Json>(r: Readonly<Record<string, V>>): Json {
   return out;
 }
 
-function plotJson(plot: ColumnPlot): Json {
+function plotJson(plot: GraphPlot): Json {
   switch (plot.kind) {
+    case 'grouped-bars':
+      return {
+        kind: 'grouped-bars',
+        arrangement: plot.arrangement,
+        error: plot.error,
+        points: plot.points,
+      };
     case 'bars':
       return { kind: 'bars', error: plot.error, points: plot.points };
     case 'dots':
@@ -221,6 +228,7 @@ function graphJson(g: Graph): Json {
     ...optional('yDecimals', f.yDecimals),
     ...optional('xAngle', f.xAngle),
     ...optional('showTitle', f.showTitle),
+    ...optional('legend', f.legend),
     ...optional('style', f.style && styleJson(f.style)),
     ...optional('symbols', f.symbols && sortedRecord(f.symbols)),
     ...optional('bracketOffsets', f.bracketOffsets && sortedRecord(f.bracketOffsets)),
@@ -516,10 +524,26 @@ function oneOf<T extends string>(v: Json | undefined, p: Path, options: readonly
   return s as T;
 }
 
-function plot(v: Json | undefined, p: Path): ColumnPlot {
+function plot(v: Json | undefined, p: Path): GraphPlot {
   const o = obj(v, p);
-  const kind = oneOf(o['kind'], p.key('kind'), ['bars', 'dots', 'box', 'violin'] as const);
+  const kind = oneOf(o['kind'], p.key('kind'), [
+    'bars',
+    'dots',
+    'box',
+    'violin',
+    'grouped-bars',
+  ] as const);
   switch (kind) {
+    case 'grouped-bars':
+      return {
+        kind,
+        arrangement: oneOf(o['arrangement'], p.key('arrangement'), [
+          'interleaved',
+          'separated',
+        ] as const),
+        error: oneOf(o['error'], p.key('error'), ERROR_BARS),
+        points: bool(o['points'], p.key('points')),
+      };
     case 'bars':
       return {
         kind,
@@ -612,6 +636,10 @@ function graph(v: Json, p: Path): Graph {
       xAngle: f['xAngle'] === undefined ? undefined : angle(f['xAngle'], fp.key('xAngle')),
       showTitle:
         f['showTitle'] === undefined ? undefined : bool(f['showTitle'], fp.key('showTitle')),
+      legend:
+        f['legend'] === undefined
+          ? undefined
+          : oneOf(f['legend'], fp.key('legend'), ['top', 'none'] as const),
       style: f['style'] === undefined ? undefined : style(f['style'], fp.key('style')),
       symbols:
         f['symbols'] === undefined

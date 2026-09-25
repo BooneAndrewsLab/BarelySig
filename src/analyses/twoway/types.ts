@@ -71,6 +71,8 @@ export interface TwoWayResult {
   /** One family per row or column, or one for main effects and all cells. `label` names the row or column. */
   readonly families: readonly {
     readonly label: string | null;
+    /** The row (within rows) or data set (within columns) the family compares in; null otherwise. */
+    readonly level: Named | null;
     readonly pairs: readonly PairComparison[];
   }[];
   /** Why comparisons asked for are not available. */

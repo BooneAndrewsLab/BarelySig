@@ -3,7 +3,7 @@ import { type ReactNode, useState } from 'react';
 import { gives } from '@/analyses/pairwise';
 import { downstreamOf } from '@/model/deps';
 import { newId } from '@/model/ids';
-import { GRAPH_DEFAULTS, type Project } from '@/model/project';
+import { GRAPH_DEFAULTS, GROUPED_DEFAULT, type Project } from '@/model/project';
 import type { Table } from '@/model/table';
 
 import { analytics } from '../analytics';
@@ -80,34 +80,33 @@ export function TableSheet({ project, table, children }: Props) {
           >
             Change data format…
           </button>
-          {table.type === 'column' && (
-            <button
-              type="button"
-              onClick={() => {
-                const id = newId('g');
-                // Brackets of the table's comparisons come along (notes 05, 06).
-                const tests = [...project.analyses.values()]
-                  .filter((a) => gives(a) && a.input.kind === 'table' && a.input.table === table.id)
-                  .map((a) => a.id);
-                store.edit(
-                  {
-                    op: 'addGraph',
-                    graph: {
-                      id,
-                      title: table.title,
-                      source: { kind: 'table', table: table.id },
-                      analyses: tests,
-                      ...GRAPH_DEFAULTS,
-                    },
+          <button
+            type="button"
+            onClick={() => {
+              const id = newId('g');
+              // Brackets of the table's comparisons come along (notes 05, 06).
+              const tests = [...project.analyses.values()]
+                .filter((a) => gives(a) && a.input.kind === 'table' && a.input.table === table.id)
+                .map((a) => a.id);
+              store.edit(
+                {
+                  op: 'addGraph',
+                  graph: {
+                    id,
+                    title: table.title,
+                    source: { kind: 'table', table: table.id },
+                    analyses: tests,
+                    ...GRAPH_DEFAULTS,
+                    ...(table.type === 'grouped' ? { plot: GROUPED_DEFAULT } : {}),
                   },
-                  { show: { kind: 'graph', id } },
-                );
-                analytics.trackOnce('graph', 'new-column');
-              }}
-            >
-              <Icon name="new-graph" size={16} /> New graph
-            </button>
-          )}
+                },
+                { show: { kind: 'graph', id } },
+              );
+              analytics.trackOnce('graph', table.type === 'grouped' ? 'new-grouped' : 'new-column');
+            }}
+          >
+            <Icon name="new-graph" size={16} /> New graph
+          </button>
           <button
             type="button"
             className="primary"

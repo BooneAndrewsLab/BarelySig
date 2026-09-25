@@ -223,7 +223,7 @@ describe('two-way ANOVA readings', () => {
     row: term(0.2),
     column: term(0.01),
     options: { family: 'main-columns', comparisons: { kind: 'all', test: 'tukey' } },
-    families: [{ label: null, pairs: [{ p: 0.01 }, { p: 0.3 }, { p: 0.04 }] }],
+    families: [{ label: null, level: null, pairs: [{ p: 0.01 }, { p: 0.3 }, { p: 0.04 }] }],
   } as unknown as TwoWayResult;
 
   it('says when main effects only were fitted, and why', () => {

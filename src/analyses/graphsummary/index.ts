@@ -6,7 +6,11 @@
  */
 import type { EngineInput, EngineJob } from '@/engine/engine';
 import type { Plain } from '@/engine/convert';
-import { columnGroups } from '@/model/selectors';
+import type { Id } from '@/model/ids';
+import { columnGroups, groupedCells } from '@/model/selectors';
+import type { GroupedTable } from '@/model/table';
+
+import { cellId } from '../pairwise';
 
 import { descriptive } from '../descriptive';
 import type { AnalysisModule } from '../module';
@@ -27,6 +31,18 @@ function kde(v: Plain | undefined): Kde | null {
 
 const code = `${descriptive.code}\n${own}`;
 
+/** A Grouped table's cells, row by row, named `<row>/<data set>` (note 07). */
+function cellsOf(table: GroupedTable, dataSets: readonly Id[]): GraphSummaryRequest['cells'] {
+  const g = groupedCells(table, dataSets);
+  return g.rows.flatMap((row, r) =>
+    g.dataSets.flatMap((ds, d) => {
+      const data = g.cells[r]?.[d];
+      const rowTitle = row.title ?? `Row ${String(r + 1)}`;
+      return data ? [{ id: cellId(row.id, ds.id), title: `${rowTitle}: ${ds.title}`, data }] : [];
+    }),
+  );
+}
+
 export const graphSummary: AnalysisModule<
   'graph-summary',
   GraphSummaryRequest,
@@ -40,9 +56,10 @@ export const graphSummary: AnalysisModule<
     if (analysis.input.kind !== 'table') return { ok: false, reason: 'A graph plots a table.' };
     const table = project.tables.get(analysis.input.table);
     if (!table) return { ok: false, reason: 'The table this graph plots no longer exists.' };
-    if (table.type !== 'column')
-      return { ok: false, reason: 'Graphs of this kind of table are not available yet.' };
-    const cells = columnGroups(table, analysis.input.dataSets);
+    const cells =
+      table.type === 'column'
+        ? columnGroups(table, analysis.input.dataSets)
+        : cellsOf(table, analysis.input.dataSets);
     const any = cells.some((g) =>
       g.data.kind === 'raw' ? g.data.values.length > 0 : g.data.mean !== null,
     );

@@ -5,12 +5,12 @@
  * of the comparisons it draws.
  */
 import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
-import { comparisons, gives, pairsOf } from '@/analyses/pairwise';
+import { cellId, comparisons, gives, pairsOf } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
 import type { Analysis, Graph, GraphSummaryOptions, Project } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
-import { columnGroup } from '@/model/selectors';
-import type { ColumnTable, DataSet } from '@/model/table';
+import { type GroupData, columnGroup, groupedCells } from '@/model/selectors';
+import type { DataSet, Table } from '@/model/table';
 
 import { pPhrase, stars } from '@/ui/results/format';
 
@@ -26,15 +26,14 @@ export function graphOfSummary(id: Id): Id | null {
   return id.endsWith('/summary') ? asId(id.slice(0, -'/summary'.length)) : null;
 }
 
-export function graphTable(project: Project, graph: Graph): ColumnTable | null {
+export function graphTable(project: Project, graph: Graph): Table | null {
   if (graph.source.kind !== 'table') return null;
-  const t = project.tables.get(graph.source.table);
-  return t?.type === 'column' ? t : null;
+  return project.tables.get(graph.source.table) ?? null;
 }
 
 /** The data sets plotted, in order, with each one's position in its table (for its default colour). */
 export function plotted(
-  table: ColumnTable,
+  table: Table,
   graph: Graph,
 ): { readonly ds: DataSet; readonly index: number }[] {
   const all = table.dataSets.map((ds, index) => ({ ds, index }));
@@ -79,7 +78,7 @@ export function withGraphSummaries(project: Project): Project {
   return { ...project, analyses, order: { ...project.order, analyses: order } };
 }
 
-export function valueTitle(table: ColumnTable, graph: Graph): string {
+export function valueTitle(table: Table, graph: Graph): string {
   if (graph.format.yTitle !== undefined) return graph.format.yTitle;
   const title = table.valueTitle ?? '';
   return table.unit ? `${title || 'Value'} (${table.unit})` : title;
@@ -96,20 +95,56 @@ export function graphInput(
   result: (id: Id) => ResultEntry | undefined,
 ): GraphInput {
   const table = graphTable(project, graph);
-  if (!table)
-    return {
-      ok: false,
-      reason: 'Graphs of this kind of table are not available yet; use a Column table.',
-    };
+  if (!table) return { ok: false, reason: 'The table this graph plots no longer exists.' };
   const sets = plotted(table, graph);
   const summaryEntry = result(summaryId(graph.id));
   const summary = summaryEntry?.ok ? (summaryEntry.value as unknown as GraphSummaryResult) : null;
-  const groups: GroupInput[] = sets.map(({ ds, index }) => {
-    const data = columnGroup(table, ds.id);
-    const s = summary?.cells.find((g) => g.id === ds.id);
+  const grouped = table.type === 'grouped' && graph.plot.kind === 'grouped-bars';
+  const separated = graph.plot.kind === 'grouped-bars' && graph.plot.arrangement === 'separated';
+  /** The groups drawn: data sets, or a Grouped table's cells in cluster order. */
+  const cells: {
+    readonly id: string;
+    readonly title: string;
+    readonly ds: DataSet;
+    readonly index: number;
+    readonly data: GroupData;
+  }[] = [];
+  const clusters: { title: string; size: number }[] = [];
+  if (table.type === 'grouped' && grouped) {
+    const g = groupedCells(
+      table,
+      sets.map((x) => x.ds.id),
+    );
+    const rowTitle = (r: number) => g.rows[r]?.title ?? `Row ${String(r + 1)}`;
+    if (separated) {
+      sets.forEach((x, d) => {
+        clusters.push({ title: x.ds.title, size: g.rows.length });
+        g.rows.forEach((row, r) => {
+          const data = g.cells[r]?.[d];
+          if (data) cells.push({ id: cellId(row.id, x.ds.id), title: rowTitle(r), ...x, data });
+        });
+      });
+    } else {
+      g.rows.forEach((row, r) => {
+        clusters.push({ title: rowTitle(r), size: sets.length });
+        sets.forEach((x, d) => {
+          const data = g.cells[r]?.[d];
+          if (data) cells.push({ id: cellId(row.id, x.ds.id), title: x.ds.title, ...x, data });
+        });
+      });
+    }
+  } else if (table.type === 'column') {
+    for (const x of sets)
+      cells.push({ id: x.ds.id, title: x.ds.title, ...x, data: columnGroup(table, x.ds.id) });
+  } else {
+    return { ok: false, reason: 'This plot is for Column tables; choose grouped bars.' };
+  }
+  const groups: GroupInput[] = cells.map(({ id, title, ds, index, data }) => {
+    const s = summary?.cells.find((c) => c.id === id);
     return {
-      id: ds.id,
-      title: ds.title,
+      id,
+      series: ds.id,
+      title,
       color: ds.color ?? paletteColor(index),
       symbol: graph.format.symbols?.[ds.id],
       values: data.kind === 'raw' ? data.values : [],
@@ -141,8 +176,8 @@ export function graphInput(
     if (!r?.ok) continue;
     for (const c of comparisons(a, r.value)) {
       if (c.key !== id && graph.format.hiddenBrackets.includes(c.key)) continue;
-      const from = sets.findIndex((x) => x.ds.id === c.a);
-      const to = sets.findIndex((x) => x.ds.id === c.b);
+      const from = cells.findIndex((x) => x.id === c.a);
+      const to = cells.findIndex((x) => x.id === c.b);
       if (from < 0 || to < 0) continue;
       const label =
         graph.format.bracketLabels === 'exact'
@@ -156,7 +191,11 @@ export function graphInput(
     ok: true,
     summaryReady: summary !== null,
     input: {
-      plot: graph.plot,
+      // Grouped bars are drawn as bars in clusters.
+      plot:
+        graph.plot.kind === 'grouped-bars'
+          ? { kind: 'bars', error: graph.plot.error, points: graph.plot.points }
+          : graph.plot,
       size: graph.size,
       theme: graphTheme(graph.theme, graph.format.style),
       yTitle: valueTitle(table, graph),
@@ -171,6 +210,23 @@ export function graphInput(
       title: graph.format.showTitle ? graph.title : undefined,
       groups,
       brackets,
+      ...(grouped
+        ? {
+            clusters,
+            barLabels: separated,
+            legend:
+              separated || graph.format.legend === 'none'
+                ? undefined
+                : {
+                    at: graph.format.legend === 'top' ? ('top' as const) : ('right' as const),
+                    entries: sets.map((x) => ({
+                      id: x.ds.id,
+                      title: x.ds.title,
+                      color: x.ds.color ?? paletteColor(x.index),
+                    })),
+                  },
+          }
+        : {}),
     },
   };
 }
@@ -185,18 +241,22 @@ export interface BracketChoice {
     readonly label: string;
     readonly shown: boolean;
   }[];
+  /** Why an analysis the graph could draw gives no brackets (two-way main effects). */
+  readonly note?: string;
 }
 
 /** The analyses of a graph's table that give brackets, whether the graph draws them or could (note 05, "offers its brackets"). */
 export function bracketChoices(project: Project, graph: Graph): BracketChoice[] {
   const table = graphTable(project, graph);
   if (!table) return [];
-  const titleOf = (id: string) => table.dataSets.find((d) => d.id === id)?.title ?? '?';
   return project.order.analyses.flatMap((id) => {
     const a = project.analyses.get(id);
     if (!a || !gives(a) || a.input.kind !== 'table' || a.input.table !== table.id) return [];
     const shown = graph.analyses.includes(id) && !graph.format.hiddenBrackets.includes(id);
-    const pairs = pairsOf(a).filter((x) => x.key !== id);
+    const pairs = pairsOf(a, project).filter((x) => x.key !== id);
+    const mainEffects =
+      a.kind === 'two-way-anova' &&
+      (a.options.family === 'main-columns' || a.options.family === 'main-rows');
     return [
       {
         id,
@@ -204,12 +264,36 @@ export function bracketChoices(project: Project, graph: Graph): BracketChoice[] 
         shown,
         pairs: pairs.map((x) => ({
           key: x.key,
-          label: `${titleOf(x.a)} vs. ${titleOf(x.b)}`,
+          label: pairLabel(table, x.a, x.b),
           shown: shown && !graph.format.hiddenBrackets.includes(x.key),
         })),
+        ...(mainEffects
+          ? {
+              note: 'Its comparisons are of row or column means, which no bar shows, so it gives no brackets.',
+            }
+          : {}),
       },
     ];
   });
+}
+
+/** A data set's or a Grouped table cell's name: "KO", or "Day 1: KO". */
+export function groupName(table: Table, id: string): string {
+  const ds = (d: string) => table.dataSets.find((x) => x.id === d)?.title ?? '?';
+  const at = id.indexOf('/');
+  if (at < 0) return ds(id);
+  const r = table.rows.findIndex((x) => x.id === id.slice(0, at));
+  const row = table.rows[r]?.title ?? `Row ${String(r + 1)}`;
+  return `${row}: ${ds(id.slice(at + 1))}`;
+}
+
+/** "WT vs. KO"; two cells of one row: "Day 1: WT vs. KO". */
+export function pairLabel(table: Table, a: string, b: string): string {
+  const [ra, da] = a.split('/');
+  const [rb, db] = b.split('/');
+  if (da !== undefined && db !== undefined && ra === rb)
+    return `${groupName(table, a)} vs. ${groupName(table, db)}`;
+  return `${groupName(table, a)} vs. ${groupName(table, b)}`;
 }
 
 /** The graph with one comparison's bracket (by key) shown or hidden, its analysis staying on. */

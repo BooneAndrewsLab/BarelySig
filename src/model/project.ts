@@ -170,11 +170,34 @@ export type ColumnPlot =
       readonly smoothing: number;
     };
 
+/** What a graph of a Grouped table plots (note 07). */
+export interface GroupedPlot {
+  readonly kind: 'grouped-bars';
+  /**
+   * Interleaved: a cluster per row, a bar per data set in it (Prism's
+   * default). Separated: a cluster per data set, a bar per row.
+   */
+  readonly arrangement: 'interleaved' | 'separated';
+  readonly error: ErrorBar;
+  readonly points: boolean;
+}
+
+/** A graph's plot: Column-table plots, or grouped bars for a Grouped table. */
+export type GraphPlot = ColumnPlot | GroupedPlot;
+
 /** The plots that draw error bars. */
 export const hasErrorBars = (
-  plot: ColumnPlot,
-): plot is Extract<ColumnPlot, { kind: 'bars' | 'dots' }> =>
-  plot.kind === 'bars' || plot.kind === 'dots';
+  plot: GraphPlot,
+): plot is Extract<GraphPlot, { kind: 'bars' | 'dots' | 'grouped-bars' }> =>
+  plot.kind === 'bars' || plot.kind === 'dots' || plot.kind === 'grouped-bars';
+
+/** A new grouped graph's plot: interleaved bars of the mean with SD and the points. */
+export const GROUPED_DEFAULT: GroupedPlot = {
+  kind: 'grouped-bars',
+  arrangement: 'interleaved',
+  error: 'sd',
+  points: true,
+};
 
 /**
  * The theme a graph uses: named (follows the app's defaults) or fixed (a
@@ -234,6 +257,8 @@ export interface GraphFormat {
   readonly xAngle?: 45 | 90;
   /** The graph's title drawn above it; unset = not shown. */
   readonly showTitle?: boolean;
+  /** Grouped graphs' legend: above the plot or none; unset = at the right. */
+  readonly legend?: 'top' | 'none';
   /** Theme values this graph changes; the rest follow its theme. */
   readonly style?: StyleOverrides;
   /** Point symbols by data set; unset = circles. */
@@ -259,7 +284,8 @@ export interface Graph {
   readonly dataSets: readonly Id[] | null;
   /** Analyses whose results the graph draws, e.g. significance brackets. */
   readonly analyses: readonly Id[];
-  readonly plot: ColumnPlot;
+  /** Column plots for a Column table, grouped bars for a Grouped table. */
+  readonly plot: GraphPlot;
   /** The figure's final size, in millimetres. */
   readonly size: { readonly width: number; readonly height: number };
   readonly theme: GraphThemeRef;

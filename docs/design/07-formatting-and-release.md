@@ -329,6 +329,20 @@ each application's documented clipboard format.
   help (the data sits low). Brackets dragged so high that no room can be
   made stop at the top of the figure.
 
+### Grouped bar graphs (#32)
+
+- As designed. A graph's plot is `ColumnPlot | GroupedPlot`, and
+  `validateProject` refuses a plot that doesn't fit its table. The
+  layout knows clusters (consecutive groups sharing 80% of a slot, bars
+  nearly touching), per-bar labels (separated) and cluster labels, and a
+  legend at the right or above; a cell's marks belong to its data set,
+  so clicking a bar formats the data set.
+- Two-way comparisons are keyed by cells (`<analysis>/<row>/<data
+  set>/<row>/<data set>`); the two-way result names each family's row or
+  data set (`level`; its version is 2, so older results recompute).
+  Choices read "Day 1: WT vs. KO"; main-effect comparisons are listed
+  with a note that they give no brackets.
+
 ## Decisions made here
 
 1. **Overrides in `GraphFormat`, style as a flat record over a fixed

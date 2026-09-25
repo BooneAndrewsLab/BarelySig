@@ -468,30 +468,37 @@ export function resolve(p: Project, s: Shape): Edit | null {
                   ),
                 ],
           plot:
-            s.v % 11 === 3
+            table.type === 'grouped'
               ? {
-                  kind: 'box',
-                  whiskers:
-                    (['min-max', 'tukey', 'p10-90', 'p2.5-97.5'] as const)[s.v % 4] ?? 'tukey',
-                  points: (['none', 'outliers', 'all'] as const)[s.v % 3] ?? 'all',
+                  kind: 'grouped-bars',
+                  arrangement: s.v % 2 ? 'separated' : 'interleaved',
+                  error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                  points: s.v % 3 !== 0,
                 }
-              : s.v % 11 === 5
+              : s.v % 11 === 3
                 ? {
-                    kind: 'violin',
-                    inner: (['quartiles', 'box', 'points', 'none'] as const)[s.v % 4] ?? 'none',
-                    smoothing: 0.5 + (s.v % 4) * 0.25,
+                    kind: 'box',
+                    whiskers:
+                      (['min-max', 'tukey', 'p10-90', 'p2.5-97.5'] as const)[s.v % 4] ?? 'tukey',
+                    points: (['none', 'outliers', 'all'] as const)[s.v % 3] ?? 'all',
                   }
-                : s.v % 3 === 0
+                : s.v % 11 === 5
                   ? {
-                      kind: 'dots',
-                      center: s.v % 5 === 0 ? 'median' : 'mean',
-                      error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                      kind: 'violin',
+                      inner: (['quartiles', 'box', 'points', 'none'] as const)[s.v % 4] ?? 'none',
+                      smoothing: 0.5 + (s.v % 4) * 0.25,
                     }
-                  : {
-                      kind: 'bars',
-                      error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
-                      points: s.v % 7 !== 0,
-                    },
+                  : s.v % 3 === 0
+                    ? {
+                        kind: 'dots',
+                        center: s.v % 5 === 0 ? 'median' : 'mean',
+                        error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                      }
+                    : {
+                        kind: 'bars',
+                        error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                        points: s.v % 7 !== 0,
+                      },
           size: { width: 20 + (s.v % 160), height: 20 + ((s.v * 7) % 120) + 0.5 },
           theme:
             s.v % 4 === 0
@@ -521,6 +528,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
                       .map((d, i) => [d.id, i ? 'diamond' : 'square'] as const),
                   ),
                   bracketOffsets: Object.fromEntries(analyses.map((a, i) => [a, 2.5 - i * 4])),
+                  legend: 'top' as const,
                 }
               : {}),
             ...(s.v % 6 === 4
@@ -528,6 +536,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
                   yStep: 5,
                   xAngle: 90 as const,
                   showTitle: false,
+                  legend: 'none' as const,
                   style: { spines: 'box' as const },
                 }
               : {}),

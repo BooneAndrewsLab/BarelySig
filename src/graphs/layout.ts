@@ -4,7 +4,7 @@
  * measured with the bundled font's metrics, so the result is the same
  * everywhere. D3 is used for scales and nice ticks only (`axis.ts`).
  */
-import type { ColumnPlot, ErrorBar, PointSymbol, Whiskers } from '@/model/project';
+import type { ColumnPlot, ErrorBar, GraphPlot, PointSymbol, Whiskers } from '@/model/project';
 
 import { type AxisOptions, valueAxis } from './axis';
 import { beeswarm } from './beeswarm';
@@ -40,6 +40,8 @@ export interface GroupSummary {
 
 export interface GroupInput {
   readonly id: string;
+  /** The data set its marks belong to, for click-to-format; unset = `id` (a grouped graph's bars are cells). */
+  readonly series?: string | undefined;
   readonly title: string;
   readonly color: string;
   /** Unset = circle. */
@@ -76,6 +78,24 @@ export interface LayoutInput {
   readonly title?: string | undefined;
   readonly groups: readonly GroupInput[];
   readonly brackets: readonly BracketInput[];
+  /**
+   * Grouped graphs (note 07): consecutive groups drawn as clusters, each
+   * with its title under it. Unset = every group its own slot.
+   */
+  readonly clusters?: readonly { readonly title: string; readonly size: number }[] | undefined;
+  /** With clusters: label each bar too (separated grouped bars); otherwise only the clusters. */
+  readonly barLabels?: boolean | undefined;
+  /** A legend of these entries; unset = none. */
+  readonly legend?:
+    | {
+        readonly at: 'right' | 'top';
+        readonly entries: readonly {
+          readonly id: string;
+          readonly title: string;
+          readonly color: string;
+        }[];
+      }
+    | undefined;
 }
 
 const PAD = 3;
@@ -161,7 +181,11 @@ const ERROR_WORDS: Readonly<Record<ErrorBar, string>> = {
 };
 
 /** What the marks show, for the notes under the graph: "Bars: mean ± SD; points: individual values". */
-export function describePlot(plot: ColumnPlot): string {
+export function describePlot(graphPlot: GraphPlot): string {
+  const plot: ColumnPlot =
+    graphPlot.kind === 'grouped-bars'
+      ? { kind: 'bars', error: graphPlot.error, points: graphPlot.points }
+      : graphPlot;
   if (plot.kind === 'box') {
     const first = `Boxes: median and quartiles; whiskers: ${WHISKER_WORDS[plot.whiskers]}`;
     if (plot.points === 'all') return `${first}; points: individual values`;
@@ -277,11 +301,49 @@ export function layoutColumn(input: LayoutInput): Scene {
   const yTitleH = input.yTitle ? lineHeight(theme.font.axisTitle) : 0;
   const n = Math.max(groups.length, 1);
   const angle = input.xAngle;
-  const labelWidths = groups.map((g) => textWidth(g.title, theme.font.tick));
-  const right = PAD + 2;
+  const clusters = input.clusters?.length ? input.clusters : null;
+  // Which cluster each group is in, and its place in it.
+  const member = groups.map((_, i) => {
+    if (!clusters) return { c: i, k: 0, of: 1 };
+    let start = 0;
+    for (let c = 0; c < clusters.length; c += 1) {
+      const size = clusters[c]?.size ?? 0;
+      if (i < start + size) return { c, k: i - start, of: size };
+      start += size;
+    }
+    return { c: clusters.length - 1, k: 0, of: 1 };
+  });
+  const nSlots = clusters ? clusters.length : n;
+  const barLabels = !clusters || input.barLabels === true;
+  const labelWidths = groups.map((g) => (barLabels ? textWidth(g.title, theme.font.tick) : 0));
   const tickA = ascent(theme.font.tick);
   const titleH = input.title ? lineHeight(theme.font.title) + 3 : 0;
-  const ceiling = PAD + titleH;
+  // The legend: a column at the right, or rows above the plot.
+  const legend = input.legend && input.legend.entries.length > 0 ? input.legend : null;
+  const legendSize = theme.font.legend;
+  const swatch = legendSize * 1.1;
+  const entryW = (t: string) => swatch + 3 + textWidth(t, legendSize) + 8;
+  const entries = legend?.entries ?? [];
+  const legendRows: (typeof entries)[] = [];
+  if (legend?.at === 'top') {
+    let row: (typeof entries)[number][] = [];
+    let w = 0;
+    for (const e of entries) {
+      if (row.length > 0 && w + entryW(e.title) > W - 2 * PAD) {
+        legendRows.push(row);
+        row = [];
+        w = 0;
+      }
+      row.push(e);
+      w += entryW(e.title);
+    }
+    if (row.length) legendRows.push(row);
+  }
+  const legendLine = lineHeight(legendSize) + 2;
+  const legendRight =
+    legend?.at === 'right' ? 6 + Math.max(0, ...entries.map((e) => entryW(e.title) - 8)) : 0;
+  const right = PAD + 2 + legendRight;
+  const ceiling = PAD + titleH + legendRows.length * legendLine;
 
   /** The axis up to `upTo`, and the margins its tick labels and the group labels need. */
   const measure = (upTo: number) => {
@@ -293,30 +355,53 @@ export function layoutColumn(input: LayoutInput): Scene {
     );
     const tickLabelW = Math.max(0, ...axis.ticks.map((t) => textWidth(t.text, theme.font.tick)));
     let left = PAD + yTitleH + (input.yTitle ? 4 : 0) + tickLabelW + 3 + tickOut;
-    let slot = Math.max(10, W - left - right) / n;
-    if (angle === 45) {
+    const place = (from: number) => {
+      const plotW = Math.max(10, W - from - right);
+      const slot = plotW / nSlots;
+      // Bars of a cluster share 80% of its slot.
+      const sub = (i: number) => (clusters ? (slot * 0.8) / (member[i]?.of ?? 1) : slot);
+      const centre = (i: number) => {
+        const mm = member[i] ?? { c: i, k: 0, of: 1 };
+        if (!clusters) return from + slot * (i + 0.5);
+        return from + slot * mm.c + slot * 0.1 + sub(i) * (mm.k + 0.5);
+      };
+      return { plotW, slot, sub, centre };
+    };
+    let geo = place(left);
+    if (angle === 45 && barLabels) {
       // A turned label runs down to the left of its tick: keep the first one inside the figure.
       const first = (labelWidths[0] ?? 0) * Math.SQRT1_2;
-      left = Math.max(left, PAD + first - slot / 2);
-      slot = Math.max(10, W - left - right) / n;
+      left = Math.max(left, PAD + first - geo.sub(0) / 2);
+      geo = place(left);
     }
-    const labels = groups.map((g) =>
-      angle === undefined ? wrap(g.title, slot - 2, theme.font.tick) : [g.title],
+    const labels = groups.map((g, i) =>
+      !barLabels
+        ? []
+        : angle === undefined
+          ? wrap(g.title, geo.sub(i) - 2, theme.font.tick)
+          : [g.title],
     );
+    const clusterLabels = (clusters ?? []).map((c) => wrap(c.title, geo.slot - 2, theme.font.tick));
     const labelLines = Math.max(1, ...labels.map((l) => l.length));
-    const labelBlock =
-      angle === 45
+    const barBlock = !barLabels
+      ? 0
+      : angle === 45
         ? Math.max(0, ...labelWidths) * Math.SQRT1_2 + tickA
         : angle === 90
           ? Math.max(0, ...labelWidths)
           : labelLines * lineHeight(theme.font.tick);
+    const clusterLines = Math.max(0, ...clusterLabels.map((l) => l.length));
+    const clusterBlock = clusters
+      ? (barLabels ? 3 : 0) + Math.max(1, clusterLines) * lineHeight(theme.font.tick)
+      : 0;
     return {
       axis,
       left,
-      slot,
-      plotW: Math.max(10, W - left - right),
+      ...geo,
       labels,
-      bottom: tickOut + 3 + labelBlock + PAD,
+      clusterLabels,
+      barBlock,
+      bottom: tickOut + 3 + barBlock + clusterBlock + PAD,
     };
   };
 
@@ -347,7 +432,7 @@ export function layoutColumn(input: LayoutInput): Scene {
       // A value a log axis can't show sits just below it.
       return scaleTop + ph * (1 - (f ?? -0.02));
     };
-    placed = placeBrackets(input, yOf, m.left, m.slot, scaleTop + ph);
+    placed = placeBrackets(input, yOf, m.centre, m.sub, scaleTop + ph);
     const highest = Math.min(...placed.map((b) => b.top));
     if (pass === PASSES - 1) break;
     if (inside) {
@@ -372,11 +457,13 @@ export function layoutColumn(input: LayoutInput): Scene {
   // data sits low, which extra room doesn't move) stop at the top.
   const limit = inside ? top + 2 : ceiling;
   if (Math.min(...placed.map((b) => b.top)) < limit - 0.01)
-    placed = placeBrackets(input, yOf, m.left, m.slot, top + plotH, limit);
-  const { axis, left, slot, plotW, labels } = m;
+    placed = placeBrackets(input, yOf, m.centre, m.sub, top + plotH, limit);
+  const { axis, left, plotW, labels, clusterLabels, barBlock } = m;
+  /** Each group's slot: its share of a cluster, or its own. */
+  const slotOf = m.sub;
   notes.push(...axis.notes);
 
-  const xOf = (i: number) => left + slot * (i + 0.5);
+  const xOf = m.centre;
   const baseY = top + plotH;
   const [d0, d1] = axis.domain;
   // Bars rise from zero on a linear axis, from the bottom of a log axis.
@@ -481,54 +568,122 @@ export function layoutColumn(input: LayoutInput): Scene {
       rotate: -90,
     });
   }
-  groups.forEach((g, i) => {
-    const x = xOf(i);
+  const tick = (ref: string, x: number) => {
     marks.push({
       kind: 'line',
       role: 'tick-x',
-      ref: g.id,
+      ref,
       x1: x,
       y1: baseY,
       x2: x,
       y2: baseY - dir * theme.lines.tickLength,
       line: tickLine,
     });
-    const y0 = baseY + tickOut + 3;
-    if (angle !== undefined) {
-      marks.push({
-        kind: 'text',
-        role: 'group-label',
-        ref: g.id,
-        // Turned about the label's end, which sits under the tick.
-        x: angle === 90 ? x + tickA / 2 - 0.3 : x + tickA * 0.35,
-        y: y0 + (angle === 90 ? 0 : tickA * 0.35),
-        text: g.title,
-        size: theme.font.tick,
-        weight: 400,
-        anchor: 'end',
-        fill: ink,
-        rotate: -angle,
-      });
-      return;
-    }
-    (labels[i] ?? []).forEach((line, k) => {
-      marks.push({
-        kind: 'text',
-        role: 'group-label',
-        ref: g.id,
-        x,
-        y: y0 + tickA + k * lineHeight(theme.font.tick),
-        text: line,
-        size: theme.font.tick,
-        weight: 400,
-        anchor: 'middle',
-        fill: ink,
+  };
+  const y0 = baseY + tickOut + 3;
+  if (barLabels)
+    groups.forEach((g, i) => {
+      const x = xOf(i);
+      tick(g.id, x);
+      if (angle !== undefined) {
+        marks.push({
+          kind: 'text',
+          role: 'group-label',
+          ref: g.series ?? g.id,
+          // Turned about the label's end, which sits under the tick.
+          x: angle === 90 ? x + tickA / 2 - 0.3 : x + tickA * 0.35,
+          y: y0 + (angle === 90 ? 0 : tickA * 0.35),
+          text: g.title,
+          size: theme.font.tick,
+          weight: 400,
+          anchor: 'end',
+          fill: ink,
+          rotate: -angle,
+        });
+        return;
+      }
+      (labels[i] ?? []).forEach((line, k) => {
+        marks.push({
+          kind: 'text',
+          role: 'group-label',
+          ref: g.series ?? g.id,
+          x,
+          y: y0 + tickA + k * lineHeight(theme.font.tick),
+          text: line,
+          size: theme.font.tick,
+          weight: 400,
+          anchor: 'middle',
+          fill: ink,
+        });
       });
     });
-  });
+  if (clusters) {
+    const cy = y0 + (barLabels ? barBlock + 3 : 0);
+    clusters.forEach((_, ci) => {
+      const cx = left + m.slot * (ci + 0.5);
+      if (!barLabels) tick(`cluster-${String(ci)}`, cx);
+      (clusterLabels[ci] ?? []).forEach((line, k) => {
+        marks.push({
+          kind: 'text',
+          role: 'cluster-label',
+          ref: `cluster-${String(ci)}`,
+          x: cx,
+          y: cy + tickA + k * lineHeight(theme.font.tick),
+          text: line,
+          size: theme.font.tick,
+          weight: barLabels ? 700 : 400,
+          anchor: 'middle',
+          fill: ink,
+        });
+      });
+    });
+  }
+
+  // --- legend ----------------------------------------------------------------
+  const legendEntry = (e: (typeof entries)[number], x: number, y: number) => {
+    marks.push({
+      kind: 'rect',
+      role: 'legend-swatch',
+      ref: e.id,
+      x,
+      y: y - swatch * 0.85,
+      w: swatch,
+      h: swatch,
+      fill: lighten(e.color, theme.barLighten),
+      line: { stroke: theme.barEdge ?? e.color, width: theme.lines.barEdge },
+    });
+    marks.push({
+      kind: 'text',
+      role: 'legend-label',
+      ref: e.id,
+      x: x + swatch + 3,
+      y,
+      text: e.title,
+      size: legendSize,
+      weight: 400,
+      anchor: 'start',
+      fill: ink,
+    });
+  };
+  if (legend?.at === 'right') {
+    entries.forEach((e, k) => {
+      legendEntry(e, left + plotW + 8, top + ascent(legendSize) + k * legendLine);
+    });
+  } else if (legend) {
+    legendRows.forEach((row, r) => {
+      const width = row.reduce((a, e) => a + entryW(e.title), 0) - 8;
+      let x = left + plotW / 2 - width / 2;
+      for (const e of row) {
+        legendEntry(e, Math.max(PAD, x), PAD + titleH + ascent(legendSize) + r * legendLine);
+        x += entryW(e.title);
+      }
+    });
+  }
 
   // --- data ------------------------------------------------------------------
-  const barW = slot * theme.barWidth;
+  // Bars of a cluster nearly touch; a group's own bar keeps the theme's width.
+  const barWOf = (i: number) =>
+    slotOf(i) * (clusters ? Math.min(0.95, theme.barWidth + 0.3) : theme.barWidth);
   const errLine = { stroke: ink, width: theme.lines.error };
   const swarmState = { squeezed: false };
   const noDistribution: string[] = [];
@@ -553,7 +708,7 @@ export function layoutColumn(input: LayoutInput): Scene {
       marks.push(
         pointMark(g.symbol ?? 'circle', x + (swarm.offsets[k] ?? 0), ys[k] ?? 0, theme.pointSize, {
           role: 'point',
-          ref: g.id,
+          ref: g.series ?? g.id,
           fill,
           opacity: theme.pointOpacity,
           line,
@@ -571,6 +726,8 @@ export function layoutColumn(input: LayoutInput): Scene {
   groups.forEach((g, i) => {
     const x = xOf(i);
     const s = g.summary;
+    const slot = slotOf(i);
+    const barW = barWOf(i);
     if (plot.kind === 'box') {
       if (!s) return;
       const w = s.whiskers;
@@ -584,7 +741,7 @@ export function layoutColumn(input: LayoutInput): Scene {
       marks.push({
         kind: 'rect',
         role: 'box',
-        ref: g.id,
+        ref: g.series ?? g.id,
         x: x - boxW / 2,
         y: Math.min(yq1, yq3),
         w: boxW,
@@ -598,10 +755,10 @@ export function layoutColumn(input: LayoutInput): Scene {
         [s.q1, w.low],
       ] as const) {
         if (from === to) continue;
-        vline('whisker', g.id, x, yOf(from), yOf(to), errLine);
-        hline('whisker', g.id, x - cap, x + cap, yOf(to), errLine);
+        vline('whisker', g.series ?? g.id, x, yOf(from), yOf(to), errLine);
+        hline('whisker', g.series ?? g.id, x - cap, x + cap, yOf(to), errLine);
       }
-      hline('median', g.id, x - boxW / 2, x + boxW / 2, yOf(s.median), {
+      hline('median', g.series ?? g.id, x - boxW / 2, x + boxW / 2, yOf(s.median), {
         stroke: ink,
         width: theme.lines.error * 1.6,
       });
@@ -628,7 +785,7 @@ export function layoutColumn(input: LayoutInput): Scene {
       marks.push({
         kind: 'path',
         role: 'violin',
-        ref: g.id,
+        ref: g.series ?? g.id,
         d: `${d}Z`,
         fill: lighten(g.color, theme.barLighten),
         line: edgeOf(g),
@@ -649,28 +806,28 @@ export function layoutColumn(input: LayoutInput): Scene {
       if (plot.inner === 'quartiles' && s.q1 != null && s.q3 != null && s.median !== null) {
         for (const q of [s.q1, s.q3]) {
           const hw = widthAt(q);
-          hline('median', g.id, x - hw, x + hw, yOf(q), {
+          hline('median', g.series ?? g.id, x - hw, x + hw, yOf(q), {
             stroke: ink,
             width: theme.lines.error,
             dash: '2 1.5',
           });
         }
         const hw = widthAt(s.median);
-        hline('median', g.id, x - hw, x + hw, yOf(s.median), {
+        hline('median', g.series ?? g.id, x - hw, x + hw, yOf(s.median), {
           stroke: ink,
           width: theme.lines.error * 1.4,
         });
       } else if (plot.inner === 'box' && s.q1 != null && s.q3 != null && s.median !== null) {
         const bw = Math.max(2, slot * 0.05);
         if (s.min !== null && s.max !== null)
-          vline('whisker', g.id, x, yOf(s.min), yOf(s.max), {
+          vline('whisker', g.series ?? g.id, x, yOf(s.min), yOf(s.max), {
             stroke: ink,
             width: theme.lines.error,
           });
         marks.push({
           kind: 'rect',
           role: 'box',
-          ref: g.id,
+          ref: g.series ?? g.id,
           x: x - bw / 2,
           y: Math.min(yOf(s.q1), yOf(s.q3)),
           w: bw,
@@ -680,7 +837,7 @@ export function layoutColumn(input: LayoutInput): Scene {
         marks.push({
           kind: 'circle',
           role: 'median',
-          ref: g.id,
+          ref: g.series ?? g.id,
           cx: x,
           cy: yOf(s.median),
           r: Math.min(bw / 2, 1.4),
@@ -698,7 +855,7 @@ export function layoutColumn(input: LayoutInput): Scene {
       marks.push({
         kind: 'rect',
         role: 'bar',
-        ref: g.id,
+        ref: g.series ?? g.id,
         x: x - barW / 2,
         y: Math.min(yc, zeroY),
         w: barW,
@@ -723,14 +880,14 @@ export function layoutColumn(input: LayoutInput): Scene {
         const to = onlyUp ? (c >= 0 ? e[1] : c) : e[1];
         // On a log axis an end at or below zero is cut at the axis.
         const yEnd = (v: number) => (log && !(v > 0) ? baseY : yOf(v));
-        vline('error', g.id, x, yEnd(from), yEnd(to), errLine);
+        vline('error', g.series ?? g.id, x, yEnd(from), yEnd(to), errLine);
         for (const v of onlyUp ? [c >= 0 ? e[1] : e[0]] : [e[0], e[1]]) {
           if (log && !(v > 0)) continue;
-          hline('error-cap', g.id, x - cap, x + cap, yOf(v), errLine);
+          hline('error-cap', g.series ?? g.id, x - cap, x + cap, yOf(v), errLine);
         }
       }
       if (plot.kind === 'dots') {
-        hline('centre', g.id, x - half, x + half, yOf(c), {
+        hline('centre', g.series ?? g.id, x - half, x + half, yOf(c), {
           stroke: ink,
           width: theme.lines.error * 1.6,
         });
@@ -812,8 +969,8 @@ interface PlacedBracket {
 function placeBrackets(
   input: LayoutInput,
   yOf: (v: number) => number,
-  left: number,
-  slot: number,
+  centre: (i: number) => number,
+  slotOf: (i: number) => number,
   /** The plot's bottom: where an empty group's data "is". */
   bottomY: number,
   /** No raised bracket's label goes above this; unset = no limit. */
@@ -846,12 +1003,12 @@ function placeBrackets(
     let offset = Math.max(0, b.offset ?? 0);
     if (limit !== undefined) offset = Math.min(offset, Math.max(0, auto - labelH - limit));
     const y = auto - offset;
-    const inset = slot * 0.12;
+    const inset = (i: number) => slotOf(i) * 0.12;
     placed.push({
       id: b.id,
       label: b.label,
-      x1: left + slot * (b.lo + 0.5) + inset,
-      x2: left + slot * (b.hi + 0.5) - inset,
+      x1: centre(b.lo) + inset(b.lo),
+      x2: centre(b.hi) - inset(b.hi),
       y,
       top: y - labelH,
       lo: b.lo,

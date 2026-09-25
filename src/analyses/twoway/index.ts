@@ -38,7 +38,7 @@ const isObject = (v: Plain | undefined): boolean =>
 
 export const twoway: AnalysisModule<'two-way-anova', TwoWayRequest, TwoWayResult> = {
   kind: 'two-way-anova',
-  version: 1,
+  version: 2,
   code,
 
   prepare(analysis, project): Prepared<TwoWayRequest> {
@@ -257,6 +257,12 @@ export const twoway: AnalysisModule<'two-way-anova', TwoWayRequest, TwoWayResult
       };
       byFamily.set(fam, [...(byFamily.get(fam) ?? []), pair]);
     }
+    const familyLevel = (f: number): Named | null =>
+      options.family === 'within-rows'
+        ? (rows[f - 1] ?? null)
+        : options.family === 'within-columns'
+          ? (columns[f - 1] ?? null)
+          : null;
     const familyLabel = (f: number): string | null =>
       options.family === 'within-rows'
         ? (rows[f - 1]?.title ?? null)
@@ -292,7 +298,7 @@ export const twoway: AnalysisModule<'two-way-anova', TwoWayRequest, TwoWayResult
       options,
       families: [...byFamily.entries()]
         .sort(([a], [b]) => a - b)
-        .map(([f, pairs]) => ({ label: familyLabel(f), pairs })),
+        .map(([f, pairs]) => ({ label: familyLabel(f), level: familyLevel(f), pairs })),
       comparisonsNote: note === 'empty-cell' || note === 'no-replicates' ? note : null,
       emptyRows: request.emptyRows,
       droppedValues: request.droppedValues,

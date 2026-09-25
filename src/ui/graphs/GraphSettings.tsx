@@ -8,6 +8,7 @@ import {
   type ColumnPlot,
   type ErrorBar,
   type Graph,
+  type GraphPlot,
   type Project,
   type Whiskers,
   hasErrorBars,
@@ -50,7 +51,7 @@ export function GraphSettings({ project, graph }: Props) {
   const set = (patch: Partial<Graph>) => {
     store.edit({ op: 'setGraph', graph: { ...graph, ...patch } });
   };
-  const setPlot = (next: ColumnPlot) => {
+  const setPlot = (next: GraphPlot) => {
     set({ plot: next });
   };
   const { plot } = graph;
@@ -65,19 +66,68 @@ export function GraphSettings({ project, graph }: Props) {
       <p className="hint flush">Click any part of the graph to format it.</p>
       <fieldset>
         <legend>Plot</legend>
-        {PLOTS.map(([kind, label]) => (
-          <label key={kind} className="option">
-            <input
-              type="radio"
-              name="plot"
-              checked={plot.kind === kind}
-              onChange={() => {
-                setPlot(switchPlot(plot, kind));
-              }}
-            />
-            {label}
-          </label>
-        ))}
+        {plot.kind === 'grouped-bars' && (
+          <>
+            {(
+              [
+                ['interleaved', 'Bars side by side in each row (interleaved)'],
+                ['separated', 'Each data set’s bars together (separated)'],
+              ] as const
+            ).map(([arrangement, label]) => (
+              <label key={arrangement} className="option">
+                <input
+                  type="radio"
+                  name="arrangement"
+                  checked={plot.arrangement === arrangement}
+                  onChange={() => {
+                    setPlot({ ...plot, arrangement });
+                  }}
+                />
+                {label}
+              </label>
+            ))}
+            <label className="option">
+              <input
+                type="checkbox"
+                checked={plot.points}
+                onChange={(e) => {
+                  setPlot({ ...plot, points: e.currentTarget.checked });
+                }}
+              />
+              Show the individual values
+            </label>
+            {plot.arrangement === 'interleaved' && (
+              <label className="field inspector-field wide">
+                <span>Legend</span>
+                <select
+                  value={graph.format.legend ?? 'right'}
+                  onChange={(e) => {
+                    const v = e.currentTarget.value;
+                    set(withFormat(graph, { legend: v === 'top' || v === 'none' ? v : undefined }));
+                  }}
+                >
+                  <option value="right">At the right</option>
+                  <option value="top">Above the graph</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+            )}
+          </>
+        )}
+        {plot.kind !== 'grouped-bars' &&
+          PLOTS.map(([kind, label]) => (
+            <label key={kind} className="option">
+              <input
+                type="radio"
+                name="plot"
+                checked={plot.kind === kind}
+                onChange={() => {
+                  setPlot(switchPlot(plot, kind));
+                }}
+              />
+              {label}
+            </label>
+          ))}
         {plot.kind === 'bars' && (
           <label className="option">
             <input

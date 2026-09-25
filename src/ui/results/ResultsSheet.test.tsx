@@ -612,6 +612,7 @@ describe('two-way ANOVA sheet', () => {
       families: [
         {
           label: 'Day 1',
+          level: { id: 'r1', title: 'Day 1' },
           pairs: [
             {
               a: { id: 'c1', title: 'WT' },

@@ -4,10 +4,11 @@
  * override, so the theme's value shows again.
  */
 import { pairsOf } from '@/analyses/pairwise';
-import { graphTable } from '@/graphs/data';
+import { graphTable, pairLabel } from '@/graphs/data';
 import type { ElementId } from '@/graphs/hit';
 import {
   type ColumnPlot,
+  type GraphPlot,
   hasErrorBars,
   type Graph,
   type GraphFormat,
@@ -163,8 +164,8 @@ export function elementLabel(element: ElementId, project: Project, graph: Graph)
       const key = element.slice('bracket:'.length);
       for (const id of graph.analyses) {
         const a = project.analyses.get(id);
-        const pair = a ? pairsOf(a).find((x) => x.key === key) : undefined;
-        if (pair) return `Bracket: ${title(pair.a)} vs. ${title(pair.b)}`;
+        const pair = a ? pairsOf(a, project).find((x) => x.key === key) : undefined;
+        if (pair && table) return `Bracket: ${pairLabel(table, pair.a, pair.b)}`;
       }
       return 'Bracket';
     }
@@ -174,7 +175,7 @@ export function elementLabel(element: ElementId, project: Project, graph: Graph)
 }
 
 /** A new plot kind, keeping what carries over (the error bars between bars and dots). */
-export function switchPlot(plot: ColumnPlot, kind: ColumnPlot['kind']): ColumnPlot {
+export function switchPlot(plot: GraphPlot, kind: ColumnPlot['kind']): ColumnPlot {
   const error = hasErrorBars(plot) ? plot.error : 'sd';
   switch (kind) {
     case 'bars':

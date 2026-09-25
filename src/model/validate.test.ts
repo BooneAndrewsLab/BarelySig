@@ -8,7 +8,15 @@ import {
   createGroupedTable,
   duplicateTable,
 } from './table';
-import { validateTable } from './validate';
+import { validateProject, validateTable } from './validate';
+import { applyEdit } from './edits';
+import {
+  GRAPH_DEFAULTS,
+  GROUPED_DEFAULT,
+  type Graph,
+  type Project,
+  createProject,
+} from './project';
 
 /** Types a hand-broken table as a table. */
 const broken = (t: Table): Table => t;
@@ -132,5 +140,32 @@ describe('duplicateTable', () => {
     expect([...(copy.dataSets[0]?.excluded ?? [])]).toEqual([
       cellKey(0, copy.rows[0]?.id ?? asId('')),
     ]);
+  });
+});
+
+describe('validateProject: graphs', () => {
+  it('refuses a plot that doesn’t fit its table', () => {
+    const g = createGroupedTable({
+      title: 'G',
+      rowTitles: ['a'],
+      groups: ['x'],
+      format: { kind: 'replicates', count: 2 },
+    });
+    const p0 = applyEdit(createProject('P'), { op: 'addTable', table: g });
+    const graph: Graph = {
+      id: asId('g_1'),
+      title: 'G',
+      source: { kind: 'table', table: g.id },
+      analyses: [],
+      ...GRAPH_DEFAULTS,
+    };
+    const bad: Project = {
+      ...p0,
+      graphs: new Map([[graph.id, graph]]),
+      order: { ...p0.order, graphs: [graph.id] },
+    };
+    expect(validateProject(bad).join(' ')).toMatch(/a bars plot of a grouped table/);
+    const good = { ...graph, plot: GROUPED_DEFAULT };
+    expect(validateProject({ ...bad, graphs: new Map([[graph.id, good]]) })).toEqual([]);
   });
 });

@@ -4,9 +4,15 @@ import { readBsig, writeBsig } from '@/io/bsig';
 import { applyEdit } from '@/model/edits';
 import { asId } from '@/model/ids';
 import type { Json } from '@/model/json';
-import { GRAPH_DEFAULTS, type Graph, type Project, createProject } from '@/model/project';
+import {
+  GRAPH_DEFAULTS,
+  GROUPED_DEFAULT,
+  type Graph,
+  type Project,
+  createProject,
+} from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
-import { createColumnTable } from '@/model/table';
+import { createColumnTable, createGroupedTable } from '@/model/table';
 
 import {
   type GraphInput,
@@ -204,5 +210,124 @@ describe('graph data', () => {
     ]);
     const back = readBsig(writeBsig({ project: p, results, engine: null, app: '0.5.0' }));
     expect([...back.results.keys()]).toEqual([summaryId(graph.id)]);
+  });
+});
+
+describe('grouped bar graphs (note 07)', () => {
+  function grouped(family: 'within-rows' | 'within-columns' | 'main-rows' = 'within-rows') {
+    const t = createGroupedTable({
+      title: 'Growth',
+      rowTitles: ['Day 1', 'Day 2'],
+      groups: ['WT', 'KO'],
+      format: { kind: 'replicates', count: 2 },
+    });
+    const [wt, ko] = t.dataSets;
+    const [d1, d2] = t.rows;
+    if (!wt || !ko || !d1 || !d2) throw new Error('unreachable');
+    let p: Project = applyEdit(createProject('P'), { op: 'addTable', table: t });
+    p = applyEdit(p, {
+      op: 'setCells',
+      table: t.id,
+      cells: [
+        { dataSet: wt.id, subcolumn: 0, row: d1.id, value: 1 },
+        { dataSet: wt.id, subcolumn: 1, row: d1.id, value: 2 },
+        { dataSet: ko.id, subcolumn: 0, row: d1.id, value: 4 },
+        { dataSet: ko.id, subcolumn: 0, row: d2.id, value: 6 },
+      ],
+    });
+    p = applyEdit(p, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_2'),
+        title: 'Two-way',
+        kind: 'two-way-anova',
+        options: { family, comparisons: { kind: 'all', test: 'tukey' } },
+        input: { kind: 'table', table: t.id, dataSets: [wt.id, ko.id] },
+      },
+    });
+    const graph: Graph = {
+      id: asId('g_2'),
+      title: 'Growth',
+      source: { kind: 'table', table: t.id },
+      analyses: [asId('a_2')],
+      ...GRAPH_DEFAULTS,
+      plot: GROUPED_DEFAULT,
+    };
+    p = applyEdit(p, { op: 'addGraph', graph });
+    return { p, graph, t, wt, ko, d1, d2 };
+  }
+
+  it('clusters the cells by row, coloured by data set, with a legend', () => {
+    const { p, graph, wt, ko, d1, d2 } = grouped();
+    const r = graphInput(p, graph, () => undefined);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.input.groups.map((g) => [g.id, g.series, g.title, g.values])).toEqual([
+      [`${d1.id}/${wt.id}`, wt.id, 'WT', [1, 2]],
+      [`${d1.id}/${ko.id}`, ko.id, 'KO', [4]],
+      [`${d2.id}/${wt.id}`, wt.id, 'WT', []],
+      [`${d2.id}/${ko.id}`, ko.id, 'KO', [6]],
+    ]);
+    expect(r.input.clusters).toEqual([
+      { title: 'Day 1', size: 2 },
+      { title: 'Day 2', size: 2 },
+    ]);
+    expect(r.input.legend?.entries.map((e) => e.title)).toEqual(['WT', 'KO']);
+    expect(r.input.plot).toEqual({ kind: 'bars', error: 'sd', points: true });
+  });
+
+  it('clusters by data set when separated, labelling each bar, without a legend', () => {
+    const { p, graph } = grouped();
+    const g = { ...graph, plot: { ...GROUPED_DEFAULT, arrangement: 'separated' as const } };
+    const r = graphInput(p, g, () => undefined);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.input.groups.map((x) => x.title)).toEqual(['Day 1', 'Day 2', 'Day 1', 'Day 2']);
+    expect(r.input.clusters?.map((c) => c.title)).toEqual(['WT', 'KO']);
+    expect(r.input.barLabels).toBe(true);
+    expect(r.input.legend).toBeUndefined();
+  });
+
+  it('summarises every cell and draws two-way comparisons within rows as brackets', () => {
+    const { p, graph, wt, ko, d1, d2 } = grouped();
+    expect(summaryAnalysis(p, graph)).toMatchObject({ kind: 'graph-summary' });
+    const choice = bracketChoices(p, graph)[0];
+    expect(choice?.pairs.map((x) => x.label)).toEqual(['Day 1: WT vs. KO', 'Day 2: WT vs. KO']);
+    const value = {
+      options: { family: 'within-rows' },
+      families: [
+        {
+          label: 'Day 1',
+          level: { id: d1.id, title: 'Day 1' },
+          pairs: [{ a: { id: wt.id }, b: { id: ko.id }, p: 0.004 }],
+        },
+        {
+          label: 'Day 2',
+          level: { id: d2.id, title: 'Day 2' },
+          pairs: [{ a: { id: wt.id }, b: { id: ko.id }, p: 0.3 }],
+        },
+      ],
+    } as unknown as Json;
+    const results = new Map<string, ResultEntry>([['a_2', { inputHash: 'h', ok: true, value }]]);
+    const r = graphInput(p, graph, (id) => results.get(id));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.input.brackets.map((b) => [b.from, b.to, b.label])).toEqual([
+      [0, 1, '**'],
+      [2, 3, 'ns'],
+    ]);
+    expect(r.input.brackets[0]?.id).toBe(choice?.pairs[0]?.key);
+  });
+
+  it('pairs rows within each data set for within-column comparisons', () => {
+    const { p, graph } = grouped('within-columns');
+    expect(bracketChoices(p, graph)[0]?.pairs.map((x) => x.label)).toEqual([
+      'Day 1: WT vs. Day 2: WT',
+      'Day 1: KO vs. Day 2: KO',
+    ]);
+  });
+
+  it('says main-effect comparisons give no brackets', () => {
+    const { p, graph } = grouped('main-rows');
+    const c = bracketChoices(p, graph)[0];
+    expect(c?.pairs).toEqual([]);
+    expect(c?.note).toMatch(/no bar shows/);
   });
 });

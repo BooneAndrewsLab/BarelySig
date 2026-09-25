@@ -66,7 +66,7 @@ export const EVENTS = {
     'new-two-way-anova',
     'new-normality',
   ],
-  graph: ['new-column', 'export-svg', 'export-png'],
+  graph: ['new-column', 'new-grouped', 'export-svg', 'export-png'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type EventCategory = keyof typeof EVENTS;

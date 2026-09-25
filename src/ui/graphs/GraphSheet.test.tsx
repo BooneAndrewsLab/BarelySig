@@ -7,14 +7,19 @@ import { applyEdit } from '@/model/edits';
 import type { Json } from '@/model/json';
 import { GRAPH_DEFAULTS, createProject } from '@/model/project';
 import type { Job } from '@/model/recompute';
-import { createColumnTable } from '@/model/table';
+import { createColumnTable, createGroupedTable } from '@/model/table';
 
 import { App } from '../App';
 import { ResultsBridge, setResults } from '../state/results';
 import { project, store } from '../state/store';
 
 function summaryOf(job: Job): GraphSummaryResult {
-  const ds = job.analysis.input.kind === 'table' ? job.analysis.input.dataSets : [];
+  const input = job.analysis.input;
+  const sets = input.kind === 'table' ? input.dataSets : [];
+  const table = input.kind === 'table' ? job.project.tables.get(input.table) : undefined;
+  // A Grouped table's graph summarises its cells (note 07).
+  const ds =
+    table?.type === 'grouped' ? table.rows.flatMap((r) => sets.map((d) => `${r.id}/${d}`)) : sets;
   return {
     cells: ds.map((id, i) => ({
       id,
@@ -149,6 +154,44 @@ describe('graph sheet', () => {
     expect(svg()?.getAttribute('viewBox')).toBe(
       `0 0 ${String(Math.round(((89 * 72) / 25.4) * 100) / 100)} ${String(Math.round(((60 * 72) / 25.4) * 100) / 100)}`,
     );
+  });
+});
+
+describe('grouped bar graphs', () => {
+  it('makes interleaved bars of a Grouped table, with a legend, and separates them', async () => {
+    const g = createGroupedTable({
+      title: 'Growth',
+      rowTitles: ['Day 1', 'Day 2'],
+      groups: ['WT', 'KO'],
+      format: { kind: 'replicates', count: 2 },
+    });
+    const [wt] = g.dataSets;
+    const [d1] = g.rows;
+    if (!wt || !d1) throw new Error('unreachable');
+    act(() => {
+      store.load(
+        applyEdit(applyEdit(createProject('P'), { op: 'addTable', table: g }), {
+          op: 'setCells',
+          table: g.id,
+          cells: [{ dataSet: wt.id, subcolumn: 0, row: d1.id, value: 3 }],
+        }),
+      );
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    await screen.findByRole('img', { name: /Bars: mean ± SD/ });
+    const gsvg = () => screen.getByRole('img', { name: /Growth/ }).querySelector('svg');
+    expect(gsvg()?.querySelectorAll('[data-role="bar"]')).toHaveLength(4);
+    expect(
+      [...(gsvg()?.querySelectorAll('[data-role="legend-label"]') ?? [])].map((x) => x.textContent),
+    ).toEqual(['WT', 'KO']);
+    fireEvent.click(screen.getByRole('radio', { name: /separated/ }));
+    expect(gsvg()?.querySelectorAll('[data-role="legend-label"]')).toHaveLength(0);
+    expect(
+      [...(gsvg()?.querySelectorAll('[data-role="cluster-label"]') ?? [])].map(
+        (x) => x.textContent,
+      ),
+    ).toEqual(['WT', 'KO']);
   });
 });
 
