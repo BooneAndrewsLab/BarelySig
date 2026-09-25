@@ -297,5 +297,5 @@ export function normalityReading(r: NormalityResult): string {
   if (failed.length === 0) {
     return `No group departs clearly from a Gaussian (bell-shaped) distribution by these tests (P > 0.05 for each).${caution}`;
   }
-  return `The values of ${joinAnd(failed)} don’t look Gaussian (P ≤ 0.05). Consider a nonparametric test (Mann-Whitney, Wilcoxon, Kruskal-Wallis), or transforming the values first (e.g. a log for values that vary by fold changes).${caution}`;
+  return `The values of ${joinAnd(failed)} don’t look Gaussian (P ≤ 0.05). Consider a nonparametric test (Mann-Whitney, Wilcoxon, Kruskal-Wallis). Values that vary by fold changes (concentrations, expression) often look Gaussian as logarithms: make a column of their logs in your spreadsheet and paste that instead.${caution}`;
 }

@@ -24,7 +24,7 @@ combination’s replicates.
 ## Running it
 
 On the Grouped table click **Analyze…**, then **Two-way ANOVA**, and tick
-the data sets under **Which groups?**. Under **Multiple comparisons**
+the data sets under **Which data sets (columns)?**. Under **Multiple comparisons**
 choose what to compare:
 
 - “Only the ANOVA table”

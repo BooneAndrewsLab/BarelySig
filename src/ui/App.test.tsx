@@ -100,11 +100,13 @@ describe('app shell', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Try an example' }));
     await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' });
+    // Two tables and their two graphs, and an analysis of each.
     expect(
       nav().getAllByRole('button', {
         name: /^(Cell viability|Growth by genotype) \(example data\)$/,
       }),
-    ).toHaveLength(2);
+    ).toHaveLength(4);
+    expect(nav().getAllByRole('button', { name: /^(One|Two)-way ANOVA of/ })).toHaveLength(2);
     expect(
       screen.getByRole('heading', { level: 1, name: 'Cell viability (example data)' }),
     ).toBeInTheDocument();

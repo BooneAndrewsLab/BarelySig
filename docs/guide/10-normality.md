@@ -23,15 +23,16 @@ The results sheet repeats this caution.
 
 ## Running them
 
-- **With a t test or one-way ANOVA:** when you create either on
-  individual values, the Analyze dialog has a box “Also test each group
-  for normality (a separate analysis)”, ticked by default. It adds a
-  normality sheet for the same groups, next to the test’s own.
+- **With an unpaired t test or one-way ANOVA:** when you create either
+  on individual values, the Analyze dialog has a box “Also test each
+  group for normality (a separate analysis)”, ticked by default. It adds
+  a normality sheet for the same groups, next to the test’s own.
 - **On their own:** click **Analyze…** on a Column table, then the
   **Normality tests** tile, and tick the groups. There are no options.
 
 Each group is tested on its own. For a paired t test the assumption is
-about the differences within each row, which these tests don’t look at.
+about the differences within each row, which these tests don’t look at,
+so the dialog doesn’t offer them there.
 
 They need the individual values: they can’t run on summary data.
 

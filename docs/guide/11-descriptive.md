@@ -11,8 +11,8 @@ Click **Analyze…** on a Column table, then **Descriptive statistics** (the
 tile selected when the dialog opens), tick the groups and click
 **Analyze**. There are no options.
 
-On a Grouped table the tile is offered too, but the sheet says
-descriptive statistics of Grouped tables are not available yet.
+Descriptive statistics describe Column tables; Grouped tables don’t
+offer them yet.
 
 ## Reading the results
 

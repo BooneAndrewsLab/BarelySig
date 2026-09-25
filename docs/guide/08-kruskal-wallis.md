@@ -58,8 +58,9 @@ Dunn’s test finds. A P of 0.05 or more is “no evidence” of a difference,
 not proof that the groups are the same.
 
 - **Kruskal-Wallis test:** **P value**, **Exact or approximate P
-  value?**, **P value summary** (the asterisks), **Do the medians vary
-  significantly (P < 0.05)?** (Prism’s wording), **Number of groups** and
+  value?**, **P value summary** (the asterisks), **Do the groups differ
+  significantly (P < 0.05)?** (Prism asks whether the medians vary, but
+  the test compares whole distributions, not only medians), **Number of groups** and
   the **Kruskal-Wallis statistic** (H).
 - **Data summary:** each group’s n, median, sum of ranks and mean rank,
   with any empty or excluded values left out.

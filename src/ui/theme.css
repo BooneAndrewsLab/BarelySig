@@ -1264,3 +1264,10 @@ select {
   font-size: 12px;
   font-weight: 400;
 }
+
+/* A results label with a plain-words explanation on hover (#33). */
+.results-table th[title] {
+  text-decoration: underline dotted var(--ink-3);
+  text-underline-offset: 3px;
+  cursor: help;
+}

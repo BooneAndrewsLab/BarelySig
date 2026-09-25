@@ -101,7 +101,7 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
           ? paired
             ? 'Two groups, the same subjects in both, Gaussian values: a paired t test compares the mean of the differences with zero.'
             : 'Two groups of different subjects, Gaussian values: an unpaired t test compares the two means.'
-          : `${NOT_SURE}With so few values a rank test can’t reach P < 0.05 at all, so the ${paired ? 'paired' : 'unpaired'} t test is the practical choice. If the values vary by fold changes (concentrations, expression), a log transform often makes them closer to Gaussian.`;
+          : `${NOT_SURE}With so few values a rank test can’t reach P < 0.05 at all, so the ${paired ? 'paired' : 'unpaired'} t test is the practical choice. If the values vary by fold changes (concentrations, expression), their logarithms are often closer to Gaussian (make a column of logs in your spreadsheet and paste it).`;
       return {
         kind: 'test',
         spec: { kind: 't-test', options: { ...DEFAULT_OPTIONS['t-test'], paired } },
@@ -130,7 +130,7 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
       why:
         a.gaussian === 'yes'
           ? `${String(k)} groups of different subjects, Gaussian values: one-way ANOVA asks whether the means differ, and Tukey’s comparisons say which pairs do.`
-          : `${NOT_SURE}With so few values a rank test can’t reach P < 0.05, so one-way ANOVA is the practical choice; a log transform often helps values that vary by fold changes.`,
+          : `${NOT_SURE}With so few values a rank test can’t reach P < 0.05, so one-way ANOVA is the practical choice; values that vary by fold changes are often closer to Gaussian as logarithms (make a column of logs in your spreadsheet).`,
     };
   }
   const start =

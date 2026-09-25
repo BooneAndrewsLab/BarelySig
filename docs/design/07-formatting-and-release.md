@@ -409,6 +409,33 @@ Deferred to Phase 2 as planned.
 - `npm run e2e` (builds, then serves with `vite preview`); CI runs it as
   its own job with Playwright's Chromium.
 
+### Usability pass (#33)
+
+Walked as a grad student (start screen, example, Analyze dialog, results,
+graphs); the guide's writing turned up most of the rest. The layout is
+left to the UI revamp (milestone 9); this pass fixed words and traps:
+
+- **Try an example** opens a whole project: the tables plus a one-way
+  ANOVA with its bar graph and brackets and a two-way ANOVA with its
+  grouped bars, so the first look shows what the app is for.
+- Results sheets explain their jargon on hover (P value, df, F, SS Type
+  III, R squared, SEM, 95% CI, U, W, H, q, interaction, residual…),
+  marked with a dotted underline (`src/ui/results/glossary.ts`).
+- The Kruskal-Wallis row reads "Do the groups differ significantly?",
+  not Prism's "Do the medians vary…": the test compares distributions,
+  and the app's own reading already said so. An intentional difference
+  from Prism.
+- Descriptive statistics are no longer offered on Grouped tables, which
+  they refused (#54).
+- A paired t test no longer offers "Also test each group for normality":
+  its assumption is about the differences within rows, which the dialog
+  now says (#53).
+- "Help me choose" says to click "Use the …", since Analyze is greyed out
+  until then; a Grouped table's list is headed "Which data sets
+  (columns)?".
+- Advice to log-transform now says how (a column of logs made in the
+  spreadsheet), since the app can't transform values.
+
 ## Decisions made here
 
 1. **Overrides in `GraphFormat`, style as a flat record over a fixed

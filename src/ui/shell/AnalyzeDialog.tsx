@@ -60,7 +60,8 @@ const KINDS: readonly KindInfo[] = [
     kind: 'descriptive',
     name: 'Descriptive statistics',
     blurb: 'Describe each group: n, mean, SD, SEM, 95% CI, median and quartiles.',
-    tables: ['column', 'grouped'],
+    // Grouped tables aren't described yet; offering the tile only led to a refusal (#33).
+    tables: ['column'],
   },
   {
     kind: 'normality',
@@ -751,7 +752,11 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const [options, setOptions] = useState<Options>(() => initialOptions(analysis));
   // Prism offers normality tests before a parametric test; so does the dialog (note 06).
   const [alsoNormality, setAlsoNormality] = useState(true);
-  const offersNormality = !analysis && !summary && (kind === 't-test' || kind === 'one-way-anova');
+  // A paired t test assumes Gaussian differences within rows, not groups: testing each group
+  // would check the wrong thing (#33), so it isn't offered there.
+  const pairedT = kind === 't-test' && options['t-test'].paired;
+  const offersNormality =
+    !analysis && !summary && ((kind === 't-test' && !pairedT) || kind === 'one-way-anova');
   const picked = table.dataSets.filter((d) => chosen.includes(d.id)).map((d) => d.id);
   const info = KINDS.find((k) => k.kind === kind);
   const groups = info?.groups;
@@ -911,7 +916,13 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         </fieldset>
 
         <fieldset>
-          <legend>{groups === 2 ? 'Which two groups?' : 'Which groups?'}</legend>
+          <legend>
+            {groups === 2
+              ? 'Which two groups?'
+              : table.type === 'grouped'
+                ? 'Which data sets (columns)?'
+                : 'Which groups?'}
+          </legend>
           {table.dataSets.length === 0 && <p className="hint">This table has no groups yet.</p>}
           {table.dataSets.map((d) => (
             <label key={d.id} className="option">
@@ -1012,6 +1023,16 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           </fieldset>
         )}
 
+        {choosing && (
+          <p className="hint">Answer the questions, then click “Use the …” to pick the test.</p>
+        )}
+        {!choosing && pairedT && !summary && (
+          <p className="hint">
+            A paired t test assumes that the differences within each row follow a bell-shaped
+            distribution, not the groups themselves, so testing each group’s normality wouldn’t
+            check it.
+          </p>
+        )}
         <div className="actions">
           <button type="button" onClick={onClose}>
             Cancel

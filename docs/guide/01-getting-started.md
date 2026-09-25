@@ -51,8 +51,9 @@ its graphs redraw by themselves.
 ## Try it first
 
 **Try an example** on the start screen opens a project with made-up
-numbers: a Column table, a Grouped table, their analyses and a graph, so
-you can look around before typing anything.
+numbers: a Column table with a one-way ANOVA and its bar graph with
+significance brackets, and a Grouped table with a two-way ANOVA and its
+grouped bars, so you can look around before typing anything.
 
 ## The statistics engine
 

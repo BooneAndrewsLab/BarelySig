@@ -1,11 +1,20 @@
 /**
  * "Try an example": a small project with made-up numbers, so a first-time
- * user sees filled tables before typing anything. The titles say the data
- * are invented.
+ * user sees filled tables before typing anything — and what they turn
+ * into: a one-way ANOVA with Tukey's comparisons and its bar graph with
+ * brackets, a two-way ANOVA and its grouped bars (#33). The titles say the
+ * data are invented.
  */
 import { type Edit, applyEdit } from '@/model/edits';
 import type { Cell } from '@/model/missing';
-import { type Project, createProject } from '@/model/project';
+import { newId } from '@/model/ids';
+import {
+  DEFAULT_OPTIONS,
+  GRAPH_DEFAULTS,
+  GROUPED_DEFAULT,
+  type Project,
+  createProject,
+} from '@/model/project';
 import { type Table, createColumnTable, createGroupedTable } from '@/model/table';
 
 function fill(table: Table, values: readonly (readonly (readonly Cell[])[])[]): Edit {
@@ -59,5 +68,54 @@ export function exampleProject(): Project {
       ],
     ]),
   ];
+  const anova = newId('a');
+  const twoWay = newId('a');
+  edits.push(
+    {
+      op: 'addAnalysis',
+      analysis: {
+        id: anova,
+        title: 'One-way ANOVA of Cell viability (example data)',
+        kind: 'one-way-anova',
+        options: DEFAULT_OPTIONS['one-way-anova'],
+        input: {
+          kind: 'table',
+          table: viability.id,
+          dataSets: viability.dataSets.map((d) => d.id),
+        },
+      },
+    },
+    {
+      op: 'addAnalysis',
+      analysis: {
+        id: twoWay,
+        title: 'Two-way ANOVA of Growth by genotype (example data)',
+        kind: 'two-way-anova',
+        options: DEFAULT_OPTIONS['two-way-anova'],
+        input: { kind: 'table', table: growth.id, dataSets: growth.dataSets.map((d) => d.id) },
+      },
+    },
+    {
+      op: 'addGraph',
+      graph: {
+        id: newId('g'),
+        title: 'Cell viability (example data)',
+        source: { kind: 'table', table: viability.id },
+        analyses: [anova],
+        ...GRAPH_DEFAULTS,
+      },
+    },
+    {
+      op: 'addGraph',
+      graph: {
+        id: newId('g'),
+        title: 'Growth by genotype (example data)',
+        source: { kind: 'table', table: growth.id },
+        analyses: [twoWay],
+        ...GRAPH_DEFAULTS,
+        plot: GROUPED_DEFAULT,
+      },
+    },
+  );
   return edits.reduce(applyEdit, { ...createProject('Example project') });
 }

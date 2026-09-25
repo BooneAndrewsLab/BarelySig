@@ -10,9 +10,10 @@ your experiment, **Help me choose** asks about it and suggests one.
 1. Open a table and click **Analyze…**.
 2. Under **What do you want to know?** click a test, or **Help me
    choose**.
-3. Under **Which groups?** tick the groups (columns) to analyse. A test of
-   exactly two groups asks **Which two groups?** and starts with the first
-   two ticked.
+3. Under **Which groups?** tick the groups (columns) to analyse (for a
+   Grouped table, **Which data sets (columns)?**). A test of exactly two
+   groups asks **Which two groups?** and starts with the first two
+   ticked.
 4. Set the options below (each test’s page says what they mean) and click
    **Analyze**.
 
@@ -60,7 +61,7 @@ two questions:
 It then says which test it suggests and why. Click **Use the …** (for
 example **Use the Unpaired t test**) to fill the dialog with that test and
 its options, then **Analyze**. The **Analyze** button stays greyed out
-while **Help me choose** is selected.
+while **Help me choose** is selected, and the dialog says so.
 
 Some cases skip the questions:
 

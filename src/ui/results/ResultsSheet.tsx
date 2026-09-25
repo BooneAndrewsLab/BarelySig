@@ -4,6 +4,7 @@
  * plain sentence on top for a t test. A result is shown only when it is
  * current: outdated results are never shown as if they were.
  */
+import { explain } from './glossary';
 import { ANALYSIS_PAGE } from '../help/guide';
 import { openGuide } from '../help/openGuide';
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
@@ -59,7 +60,9 @@ function Sections({ sections }: { readonly sections: readonly Section[] }) {
           </tr>
           {rows.map(([label, value]) => (
             <tr key={label}>
-              <th scope="row">{label}</th>
+              <th scope="row" title={explain(label)}>
+                {label}
+              </th>
               <td>{value}</td>
             </tr>
           ))}
@@ -289,7 +292,7 @@ function Grid(props: {
         <thead>
           <tr>
             {props.head.map((h, i) => (
-              <th key={i} scope="col">
+              <th key={i} scope="col" title={explain(h)}>
                 {h}
               </th>
             ))}
@@ -300,7 +303,7 @@ function Grid(props: {
             <tr key={i}>
               {r.map((c, j) =>
                 j === 0 ? (
-                  <th key={j} scope="row">
+                  <th key={j} scope="row" title={explain(c)}>
                     {c}
                   </th>
                 ) : (
@@ -399,7 +402,7 @@ function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
         ['P value', pValue(r.p)],
         ['Exact or approximate P value?', r.exact ? 'Exact' : 'Approximate (chi-square)'],
         ['P value summary', stars(r.p)],
-        ['Do the medians vary significantly (P < 0.05)?', yesNo(r.p)],
+        ['Do the groups differ significantly (P < 0.05)?', yesNo(r.p)],
         ['Number of groups', String(r.groups.length)],
         ['Kruskal-Wallis statistic', sig(r.h)],
       ],
@@ -824,7 +827,9 @@ function DescriptiveView({ r }: { readonly r: DescriptiveResult }) {
           <tbody>
             {DESCRIPTIVE_ROWS.map(([label, f]) => (
               <tr key={label}>
-                <th scope="row">{label}</th>
+                <th scope="row" title={explain(label)}>
+                  {label}
+                </th>
                 {r.groups.map((g) => (
                   <td key={g.id}>{f(g)}</td>
                 ))}
