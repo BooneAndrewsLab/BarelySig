@@ -211,6 +211,10 @@ describe('Kruskal-Wallis readings', () => {
       'Kruskal-Wallis test (nonparametric, compares ranks), approximate P value (chi-square). Dunn’s multiple comparisons (every pair of groups), not adjusted for the number of comparisons.',
     );
   });
+
+  it('says when P is exact', () => {
+    expect(kruskalMethod({ ...r, exact: true })).toMatch(/compares ranks\), exact P value\./);
+  });
 });
 
 describe('two-way ANOVA readings', () => {

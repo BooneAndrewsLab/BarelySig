@@ -23,6 +23,8 @@ export interface Fixture {
      * A second reference, run only in desktop R when the fixture was
      * written (item 06), e.g. a package WebR doesn't ship.
      */
+    /** false: too slow to rerun in WebR (a brute-force reference); the parity test skips it. */
+    readonly parity?: false;
     readonly checked?: {
       readonly packages: Readonly<Record<string, string>>;
       readonly code: string;

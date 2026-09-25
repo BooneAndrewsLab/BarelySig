@@ -8,7 +8,8 @@
     "n_total": 9,
     "h": 3.403361344537815,
     "df": 1,
-    "p": 0.065063706878819641,
+    "p": 0.071428571428571425,
+    "exact": true,
     "groups": [
       {
         "n": 4,
@@ -30,11 +31,18 @@
     "packages": {
       "stats": "4.6.0"
     },
-    "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = kt$p.value, groups = lapply(seq_len(k), function(i) {\n                list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                  mean_rank = rs[[i]]/n[i])\n            }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
-    "call": "kruskal(groups_of(g1, g2), comps = \"none\")"
+    "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kw_brute <- function(groups) {\n        n <- lengths(groups)\n        k <- length(n)\n        r <- rank(unlist(groups))\n        g <- rep(seq_len(k), n)\n        stat_obs <- sum(tapply(r, g, sum)^2/n)\n        hits <- 0\n        total <- 0\n        split_rest <- function(avail, j, part) {\n            cm <- combn(length(avail), n[j])\n            if (j == k - 1) {\n                s1 <- colSums(matrix(r[avail][cm], nrow = n[j]))\n                rest <- sum(r[avail]) - s1\n                st <- part + s1^2/n[j] + rest^2/n[k]\n                total <<- total + length(st)\n                hits <<- hits + sum(st >= stat_obs * (1 - 1e-12))\n                return(invisible())\n            }\n            for (c in seq_len(ncol(cm))) {\n                take <- avail[cm[, c]]\n                split_rest(setdiff(avail, take), j + 1, part + sum(r[take])^2/n[j])\n            }\n        }\n        split_rest(seq_along(r), 1, 0)\n        hits/total\n    }\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE, exact = FALSE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = if (exact) kw_brute(groups) else kt$p.value, exact = exact, groups = lapply(seq_len(k), \n                function(i) {\n                  list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                    mean_rank = rs[[i]]/n[i])\n                }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "kruskal(groups_of(g1, g2), comps = \"none\", exact = TRUE)",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "dunn.test": "1.4.1"
+      },
+      "code": "{\n    cols <- grep(\"^g[0-9]+$\", ls(), value = TRUE)\n    gs <- lapply(mget(cols[order(as.integer(sub(\"g\", \"\", cols)))]), function(x) x[!is.na(x)])\n    if (length(gs) == 2 && isTRUE(expected$exact) && !anyDuplicated(unlist(gs)) && \n        !close(expected$p, suppressWarnings(wilcox.test(gs[[1]], gs[[2]], exact = TRUE)$p.value))) \n        return(FALSE)\n    if (!length(expected$comparisons)) \n        return(TRUE)\n    d <- suppressWarnings(capture.output(res <- dunn.test::dunn.test(gs, method = \"bonferroni\", \n        altp = TRUE, kw = FALSE, table = FALSE, list = FALSE)))\n    ok <- TRUE\n    for (c in expected$comparisons) {\n        lab <- c(paste(c$j, \"-\", c$i), paste(c$i, \"-\", c$j))\n        at <- match(lab, res$comparisons)\n        at <- at[!is.na(at)][1]\n        ok <- ok && close(abs(res$Z[at]), c$z) && close(res$altP[at], c$p_unadjusted)\n    }\n    ok && close(expected$h, suppressWarnings(kruskal.test(gs)$statistic))\n}"
+    }
   },
   "tolerance": 9.9999999999999995e-7,
-  "note": "Two groups: the approximate P of a Mann-Whitney test (without continuity correction).",
+  "note": "Two groups, with a tie: an exact P, at least as far from the mean rank sum either way.",
   "options": {
     "comparisons": "none",
     "corrected": true

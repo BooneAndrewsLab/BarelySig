@@ -457,6 +457,7 @@ describe('results sheets', () => {
       h: 3.857,
       df: 1,
       p: 0.0495,
+      exact: true,
       comparisons: { kind: 'all' },
       corrected: true,
       pairs: [

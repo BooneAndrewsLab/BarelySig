@@ -186,7 +186,8 @@ export function kruskalMethod(r: KruskalWallisResult): string {
     c.kind === 'none'
       ? ''
       : ` Dunn’s multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), ${r.corrected ? 'each P multiplied by the number of comparisons' : 'not adjusted for the number of comparisons'}.`;
-  return `Kruskal-Wallis test (nonparametric, compares ranks), approximate P value (chi-square).${comps}`;
+  const p = r.exact ? 'exact P value' : 'approximate P value (chi-square)';
+  return `Kruskal-Wallis test (nonparametric, compares ranks), ${p}.${comps}`;
 }
 
 export function kruskalReading(r: KruskalWallisResult): string {

@@ -36,8 +36,10 @@ export interface KruskalWallisResult {
   readonly groups: readonly RankGroup[];
   readonly h: number;
   readonly df: number;
-  /** From the chi-square approximation. */
+  /** Exact (counted over every way to share out the ranks), or from the chi-square approximation. */
   readonly p: number;
+  /** Whether P is exact: small samples, note 07. */
+  readonly exact: boolean;
   readonly comparisons: KruskalWallisOptions['comparisons'];
   readonly corrected: boolean;
   readonly pairs: readonly DunnComparison[];

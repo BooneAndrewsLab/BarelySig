@@ -24,7 +24,8 @@ const fixtures = loadFixtures();
 const referencePackages = (f: Fixture) =>
   Object.keys(f.reference.packages).filter((p) => p !== 'stats');
 const inWebR = (f: Fixture) => referencePackages(f).every((p) => p in ENGINE.packages);
-const runnable = fixtures.filter(inWebR);
+/** Brute-force references (note 07) would take minutes in WebR; the app's own tests run those cases. */
+const runnable = fixtures.filter((f) => inWebR(f) && f.reference.parity !== false);
 
 /**
  * WebR's conversion unboxes every vector of one element; jsonlite keeps

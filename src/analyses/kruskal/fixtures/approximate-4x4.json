@@ -1,69 +1,91 @@
 {
   "input": {
-    "g1": [
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
-      27, 28, 29, 30
-    ],
-    "g2": [
-      101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
-      120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130
-    ],
-    "g3": [
-      201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219,
-      220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230
-    ]
+    "g1": [3.1000000000000001, 2.7999999999999998, 3.6000000000000001, 3.2999999999999998],
+    "g2": [4.0999999999999996, 3.8999999999999999, 4.5999999999999996, 4.4000000000000004],
+    "g3": [2.2000000000000002, 2.8999999999999999, 2.5, 3],
+    "g4": [5, 4.7999999999999998, 5.5, 5.0999999999999996]
   },
   "expected": {
-    "k": 3,
-    "n_total": 90,
-    "h": 79.120879120879124,
-    "df": 2,
-    "p": 6.5935514175507094e-18,
+    "k": 4,
+    "n_total": 16,
+    "h": 13.5,
+    "df": 3,
+    "p": 0.003671131797155747,
     "exact": false,
     "groups": [
       {
-        "n": 30,
-        "median": 15.5,
-        "rank_sum": 465,
-        "mean_rank": 15.5
+        "n": 4,
+        "median": 3.2000000000000002,
+        "rank_sum": 24,
+        "mean_rank": 6
       },
       {
-        "n": 30,
-        "median": 115.5,
-        "rank_sum": 1365,
-        "mean_rank": 45.5
+        "n": 4,
+        "median": 4.25,
+        "rank_sum": 42,
+        "mean_rank": 10.5
       },
       {
-        "n": 30,
-        "median": 215.5,
-        "rank_sum": 2265,
-        "mean_rank": 75.5
+        "n": 4,
+        "median": 2.7000000000000002,
+        "rank_sum": 12,
+        "mean_rank": 3
+      },
+      {
+        "n": 4,
+        "median": 5.0499999999999998,
+        "rank_sum": 58,
+        "mean_rank": 14.5
       }
     ],
     "comparisons": [
       {
         "i": 1,
         "j": 2,
-        "diff": -30,
-        "z": 4.447495899966607,
-        "p_unadjusted": 8.6877116770000565e-6,
-        "p": 2.6063135031000169e-5
+        "diff": -4.5,
+        "z": 1.3366991830185102,
+        "p_unadjusted": 0.18132084872568341,
+        "p": 1
       },
       {
         "i": 1,
         "j": 3,
-        "diff": -60,
-        "z": 8.894991799933214,
-        "p_unadjusted": 5.8423612566483499e-19,
-        "p": 1.7527083769945049e-18
+        "diff": 3,
+        "z": 0.8911327886790068,
+        "p_unadjusted": 0.37285793639518316,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": -8.5,
+        "z": 2.5248762345905194,
+        "p_unadjusted": 0.011573904213159594,
+        "p": 0.069443425278957555
       },
       {
         "i": 2,
         "j": 3,
-        "diff": -30,
-        "z": 4.447495899966607,
-        "p_unadjusted": 8.6877116770000565e-6,
-        "p": 2.6063135031000169e-5
+        "diff": 7.5,
+        "z": 2.2278319716975172,
+        "p_unadjusted": 0.025891721975398518,
+        "p": 0.15535033185239111
+      },
+      {
+        "i": 2,
+        "j": 4,
+        "diff": -4,
+        "z": 1.1881770515720091,
+        "p_unadjusted": 0.23476366282766922,
+        "p": 1
+      },
+      {
+        "i": 3,
+        "j": 4,
+        "diff": -11.5,
+        "z": 3.4160090232695262,
+        "p_unadjusted": 0.00063546141302619,
+        "p": 0.00381276847815714
       }
     ]
   },
@@ -73,7 +95,7 @@
       "stats": "4.6.0"
     },
     "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kw_brute <- function(groups) {\n        n <- lengths(groups)\n        k <- length(n)\n        r <- rank(unlist(groups))\n        g <- rep(seq_len(k), n)\n        stat_obs <- sum(tapply(r, g, sum)^2/n)\n        hits <- 0\n        total <- 0\n        split_rest <- function(avail, j, part) {\n            cm <- combn(length(avail), n[j])\n            if (j == k - 1) {\n                s1 <- colSums(matrix(r[avail][cm], nrow = n[j]))\n                rest <- sum(r[avail]) - s1\n                st <- part + s1^2/n[j] + rest^2/n[k]\n                total <<- total + length(st)\n                hits <<- hits + sum(st >= stat_obs * (1 - 1e-12))\n                return(invisible())\n            }\n            for (c in seq_len(ncol(cm))) {\n                take <- avail[cm[, c]]\n                split_rest(setdiff(avail, take), j + 1, part + sum(r[take])^2/n[j])\n            }\n        }\n        split_rest(seq_along(r), 1, 0)\n        hits/total\n    }\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE, exact = FALSE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = if (exact) kw_brute(groups) else kt$p.value, exact = exact, groups = lapply(seq_len(k), \n                function(i) {\n                  list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                    mean_rank = rs[[i]]/n[i])\n                }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
-    "call": "kruskal(groups_of(g1, g2, g3))",
+    "call": "kruskal(groups_of(g1, g2, g3, g4))",
     "checked": {
       "packages": {
         "stats": "4.6.0",
@@ -83,7 +105,7 @@
     }
   },
   "tolerance": 9.9999999999999995e-7,
-  "note": "Complete separation of 3 x 30: P near 1e-18 keeps its magnitude.",
+  "note": "Four groups of 4 are past the exact count's budget: approximate.",
   "options": {
     "comparisons": "all",
     "corrected": true

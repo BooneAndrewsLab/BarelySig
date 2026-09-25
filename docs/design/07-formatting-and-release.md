@@ -206,10 +206,10 @@ type Whiskers = 'tukey' | 'min-max' | 'p10-90' | 'p5-95' | 'p2.5-97.5' | 'p1-99'
   end, each state's statistic T = Σ Sᵢ² · (L / nᵢ), L = lcm(nᵢ), is a
   whole number, so "at least as extreme as observed" is exact. P = Σ
   counts with T ≥ T_obs / total.
-- **Budget:** the exact count runs when no step would hold more than
-  200,000 states, which is decided from the data before it starts
-  (a dry run over counts only), so the choice doesn't depend on the
-  computer's speed. That covers 3 × 5, 4 × 4 and 3 × 6 comfortably.
+- **Budget:** the exact count runs when an estimate of the states it
+  visits, from the group sizes alone, is within 260,000 (a hard cap of
+  1.2 million stops it anyway), so the choice depends on the data, never
+  on the computer's speed. See As built for what that covers.
 - **Reference:** full enumeration of every assignment (recursive
   `combn`) for small cases in the oracle, independent of the DP, and
   `kruskal.test`'s H for the statistic. Cases: 3 × 3, 3 × 4 with ties,
@@ -342,6 +342,31 @@ each application's documented clipboard format.
   data set (`level`; its version is 2, so older results recompute).
   Choices read "Day 1: WT vs. KO"; main-effect comparisons are listed
   with a note that they give no brackets.
+
+### Exact Kruskal-Wallis P (#49)
+
+- The count runs over doubled midranks with states packed into one
+  whole-number key and merged with `rowsum`, as designed. A budget on
+  the states of one step (the first plan) let 4 × 4 × 4 × 4 run for 19 s
+  and 7 × 7 × 7 for 3 s natively; the budget is on the whole count
+  instead, decided before it starts from an estimate (for each vector
+  of counts, the smaller of the ways to reach it and the number of
+  distinct rank sums), which was within a factor of 3 of the real work
+  from 2 to 5 groups. Exact: three groups of up to 6, four groups of 3,
+  two groups of up to 31 each (in WebR: 3 × 5 in 0.3 s, 4 × 3 in 0.8 s).
+  Approximate: four groups of 4, three of 7, five of 2, and anything larger.
+- References: brute-force enumeration (up to 2 million ways) and, for
+  two untied groups, `wilcox.test`'s exact P. With ties, R's exact
+  two-sided P doubles the smaller tail while Kruskal-Wallis counts "at
+  least as far from the mean rank sum either way", so tied two-group
+  cases aren't checked against it.
+- The brute-force references would take minutes in WebR, so their
+  fixtures say `parity: false` and the parity test skips them; the
+  analysis's own test runs every case in WebR.
+
+### Exact Spearman P (#48)
+
+Deferred to Phase 2 as planned.
 
 ## Decisions made here
 

@@ -40,13 +40,17 @@ code <- function(e) paste(deparse(e, width.cutoff = 80L), collapse = "\n")
 # may use reference packages WebR doesn't ship (`check_packages`); it is
 # recorded as `reference.checked` for provenance, and the parity test
 # doesn't run it (item 06).
+#
+# `parity = FALSE` marks a reference too slow to rerun in WebR (a brute-
+# force count, note 07); the parity test skips it, and the analysis's own
+# test still checks the app's code against it in WebR.
 versions_of <- function(packages) {
   as.list(vapply(packages, function(p) as.character(packageVersion(p)), ""))
 }
 
 fixture <- function(name, input, expr, setup = NULL, packages = character(),
                     tolerance = 1e-6, note = NULL, options = NULL,
-                    check = NULL, check_packages = character()) {
+                    check = NULL, check_packages = character(), parity = TRUE) {
   expr <- substitute(expr)
   check <- substitute(check)
   # A check kept in a variable of the oracle (a quoted expression) is used as such.
@@ -77,6 +81,7 @@ fixture <- function(name, input, expr, setup = NULL, packages = character(),
   if (!is.null(check)) {
     out$reference$checked <- list(packages = versions_of(c("stats", check_packages)), code = code(check))
   }
+  if (!parity) out$reference$parity <- FALSE
   if (!is.null(note)) out$note <- note
   # The analysis options this case uses, for the app's own test (item 04).
   if (!is.null(options)) out$options <- options

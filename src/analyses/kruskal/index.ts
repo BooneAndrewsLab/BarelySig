@@ -16,7 +16,7 @@ const list = (v: Plain | undefined): readonly Plain[] => (Array.isArray(v) ? v :
 export const kruskal: AnalysisModule<'kruskal-wallis', KruskalWallisRequest, KruskalWallisResult> =
   {
     kind: 'kruskal-wallis',
-    version: 1,
+    version: 2,
     code,
 
     prepare(analysis, project): Prepared<KruskalWallisRequest> {
@@ -121,6 +121,7 @@ export const kruskal: AnalysisModule<'kruskal-wallis', KruskalWallisRequest, Kru
         h: need(r['h'], 'H'),
         df: need(r['df'], 'df'),
         p: need(r['p'], 'P'),
+        exact: r['exact'] === true,
         comparisons: request.options.comparisons,
         corrected: request.options.corrected,
         pairs: list(r['comparisons']).map((v) => {

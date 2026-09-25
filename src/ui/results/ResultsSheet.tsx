@@ -395,7 +395,7 @@ function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
       'Kruskal-Wallis test',
       [
         ['P value', pValue(r.p)],
-        ['Exact or approximate P value?', 'Approximate'],
+        ['Exact or approximate P value?', r.exact ? 'Exact' : 'Approximate (chi-square)'],
         ['P value summary', stars(r.p)],
         ['Do the medians vary significantly (P < 0.05)?', yesNo(r.p)],
         ['Number of groups', String(r.groups.length)],
@@ -467,8 +467,10 @@ function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
         </>
       )}
       <p className="legend">
-        Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals. The Kruskal-Wallis P is
-        approximate (chi-square), which is accurate except with very small groups.
+        Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals.{' '}
+        {r.exact
+          ? 'The Kruskal-Wallis P is exact: it counts every way the values could have been shared out among the groups.'
+          : 'The Kruskal-Wallis P is approximate (chi-square), accurate unless the groups are small; small samples get an exact P.'}
       </p>
     </>
   );
