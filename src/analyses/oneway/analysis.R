@@ -165,6 +165,10 @@ bs_pairs <- function(k, comps, control) {
 
 bs_comparisons <- function(m, v, n, mse, df, welch, comps, control, test) {
   if (comps == "none") return(list())
+  # Unnamed: a named number would come back from WebR as an object.
+  m <- unname(m)
+  v <- unname(v)
+  n <- unname(n)
   k <- length(m)
   pairs <- bs_pairs(k, comps, control)
   K <- nrow(pairs)

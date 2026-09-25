@@ -41,7 +41,9 @@ import {
   type Layout,
   type Project,
   type RankTestOptions,
+  TWO_WAY_FAMILIES,
   type TTestOptions,
+  type TwoWayOptions,
 } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
 import {
@@ -133,6 +135,8 @@ function optionsJson(a: AnalysisSpec): Json {
       return { paired: a.options.paired, tails: a.options.tails, zeros: a.options.zeros };
     case 'one-way-anova':
       return { welch: a.options.welch, comparisons: comparisonsJson(a.options.comparisons) };
+    case 'two-way-anova':
+      return { family: a.options.family, comparisons: comparisonsJson(a.options.comparisons) };
     case 'kruskal-wallis': {
       const c = a.options.comparisons;
       return {
@@ -365,6 +369,13 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     case 'one-way-anova': {
       const options: OneWayOptions = {
         welch: bool(opts['welch'], q.key('welch')),
+        comparisons: comparisons(opts['comparisons'], q.key('comparisons')),
+      };
+      return { kind, options };
+    }
+    case 'two-way-anova': {
+      const options: TwoWayOptions = {
+        family: oneOf(opts['family'], q.key('family'), TWO_WAY_FAMILIES),
         comparisons: comparisons(opts['comparisons'], q.key('comparisons')),
       };
       return { kind, options };

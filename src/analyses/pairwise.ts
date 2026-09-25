@@ -66,6 +66,8 @@ export function pairsOf(analysis: Analysis): readonly Pair[] {
       );
     }
     case 'descriptive':
+    case 'two-way-anova':
+      // Two-way brackets wait for grouped graphs (note 06).
       return [];
   }
 }
@@ -89,6 +91,7 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
       }));
     }
     case 'descriptive':
+    case 'two-way-anova':
       return [];
   }
 }

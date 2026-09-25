@@ -10,6 +10,7 @@ import type { DescriptiveResult } from '@/analyses/descriptive/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
+import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { Analysis, Project } from '@/model/project';
 import type { Dropped } from '@/model/selectors';
@@ -30,6 +31,8 @@ import {
   rankTestReading,
   tTestMethod,
   tTestReading,
+  twoWayMethod,
+  twoWayReading,
 } from './reading';
 
 interface Props {
@@ -408,6 +411,143 @@ function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
   );
 }
 
+const FAMILY_TITLE: Readonly<Record<string, string>> = {
+  'within-rows': 'Within each row, compare data sets (simple effects)',
+  'within-columns': 'Within each data set, compare rows (simple effects)',
+  'main-columns': 'Compare data sets (main column effect)',
+  'main-rows': 'Compare rows (main row effect)',
+  'all-cells': 'Compare cell means regardless of rows and data sets',
+};
+
+function TwoWayView({ r }: { readonly r: TwoWayResult }) {
+  const terms: (readonly [string, TwoWayTerm])[] = [
+    ...(r.interaction ? ([['Interaction', r.interaction]] as const) : []),
+    ['Row factor', r.row],
+    ['Column factor', r.column],
+  ];
+  const c = r.options.comparisons;
+  const test = c.kind === 'none' ? '' : (COMPARISON_TEST[c.test] ?? c.test);
+  const qName = c.kind !== 'none' && c.test === 'tukey' ? 'q' : 't';
+  const notes: string[] = [];
+  if (r.emptyRows > 0)
+    notes.push(
+      `${String(r.emptyRows)} ${r.emptyRows === 1 ? 'row' : 'rows'} without values left out`,
+    );
+  if (r.droppedValues > 0)
+    notes.push(
+      `${String(r.droppedValues)} empty or excluded ${r.droppedValues === 1 ? 'value' : 'values'} left out`,
+    );
+  return (
+    <>
+      <p className="reading">{twoWayReading(r)}</p>
+      <p className="method">{twoWayMethod(r)}</p>
+      <Grid
+        label="Source of variation"
+        head={[
+          'Source of variation',
+          '% of total variation',
+          'P value',
+          'P value summary',
+          'Significant?',
+        ]}
+        rows={terms.map(([name, t]) => [name, sig(t.percent), pValue(t.p), stars(t.p), yesNo(t.p)])}
+      />
+      <Grid
+        label="ANOVA table"
+        head={['ANOVA table', 'SS (Type III)', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+        rows={[
+          ...terms.map(([name, t]) => [
+            name,
+            sig(t.ss),
+            dfText(t.df),
+            sig(t.ms),
+            `F (${dfText(t.df)}, ${dfText(r.residual.df)}) = ${sig(t.f)}`,
+            pPhrase(t.p),
+          ]),
+          ['Residual', sig(r.residual.ss), dfText(r.residual.df), sig(r.residual.ms), '', ''],
+          ['Total', sig(r.total.ss), dfText(r.total.df), '', '', ''],
+        ]}
+      />
+      <Grid
+        label="Cell means"
+        head={['Mean (n)', ...r.columns.map((x) => x.title)]}
+        rows={r.rows.map((row, i) => [
+          row.title,
+          ...r.columns.map((_, j) => {
+            const cell = r.cells[i]?.[j];
+            return cell && cell.n > 0 ? `${sig(cell.mean)} (${String(cell.n)})` : '—';
+          }),
+        ])}
+      />
+      <Sections
+        sections={[
+          [
+            'Data summary',
+            [
+              ['Number of data sets (column factor)', String(r.columns.length)],
+              ['Number of rows (row factor)', String(r.rows.length)],
+              ['Number of values', String(r.nTotal)],
+              ...(notes.length ? ([['Left out', notes.join('; ')]] as Row[]) : []),
+            ],
+          ],
+        ]}
+      />
+      {r.comparisonsNote && (
+        <p className="status-banner info">
+          {r.comparisonsNote === 'empty-cell'
+            ? 'Multiple comparisons aren’t available when a cell has no values (the model without interaction gives means that depend on its fit); fill in the cell, or compare fewer groups.'
+            : 'Comparisons within rows, within data sets or between cells need more than one value per cell. Compare the main effects instead (Prism does the same).'}
+        </p>
+      )}
+      {r.families.length > 0 && (
+        <>
+          <h2 className="results-subhead">{FAMILY_TITLE[r.options.family]}</h2>
+          {r.families.map((f, i) => (
+            <Grid
+              key={i}
+              label={f.label ?? 'Multiple comparisons'}
+              head={[
+                `${test} multiple comparisons${f.label ? `: ${f.label}` : ''}`,
+                'Mean diff.',
+                '95.00% CI of diff.',
+                'Significant?',
+                'Summary',
+                'Adjusted P value',
+              ]}
+              rows={f.pairs.map((x) => [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(x.diff),
+                interval(x.ciLower, x.ciUpper),
+                x.p < 0.05 ? 'Yes' : 'No',
+                stars(x.p),
+                pValue(x.p),
+              ])}
+            />
+          ))}
+          <Grid
+            label="Test details"
+            head={['Test details', 'Mean diff.', 'SE of diff.', qName, 'DF']}
+            rows={r.families.flatMap((f) =>
+              f.pairs.map((x) => [
+                `${f.label ? `${f.label}: ` : ''}${x.a.title} vs. ${x.b.title}`,
+                sig(x.diff),
+                sig(x.se),
+                sig(x.statistic),
+                dfText(x.df),
+              ]),
+            )}
+          />
+        </>
+      )}
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first minus the second. Main effects compare
+        least-squares means (the average of the cell means). With unbalanced data the Type III sums
+        of squares don’t add up to the total, as in Prism.
+      </p>
+    </>
+  );
+}
+
 function OneWayView({ r }: { readonly r: OneWayResult }) {
   const a = r.anova;
   const sections: Section[] = [];
@@ -732,6 +872,9 @@ export function ResultsSheet({ project, analysis }: Props) {
         <Status analysis={analysis} />
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} />
+        )}
+        {value !== null && analysis.kind === 'two-way-anova' && (
+          <TwoWayView r={value as unknown as TwoWayResult} />
         )}
         {value !== null && analysis.kind === 'kruskal-wallis' && (
           <KruskalView r={value as unknown as KruskalWallisResult} />

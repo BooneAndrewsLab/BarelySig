@@ -1076,3 +1076,9 @@ select {
   text-align: left;
   border-radius: 0;
 }
+
+/* A heading between results tables (two-way comparisons, note 06). */
+.results-subhead {
+  font-size: 1em;
+  margin: 18px 0 6px;
+}

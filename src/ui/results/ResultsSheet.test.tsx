@@ -7,11 +7,12 @@ import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
+import type { TwoWayResult } from '@/analyses/twoway/types';
 import { applyEdit } from '@/model/edits';
 import type { Json } from '@/model/json';
 import { createProject } from '@/model/project';
 import type { Job } from '@/model/recompute';
-import { type Table, createColumnTable } from '@/model/table';
+import { type Table, createColumnTable, createGroupedTable } from '@/model/table';
 
 import { App } from '../App';
 import { ResultsBridge, setResults } from '../state/results';
@@ -497,5 +498,107 @@ describe('results sheets', () => {
         'Unpaired t test of Viability',
       );
     });
+  });
+});
+
+describe('two-way ANOVA sheet', () => {
+  it('reads the interaction first and lists comparisons per row', async () => {
+    const t = createGroupedTable({
+      title: 'Growth',
+      rowTitles: ['Day 1', 'Day 2'],
+      groups: ['WT', 'KO'],
+      format: { kind: 'replicates', count: 2 },
+    });
+    let p = applyEdit(createProject('P'), { op: 'addTable', table: t });
+    p = applyEdit(p, {
+      op: 'setCells',
+      table: t.id,
+      cells: t.dataSets.flatMap((d, j) =>
+        t.rows.flatMap((row, i) =>
+          [0, 1].map((s) => ({ dataSet: d.id, subcolumn: s, row: row.id, value: i + j + s })),
+        ),
+      ),
+    });
+    act(() => {
+      store.load(p);
+    });
+    const term = (pv: number) => ({ ss: 1, df: 1, ms: 1, f: 10, p: pv, percent: 20 });
+    const r: TwoWayResult = {
+      from: 'values',
+      model: 'full',
+      why: null,
+      rows: [
+        { id: 'r1', title: 'Day 1' },
+        { id: 'r2', title: 'Day 2' },
+      ],
+      columns: [
+        { id: 'c1', title: 'WT' },
+        { id: 'c2', title: 'KO' },
+      ],
+      nTotal: 8,
+      interaction: term(0.003),
+      row: term(0.2),
+      column: term(0.00001),
+      residual: { ss: 0.4, df: 4, ms: 0.1 },
+      total: { ss: 3.4, df: 7 },
+      cells: [
+        [
+          { n: 2, mean: 0.5, sd: 0.7 },
+          { n: 2, mean: 1.5, sd: 0.7 },
+        ],
+        [
+          { n: 2, mean: 1.5, sd: 0.7 },
+          { n: 2, mean: 2.5, sd: 0.7 },
+        ],
+      ],
+      options: { family: 'within-rows', comparisons: { kind: 'all', test: 'tukey' } },
+      families: [
+        {
+          label: 'Day 1',
+          pairs: [
+            {
+              a: { id: 'c1', title: 'WT' },
+              b: { id: 'c2', title: 'KO' },
+              diff: -1,
+              se: 0.3,
+              df: 4,
+              statistic: 4.7,
+              ciLower: -1.8,
+              ciUpper: -0.2,
+              p: 0.02,
+            },
+          ],
+        },
+      ],
+      comparisonsNote: null,
+      emptyRows: 0,
+      droppedValues: 0,
+      warnings: [],
+    };
+    setResults(
+      new ResultsBridge(store, {
+        debounceMs: 0,
+        runner: () => Promise.resolve(r as unknown as Json),
+      }),
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByRole('radio', { name: /^t test/ })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Two-way ANOVA/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
+    await screen.findByText(
+      /^How the data sets differ depends on the row \(interaction P = 0\.0030\)/,
+    );
+    expect(
+      within(screen.getByRole('table', { name: 'Source of variation' }))
+        .getByRole('rowheader', { name: 'Interaction' })
+        .closest('tr'),
+    ).toHaveTextContent('Interaction200.0030**Yes');
+    expect(
+      within(screen.getByRole('table', { name: 'Day 1' }))
+        .getByRole('rowheader', { name: 'WT vs. KO' })
+        .closest('tr'),
+    ).toHaveTextContent('WT vs. KO-1-1.8 to -0.2Yes*0.0200');
   });
 });

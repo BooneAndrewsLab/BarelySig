@@ -20,7 +20,8 @@ export type AnalysisSpec =
   | { readonly kind: 't-test'; readonly options: TTestOptions }
   | { readonly kind: 'rank-test'; readonly options: RankTestOptions }
   | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
-  | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions };
+  | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions }
+  | { readonly kind: 'two-way-anova'; readonly options: TwoWayOptions };
 
 export type AnalysisKind = AnalysisSpec['kind'];
 
@@ -74,6 +75,30 @@ export interface KruskalWallisOptions {
   readonly corrected: boolean;
 }
 
+/**
+ * Which means two-way comparisons compare (note 06): the columns within
+ * each row, the rows within each column, the columns' or rows'
+ * least-squares means, or every cell with every other.
+ */
+export const TWO_WAY_FAMILIES = [
+  'within-rows',
+  'within-columns',
+  'main-columns',
+  'main-rows',
+  'all-cells',
+] as const;
+export type TwoWayFamily = (typeof TWO_WAY_FAMILIES)[number];
+
+export interface TwoWayOptions {
+  readonly family: TwoWayFamily;
+  /**
+   * Tests that assume equal SDs only. A control is a data set for
+   * `within-rows` and `main-columns`, a row for `within-columns` and
+   * `main-rows`; `all-cells` has none.
+   */
+  readonly comparisons: Comparisons;
+}
+
 export const DEFAULT_OPTIONS: {
   readonly [K in AnalysisKind]: Extract<AnalysisSpec, { kind: K }>['options'];
 } = {
@@ -82,6 +107,7 @@ export const DEFAULT_OPTIONS: {
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },
+  'two-way-anova': { family: 'within-rows', comparisons: { kind: 'all', test: 'tukey' } },
 };
 
 /** What an analysis reads: data sets of a table, or another analysis's results. */

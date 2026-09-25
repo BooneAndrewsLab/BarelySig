@@ -4,6 +4,7 @@ import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
+import type { TwoWayResult } from '@/analyses/twoway/types';
 
 import {
   kruskalMethod,
@@ -14,6 +15,8 @@ import {
   rankTestReading,
   tTestMethod,
   tTestReading,
+  twoWayMethod,
+  twoWayReading,
 } from './reading';
 
 const base: TTestResult = {
@@ -204,6 +207,29 @@ describe('Kruskal-Wallis readings', () => {
     );
     expect(kruskalMethod(r)).toBe(
       'Kruskal-Wallis test (nonparametric, compares ranks), approximate P value (chi-square). Dunn’s multiple comparisons (every pair of groups), not adjusted for the number of comparisons.',
+    );
+  });
+});
+
+describe('two-way ANOVA readings', () => {
+  const term = (p: number) => ({ ss: 1, df: 1, ms: 1, f: 1, p, percent: 10 });
+  const base = {
+    from: 'values',
+    model: 'main-effects',
+    why: 'no-replicates',
+    interaction: null,
+    row: term(0.2),
+    column: term(0.01),
+    options: { family: 'main-columns', comparisons: { kind: 'all', test: 'tukey' } },
+    families: [{ label: null, pairs: [{ p: 0.01 }, { p: 0.3 }, { p: 0.04 }] }],
+  } as unknown as TwoWayResult;
+
+  it('says when main effects only were fitted, and why', () => {
+    expect(twoWayMethod(base)).toBe(
+      'Two-way ANOVA, main effects only: with one value per cell an interaction can’t be estimated, so none is assumed (as Prism). Tukey’s multiple comparisons between data sets, averaged over rows, with P values adjusted within each family.',
+    );
+    expect(twoWayReading(base)).toBe(
+      'There is no evidence that the rows, averaged over the data sets, differ (P = 0.2000). The data sets, averaged over the rows, differ (P = 0.0100). Tukey’s comparisons between data sets, averaged over rows: 2 of 3 pairs differ after adjusting for the number of comparisons.',
     );
   });
 });

@@ -8,6 +8,7 @@
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
+import type { TwoWayResult } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
 import { howOften, pPhrase } from './format';
@@ -215,4 +216,55 @@ export function oneWayReading(r: OneWayResult): string {
     text += comparisonsText(p, name, r.pairs, true, 'overall ANOVA');
   }
   return text;
+}
+
+const FAMILY_TEXT: Readonly<Record<string, string>> = {
+  'within-rows': 'within each row',
+  'within-columns': 'within each data set',
+  'main-columns': 'between data sets, averaged over rows',
+  'main-rows': 'between rows, averaged over data sets',
+  'all-cells': 'between every pair of cells',
+};
+
+export function twoWayMethod(r: TwoWayResult): string {
+  const model =
+    r.model === 'full'
+      ? 'Two-way ANOVA with interaction, Type III sums of squares'
+      : r.why === 'no-replicates'
+        ? 'Two-way ANOVA, main effects only: with one value per cell an interaction can’t be estimated, so none is assumed (as Prism)'
+        : 'Two-way ANOVA, main effects only: a cell has no values, so the model with interaction can’t be fitted (as Prism)';
+  const c = r.options.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons ${FAMILY_TEXT[r.options.family] ?? ''}${c.kind === 'control' ? ' against the control' : ''}, with P values adjusted within each family.`;
+  const from = r.from === 'summary' ? ' Computed from summary data (mean, SD and n).' : '';
+  return `${model}.${comps}${from}`;
+}
+
+export function twoWayReading(r: TwoWayResult): string {
+  const parts: string[] = [];
+  if (r.interaction) {
+    const p = r.interaction.p;
+    parts.push(
+      p < 0.05
+        ? `How the data sets differ depends on the row (interaction ${pPhrase(p)}): one factor’s effect isn’t the same at every level of the other, so the main effects below are hard to read on their own; look at the comparisons within rows or data sets.`
+        : `There is no evidence that the data sets’ effect depends on the row (interaction ${pPhrase(p)}), so the two factors can be read one at a time.`,
+    );
+  }
+  const effect = (p: number, what: string) =>
+    p < 0.05
+      ? `The ${what} differ (${pPhrase(p)}).`
+      : `There is no evidence that the ${what} differ (${pPhrase(p)}).`;
+  parts.push(effect(r.row.p, 'rows, averaged over the data sets,'));
+  parts.push(effect(r.column.p, 'data sets, averaged over the rows,'));
+  const c = r.options.comparisons;
+  const pairs = r.families.flatMap((f) => f.pairs);
+  if (c.kind !== 'none' && pairs.length > 0) {
+    const sig = pairs.filter((x) => x.p < 0.05).length;
+    parts.push(
+      `${COMPARISON_TEST[c.test] ?? c.test} comparisons ${FAMILY_TEXT[r.options.family] ?? ''}: ${String(sig)} of ${String(pairs.length)} ${pairs.length === 1 ? 'pair differs' : 'pairs differ'} after adjusting for the number of comparisons.`,
+    );
+  }
+  return parts.join(' ');
 }

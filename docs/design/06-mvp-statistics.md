@@ -198,7 +198,7 @@ factor, subcolumns the replicates.
   both cases the results say so.
 - **From summary data:** balanced designs only (every n the same),
   where it is exact. Prism's unbalanced summary-data method ("unweighted
-  means", only approximately correct) is a follow-up; `prepare`
+  means", only approximately correct) is a follow-up (#51); `prepare`
   explains it for now.
 - **Comparisons** use MS(residual) and DF(residual) of the fitted model
   (FAQ 1688), one family per row or column (Prism's recommended
@@ -378,6 +378,25 @@ n ≥ 8, an empty cell, one value per cell).
   says no result can be significant, as Prism's guide does.
 - Uncorrected Dunn's P values say, in the reading, that they aren't
   adjusted.
+
+### Two-way ANOVA (#27)
+
+- **Type III by projection:** each term's SS is the squared distance
+  between the fits with and without its columns. It equals the difference
+  of residual SS, but rounding can't push it below zero, as the difference
+  did when a true effect is 0. The oracle's reference is R's `drop1` with
+  sum-to-zero contrasts, checked against `car::Anova(type = 3)`.
+- **Comparisons** reuse the one-way code (its file is loaded with the
+  two-way one, and both are in the fingerprint): each family's means go in
+  as groups of "size" 1/w. The reference is emmeans (which WebR ships):
+  its least-squares means and SEs, with each test written out, and
+  emmeans' own adjusted P as a check where it computes the same test.
+- **Rows without any value are left out** (a Grouped table often has
+  blank rows at the end) and counted in "Data summary"; a data set without
+  values is refused. Rows without a title are "Row n".
+- **Follow-ups:** repeated measures and the Friedman test (#50),
+  unbalanced summary data (#51), comparisons with an empty cell (#52),
+  brackets on grouped graphs (#32).
 
 ## Decisions made here
 

@@ -1,0 +1,127 @@
+{
+  "input": {
+    "y": [
+      12.1, 13.4, 11.800000000000001, 14.199999999999999, 15.1, 13.9, 16, 12.9, 13.800000000000001,
+      14.4, 13.1, 12.699999999999999, 15, 14.1, 11.199999999999999, 12, 11.699999999999999, 12.5,
+      13.300000000000001, 12.800000000000001
+    ],
+    "ri": [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3],
+    "ci": [1, 1, 1, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 1, 1, 1, 1, 2, 2]
+  },
+  "expected": {
+    "model": "full",
+    "why": null,
+    "rows": 3,
+    "columns": 2,
+    "n_total": 20,
+    "interaction": {
+      "ss": 2.7836433637284621,
+      "df": 2,
+      "ms": 1.3918216818642311,
+      "f": 2.1322042106178034,
+      "p": 0.15547371606439125,
+      "percent": 9.1266995532080717
+    },
+    "row": {
+      "ss": 5.0511205673758912,
+      "df": 2,
+      "ms": 2.5255602836879456,
+      "f": 3.8690374932482388,
+      "p": 0.045956682655944874,
+      "percent": 16.56105104057669
+    },
+    "column": {
+      "ss": 8.1733825136611937,
+      "df": 1,
+      "ms": 8.1733825136611937,
+      "f": 12.521230871526486,
+      "p": 0.0032746487351938357,
+      "percent": 26.797975454626862
+    },
+    "residual": {
+      "ss": 9.1386666666666674,
+      "df": 14,
+      "ms": 0.65276190476190477
+    },
+    "total": {
+      "ss": 30.500000000000004,
+      "df": 19
+    },
+    "cells": [
+      [
+        {
+          "n": 3,
+          "mean": 12.433333333333334,
+          "sd": 0.85049005481153828
+        },
+        {
+          "n": 4,
+          "mean": 14.800000000000001,
+          "sd": 0.94868329805051377
+        }
+      ],
+      [
+        {
+          "n": 2,
+          "mean": 13.350000000000001,
+          "sd": 0.63639610306789296
+        },
+        {
+          "n": 5,
+          "mean": 13.859999999999999,
+          "sd": 0.94498677239419626
+        }
+      ],
+      [
+        {
+          "n": 4,
+          "mean": 11.85,
+          "sd": 0.54467115461227333
+        },
+        {
+          "n": 2,
+          "mean": 13.050000000000001,
+          "sd": 0.35355339059327379
+        }
+      ]
+    ],
+    "comparisons": [
+      {
+        "family": 1,
+        "i": 1,
+        "j": 2,
+        "diff": -1.3588888888888881,
+        "se": 0.38402582952518238,
+        "df": 14,
+        "statistic": 5.0042443728352204,
+        "ci_lower": -2.1825423637328161,
+        "ci_upper": -0.53523541404496044,
+        "p": 0.0032746487340467034
+      }
+    ],
+    "comparisons_note": null
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0",
+      "emmeans": "2.0.3"
+    },
+    "setup": "{\n    alpha <- 0.05\n    gauss <- local({\n        i <- 1:11\n        b <- i/sqrt(4 * i^2 - 1)\n        e <- eigen(`[<-`(matrix(0, 12, 12), cbind(c(i, i + 1), c(i + 1, i)), c(b, \n            b)), symmetric = TRUE)\n        list(x = e$values, w = 2 * e$vectors[1, ]^2)\n    })\n    on_pieces <- function(br) {\n        a <- head(br, -1)\n        h <- diff(br)/2\n        list(x = as.vector(outer(gauss$x, h) + rep(a + h, each = 12)), w = as.vector(outer(gauss$w, \n            h)))\n    }\n    dunnett <- function(c, lam, df) {\n        sig <- sqrt(1 - lam^2)\n        top <- qchisq(1e-16, df, lower.tail = FALSE)\n        k <- df * (seq(0.5, 3 * sqrt(df) + 10, by = 0.5)/c)^2\n        xn <- on_pieces(sort(unique(c(0, qchisq(c(1e-13, 1e-10, 1e-07, 1e-04, 0.01, \n            0.2, 0.5, 0.8, 0.99, 1 - 1e-07), df), k[k < top], top))))\n        zt <- on_pieces(seq(-1, 1, length.out = 61))\n        given_x <- vapply(xn$x, function(x) {\n            s <- sqrt(x/df)\n            reach <- (c * s + 9)/min(lam) + 2\n            z <- reach * zt$x\n            q <- pmin(pnorm(outer(z, lam, function(z, l) (-c * s - l * z))/rep(sig, \n                each = length(z))) + pnorm(outer(z, lam, function(z, l) (c * s - \n                l * z))/rep(sig, each = length(z)), lower.tail = FALSE), 1)\n            reach * sum(zt$w * dnorm(z) * (1 - exp(rowSums(log1p(-q))))) + 2 * pnorm(-reach)\n        }, 0)\n        min(1, sum(xn$w * dchisq(xn$x, df) * given_x))\n    }\n    twoway <- function(y, r, c, family = \"none\", comps = \"none\", control = 1, test = \"tukey\") {\n        keep <- !is.na(y)\n        y <- y[keep]\n        r <- r[keep]\n        c <- c[keep]\n        R <- max(r)\n        C <- max(c)\n        rf <- factor(r, levels = seq_len(R))\n        cf <- factor(c, levels = seq_len(C))\n        n <- unclass(table(rf, cf))\n        full <- all(n > 0) && any(n > 1)\n        d <- data.frame(y = y, rf = rf, cf = cf)\n        fit <- lm(if (full) \n            y ~ rf * cf\n        else y ~ rf + cf, data = d, contrasts = list(rf = \"contr.sum\", cf = \"contr.sum\"))\n        tab <- drop1(fit, scope = if (full) \n            ~rf + cf + rf:cf\n        else ~rf + cf, test = \"F\")\n        res <- data.frame(df = fit$df.residual, ss = sum(residuals(fit)^2))\n        sst <- sum((y - mean(y))^2)\n        term <- function(name) {\n            ss <- tab[name, \"Sum of Sq\"]\n            list(ss = ss, df = tab[name, \"Df\"], ms = ss/tab[name, \"Df\"], f = tab[name, \n                \"F value\"], p = tab[name, \"Pr(>F)\"], percent = 100 * ss/sst)\n        }\n        out <- list(model = if (full) \"full\" else \"main-effects\", why = if (any(n == \n            0)) \"empty-cell\" else if (!any(n > 1)) \"no-replicates\" else NA, rows = R, \n            columns = C, n_total = length(y), interaction = if (full) term(\"rf:cf\") else NA, \n            row = term(\"rf\"), column = term(\"cf\"), residual = list(ss = res$ss, df = res$df, \n                ms = res$ss/res$df), total = list(ss = sst, df = length(y) - 1), \n            cells = lapply(seq_len(R), function(i) lapply(seq_len(C), function(j) {\n                v <- y[r == i & c == j]\n                list(n = length(v), mean = if (length(v)) mean(v) else NA, sd = if (length(v) > \n                  1) sd(v) else NA)\n            })))\n        out$comparisons <- list()\n        out$comparisons_note <- NA\n        if (comps != \"none\") {\n            if (any(n == 0)) \n                out$comparisons_note <- \"empty-cell\"\n            else if (family %in% c(\"within-rows\", \"within-columns\", \"all-cells\") && \n                !full) \n                out$comparisons_note <- \"no-replicates\"\n            else out$comparisons <- comparisons(fit, n, family, comps, control, test)\n        }\n        out\n    }\n    comparisons <- function(fit, n, family, comps, control, test) {\n        spec <- switch(family, `within-rows` = ~cf | rf, `within-columns` = ~rf | \n            cf, `main-columns` = ~cf, `main-rows` = ~rf, `all-cells` = ~rf * cf)\n        em <- suppressMessages(emmeans::emmeans(fit, spec))\n        grid <- as.data.frame(em)\n        by <- if (family == \"within-rows\") \n            \"rf\"\n        else if (family == \"within-columns\") \n            \"cf\"\n        else NULL\n        level <- if (family %in% c(\"within-rows\", \"main-columns\")) \n            \"cf\"\n        else if (family == \"all-cells\") \n            NA\n        else \"rf\"\n        fams <- if (is.null(by)) \n            list(grid)\n        else split(grid, grid[[by]])\n        df <- fit$df.residual\n        do.call(c, lapply(seq_along(fams), function(fi) {\n            g <- fams[[fi]]\n            if (family == \"all-cells\") \n                g <- g[order(as.integer(g$rf), as.integer(g$cf)), ]\n            k <- nrow(g)\n            pairs <- if (comps == \"all\") \n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            else cbind(control, seq_len(k)[-control])\n            pairs <- unname(pairs)\n            K <- nrow(pairs)\n            m <- g$emmean\n            se_m <- g$SE\n            mse <- sum(residuals(fit)^2)/df\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                diff <- m[i] - m[j]\n                se <- sqrt(se_m[i]^2 + se_m[j]^2)\n                t <- abs(diff)/se\n                r <- switch(test, tukey = {\n                  half <- qtukey(1 - alpha, k, df)/sqrt(2) * se\n                  list(stat = sqrt(2) * t, p = ptukey(sqrt(2) * t, k, df, lower.tail = FALSE), \n                    half = half)\n                }, bonferroni = list(stat = t, p = min(1, K * 2 * pt(t, df, lower.tail = FALSE)), \n                  half = qt(1 - alpha/(2 * K), df) * se), sidak = list(stat = t, \n                  p = 1 - exp(K * log1p(-2 * pt(t, df, lower.tail = FALSE))), half = qt(1 - \n                    (1 - (1 - alpha)^(1/K))/2, df) * se), dunnett = {\n                  others <- pairs[, 2]\n                  lam <- sqrt(se_m[control]^2/(se_m[others]^2 + se_m[control]^2))\n                  crit <- uniroot(function(cc) dunnett(cc, lam, df) - alpha, c(0.5, \n                    50), tol = 1e-13)$root\n                  list(stat = t, p = dunnett(t, lam, df), half = crit * se)\n                })\n                list(family = fi, i = i, j = j, diff = diff, se = se, df = df, statistic = r$stat, \n                  ci_lower = diff - r$half, ci_upper = diff + r$half, p = r$p)\n            })\n        }))\n    }\n    from_summary <- function(means, sds, ns, r, c, ...) {\n        raw <- function(m, s, k) if (k == 1) \n            m\n        else as.numeric(scale(seq_len(k))) * s + m\n        y <- unlist(Map(raw, means, sds, ns))\n        twoway(y, rep(r, ns), rep(c, ns), ...)\n    }\n}",
+    "call": "twoway(y, ri, ci, \"main-columns\", \"all\", test = \"tukey\")",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "car": "3.1.5"
+      },
+      "code": "{\n    family_ <- \"main-columns\"\n    test_ <- \"tukey\"\n    {\n        keep <- !is.na(y)\n        d <- data.frame(y = y[keep], rf = factor(ri[keep]), cf = factor(ci[keep]))\n        full <- expected$model == \"full\"\n        fit <- lm(if (full) \n            y ~ rf * cf\n        else y ~ rf + cf, data = d, contrasts = list(rf = \"contr.sum\", cf = \"contr.sum\"))\n        a <- car::Anova(fit, type = 3)\n        ok <- close(a[\"rf\", \"Sum Sq\"], expected$row$ss) && close(a[\"cf\", \"Sum Sq\"], \n            expected$column$ss) && close(a[\"rf\", \"Pr(>F)\"], expected$row$p) && close(a[\"Residuals\", \n            \"Sum Sq\"], expected$residual$ss)\n        if (full) \n            ok <- ok && close(a[\"rf:cf\", \"Sum Sq\"], expected$interaction$ss) && close(a[\"rf:cf\", \n                \"Pr(>F)\"], expected$interaction$p)\n        ok\n    } && {\n        keep <- !is.na(y)\n        d <- data.frame(y = y[keep], rf = factor(ri[keep]), cf = factor(ci[keep]))\n        fit <- lm(y ~ rf * cf, data = d, contrasts = list(rf = \"contr.sum\", cf = \"contr.sum\"))\n        spec <- switch(family_, `within-rows` = pairwise ~ cf | rf, `within-columns` = pairwise ~ \n            rf | cf, `main-columns` = pairwise ~ cf, `main-rows` = pairwise ~ rf)\n        pc <- as.data.frame(suppressMessages(emmeans::emmeans(fit, spec, adjust = test_))$contrasts)\n        close(sort(vapply(expected$comparisons, function(x) x$p, 0)), sort(pc$p.value), \n            1e-08)\n    }\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Unbalanced: Type III sums of squares, which don't add up to the total; least-squares column means.",
+  "options": {
+    "family": "main-columns",
+    "comparisons": "all",
+    "test": "tukey"
+  }
+}

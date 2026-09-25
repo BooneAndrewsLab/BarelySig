@@ -8,6 +8,7 @@ import {
   type AnalysisSpec,
   type Comparisons,
   type Project,
+  TWO_WAY_FAMILIES,
   DEFAULT_OPTIONS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
@@ -55,6 +56,19 @@ const small = fc.integer({ min: 0, max: 5 });
 const title = fc.string({ maxLength: 6 });
 const tails = fc.constantFrom('two' as const, 'one' as const);
 
+const comparisons: fc.Arbitrary<Comparisons> = fc.oneof(
+  fc.constant<Comparisons>({ kind: 'none' }),
+  fc
+    .constantFrom(...EQUAL_SD_ALL, ...WELCH_ALL)
+    .map((test): Comparisons => ({ kind: 'all', test })),
+  fc
+    .record({
+      control: fc.string({ minLength: 1, maxLength: 6 }).map(asId),
+      test: fc.constantFrom(...EQUAL_SD_CONTROL, ...WELCH_CONTROL),
+    })
+    .map((c): Comparisons => ({ kind: 'control', control: c.control, test: c.test })),
+);
+
 /**
  * Every analysis kind with every option it can take (the `.bsig` round
  * trip can only see a field the generator fills). Records are spread into
@@ -73,21 +87,7 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     })
     .map((o): AnalysisSpec => ({ kind: 'rank-test', options: { ...o } })),
   fc
-    .record({
-      welch: fc.boolean(),
-      comparisons: fc.oneof(
-        fc.constant<Comparisons>({ kind: 'none' }),
-        fc
-          .constantFrom(...EQUAL_SD_ALL, ...WELCH_ALL)
-          .map((test): Comparisons => ({ kind: 'all', test })),
-        fc
-          .record({
-            control: fc.string({ minLength: 1, maxLength: 6 }).map(asId),
-            test: fc.constantFrom(...EQUAL_SD_CONTROL, ...WELCH_CONTROL),
-          })
-          .map((c): Comparisons => ({ kind: 'control', control: c.control, test: c.test })),
-      ),
-    })
+    .record({ welch: fc.boolean(), comparisons })
     .map((o): AnalysisSpec => ({ kind: 'one-way-anova', options: { ...o } })),
   fc
     .record({
@@ -101,6 +101,9 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
       corrected: fc.boolean(),
     })
     .map((o): AnalysisSpec => ({ kind: 'kruskal-wallis', options: { ...o } })),
+  fc
+    .record({ family: fc.constantFrom(...TWO_WAY_FAMILIES), comparisons })
+    .map((o): AnalysisSpec => ({ kind: 'two-way-anova', options: { ...o } })),
 );
 
 export type Shape =

@@ -19,7 +19,10 @@ import {
   type KruskalWallisOptions,
   type OneWayOptions,
   type RankTestOptions,
+  TWO_WAY_FAMILIES,
   type TTestOptions,
+  type TwoWayFamily,
+  type TwoWayOptions,
   WELCH_ALL,
   WELCH_CONTROL,
 } from '@/model/project';
@@ -74,6 +77,13 @@ const KINDS: readonly KindInfo[] = [
     name: 'One-way ANOVA',
     blurb: 'Compare the means of three or more groups, then which pairs differ.',
     tables: ['column'],
+  },
+  {
+    kind: 'two-way-anova',
+    name: 'Two-way ANOVA',
+    blurb:
+      'How the rows and the data sets (two factors) each affect the values, and whether they interact.',
+    tables: ['grouped'],
   },
   {
     kind: 'kruskal-wallis',
@@ -489,6 +499,128 @@ function KruskalFields(props: {
   );
 }
 
+const FAMILY_LABEL: Readonly<Record<TwoWayFamily, string>> = {
+  'within-rows': 'Within each row, compare the data sets (simple effects)',
+  'within-columns': 'Within each data set, compare the rows (simple effects)',
+  'main-columns': 'Compare the data sets, averaged over rows (main column effect)',
+  'main-rows': 'Compare the rows, averaged over data sets (main row effect)',
+  'all-cells': 'Compare every cell with every other cell',
+};
+
+function TwoWayFields(props: {
+  readonly o: TwoWayOptions;
+  readonly columns: readonly { readonly id: Id; readonly title: string }[];
+  readonly rows: readonly { readonly id: Id; readonly title: string }[];
+  readonly set: (o: TwoWayOptions) => void;
+}) {
+  const { o, set } = props;
+  const c = o.comparisons;
+  const levels =
+    o.family === 'within-rows' || o.family === 'main-columns' ? props.columns : props.rows;
+  const first = levels[0]?.id ?? ('' as Id);
+  const tests: readonly (AllPairsTest | ControlTest)[] =
+    c.kind === 'control' ? EQUAL_SD_CONTROL : EQUAL_SD_ALL;
+  return (
+    <fieldset>
+      <legend>Multiple comparisons</legend>
+      <Radio
+        name="compare"
+        checked={c.kind === 'none'}
+        onPick={() => {
+          set({ ...o, comparisons: { kind: 'none' } });
+        }}
+      >
+        Only the ANOVA table
+      </Radio>
+      {TWO_WAY_FAMILIES.map((f) => (
+        <Radio
+          key={f}
+          name="compare"
+          checked={c.kind !== 'none' && o.family === f}
+          onPick={() => {
+            const control = c.kind === 'control' && f !== 'all-cells';
+            const lv = f === 'within-rows' || f === 'main-columns' ? props.columns : props.rows;
+            set({
+              family: f,
+              comparisons: control
+                ? { kind: 'control', control: lv[0]?.id ?? ('' as Id), test: c.test }
+                : { kind: 'all', test: c.kind === 'all' ? c.test : 'tukey' },
+            });
+          }}
+        >
+          {FAMILY_LABEL[f]}
+        </Radio>
+      ))}
+      {c.kind !== 'none' && (
+        <>
+          <label className="option">
+            <select
+              aria-label="Which pairs"
+              value={c.kind === 'control' ? 'control' : 'all'}
+              onChange={(e) => {
+                set({
+                  ...o,
+                  comparisons:
+                    e.currentTarget.value === 'control'
+                      ? { kind: 'control', control: first, test: 'dunnett' }
+                      : { kind: 'all', test: 'tukey' },
+                });
+              }}
+            >
+              <option value="all">Every pair</option>
+              {o.family !== 'all-cells' && <option value="control">Each against a control</option>}
+            </select>
+          </label>
+          {c.kind === 'control' && (
+            <label className="option">
+              Control{' '}
+              <select
+                value={c.control}
+                onChange={(e) => {
+                  set({ ...o, comparisons: { ...c, control: e.currentTarget.value as Id } });
+                }}
+              >
+                {levels.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.title || '(untitled)'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="option">
+            Test{' '}
+            <select
+              aria-label="Multiple comparisons test"
+              value={c.test}
+              onChange={(e) => {
+                const test = e.currentTarget.value;
+                set({
+                  ...o,
+                  comparisons:
+                    c.kind === 'all'
+                      ? { kind: 'all', test: test as AllPairsTest }
+                      : { ...c, test: test as ControlTest },
+                });
+              }}
+            >
+              {tests.map((t) => (
+                <option key={t} value={t}>
+                  {TEST_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint">
+            One family of comparisons per row or data set, as Prism recommends; each P is adjusted
+            for the comparisons in its family.
+          </p>
+        </>
+      )}
+    </fieldset>
+  );
+}
+
 export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const summary = table.format.kind === 'summary';
   const kinds = KINDS.filter((k) => k.tables.includes(table.type));
@@ -523,6 +655,20 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         };
       case 'rank-test':
         return { kind, options: options['rank-test'] };
+      case 'two-way-anova': {
+        const o = options['two-way-anova'];
+        const c = o.comparisons;
+        const byColumn = o.family === 'within-rows' || o.family === 'main-columns';
+        const levels = byColumn ? picked : table.rows.map((r) => r.id);
+        const control = c.kind === 'control' && !levels.includes(c.control) ? levels[0] : undefined;
+        return {
+          kind,
+          options:
+            control !== undefined && c.kind === 'control'
+              ? { ...o, comparisons: { ...c, control } }
+              : o,
+        };
+      }
       case 'kruskal-wallis': {
         const o = options['kruskal-wallis'];
         const c = o.comparisons;
@@ -639,6 +785,19 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             groups={table.dataSets.filter((d) => picked.includes(d.id))}
             set={(o) => {
               set('one-way-anova', o);
+            }}
+          />
+        )}
+        {kind === 'two-way-anova' && (
+          <TwoWayFields
+            o={options['two-way-anova']}
+            columns={table.dataSets.filter((d) => picked.includes(d.id))}
+            rows={table.rows.map((r, i) => ({
+              id: r.id,
+              title: r.title ?? `Row ${String(i + 1)}`,
+            }))}
+            set={(o) => {
+              set('two-way-anova', o);
             }}
           />
         )}

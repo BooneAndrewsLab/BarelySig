@@ -5,6 +5,7 @@ import type { Registry } from './module';
 import { oneway } from './oneway';
 import { ranktest } from './ranktest';
 import { ttest } from './ttest';
+import { twoway } from './twoway';
 
 export const REGISTRY: Registry = {
   descriptive,
@@ -12,4 +13,5 @@ export const REGISTRY: Registry = {
   'rank-test': ranktest,
   'one-way-anova': oneway,
   'kruskal-wallis': kruskal,
+  'two-way-anova': twoway,
 };
