@@ -166,3 +166,40 @@ describe('significance brackets on the graph', () => {
     expect(svg()?.querySelectorAll('[data-role="bracket"]')).toHaveLength(0);
   });
 });
+
+describe('exporting', () => {
+  it('exports an SVG at the chosen journal width, as one download', async () => {
+    let written: unknown = null;
+    let suggested = '';
+    (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker = (o: {
+      suggestedName: string;
+    }) => {
+      suggested = o.suggestedName;
+      return Promise.resolve({
+        createWritable: () =>
+          Promise.resolve({
+            write: (d: unknown) => {
+              written = d;
+              return Promise.resolve();
+            },
+            close: () => Promise.resolve(),
+          }),
+      });
+    };
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    await screen.findByRole('img', { name: /Bars/ });
+    fireEvent.click(screen.getByRole('button', { name: /Export…/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Export graph' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Single column (89 mm)' }));
+    expect([...project(store.getState()).graphs.values()][0]?.size).toEqual({
+      width: 89,
+      height: 76.3,
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Export SVG' }));
+    await screen.findByText('Exported “Viability.svg”.');
+    delete (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    expect(suggested).toBe('Viability.svg');
+    expect(String(written)).toMatch(/^<svg [^>]*width="89mm" height="76.3mm"/);
+  });
+});

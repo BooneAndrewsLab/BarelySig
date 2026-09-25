@@ -973,3 +973,29 @@ select {
 .hint.flush {
   margin-left: 0;
 }
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-row button {
+  border-color: var(--rule-strong);
+}
+
+.preset-row button[aria-pressed='true'] {
+  border-color: var(--bs-ink);
+  background: var(--tint);
+}
+
+.hint-inline {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.head-action.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

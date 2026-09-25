@@ -4,7 +4,7 @@
  * and notes saying what the marks show. The figure is the same SVG an
  * export writes.
  */
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { bracketChoices, graphInput, summaryId, withBracket } from '@/graphs/data';
 import { describePlot, layoutColumn } from '@/graphs/layout';
@@ -15,6 +15,7 @@ import { Icon } from '../Icon';
 import { schemeText } from '../results/format';
 import { getResults } from '../state/results';
 import { store } from '../state/store';
+import { ExportDialog } from './ExportDialog';
 
 interface Props {
   readonly project: Project;
@@ -40,6 +41,7 @@ export function GraphSheet({ project, graph }: Props) {
   const summaryStatus = bridge.recompute.status(summaryId(graph.id));
   const engine = bridge.engineState();
   const choices = bracketChoices(project, graph);
+  const [exporting, setExporting] = useState(false);
 
   const set = (patch: Partial<Graph>) => {
     store.edit({ op: 'setGraph', graph: { ...graph, ...patch } });
@@ -84,6 +86,16 @@ export function GraphSheet({ project, graph }: Props) {
             Data: {table.title}
           </button>
         )}
+        <button
+          type="button"
+          className="head-action primary"
+          disabled={!scene}
+          onClick={() => {
+            setExporting(true);
+          }}
+        >
+          <Icon name="export" size={16} /> Export…
+        </button>
       </header>
       <div className="graph-body">
         <form
@@ -286,6 +298,15 @@ export function GraphSheet({ project, graph }: Props) {
           <figcaption className="legend">{notes.join(' ')}</figcaption>
         </figure>
       </div>
+      {exporting && scene && (
+        <ExportDialog
+          graph={graph}
+          scene={scene}
+          onClose={() => {
+            setExporting(false);
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -16,7 +16,7 @@
  * offline. Run by `npm run webr:fetch` (and before dev/build).
  */
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,8 +33,33 @@ const readJson = async <T>(path: string): Promise<T> =>
   JSON.parse(await readFile(path, 'utf8')) as T;
 
 const config = await readJson<Config>(join(root, 'scripts/webr/packages.json'));
-const out = join(root, 'public/webr');
+const target = join(root, 'public/webr');
+// Staged outside public/ and swapped in at the end: a running dev server
+// must never see public/webr/ half there (it then answers the missing
+// files with index.html, and WebR fails with "need to see wasm magic number").
+const out = join(root, 'node_modules/.cache/webr-staging');
 const cache = join(root, 'node_modules/.cache/webr-repo');
+const updateLock = process.argv.includes('--update-lock');
+
+// Nothing changed since the last run: leave public/webr/ alone.
+const stamp = JSON.stringify({
+  webr: config.webr,
+  rVersion: config.rVersion,
+  packages: config.packages,
+  lock: await readFile(join(root, 'src/engine/lock.json'), 'utf8'),
+});
+const stampPath = join(target, '.stamp');
+if (!updateLock) {
+  const current = await readFile(stampPath, 'utf8').catch(() => '');
+  const staged = await stat(join(target, 'R.wasm')).then(
+    () => true,
+    () => false,
+  );
+  if (current === stamp && staged) {
+    console.warn(`webr ${config.webr}: public/webr/ is up to date`);
+    process.exit(0);
+  }
+}
 const contrib = `bin/emscripten/contrib/${config.rVersion}`;
 
 const installed = await readJson<{ version: string }>(join(root, 'node_modules/webr/package.json'));
@@ -149,7 +174,7 @@ interface Lock {
   readonly packages: Record<string, string>;
 }
 const pinned = await readJson<Lock>(lockPath);
-if (process.argv.includes('--update-lock')) {
+if (updateLock) {
   await writeFile(
     lockPath,
     `${JSON.stringify({ ...pinned, webr: config.webr, packages: lock }, null, 2)}\n`,
@@ -173,6 +198,10 @@ if (process.argv.includes('--update-lock')) {
 }
 await writeFile(join(repoDir, 'PACKAGES'), `${blocks.join('\n\n')}\n`);
 await writeFile(join(out, 'repo/lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
+await writeFile(join(out, '.stamp'), stamp);
+// The swap: public/webr/ is missing only between these two calls.
+await rm(target, { recursive: true, force: true });
+await rename(out, target);
 console.warn(
   `webr ${config.webr}: runtime + ${need.size} packages (${(bytes / 1048576).toFixed(1)} MB) → public/webr/`,
 );

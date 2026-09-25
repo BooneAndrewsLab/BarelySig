@@ -6,15 +6,32 @@
  */
 import { EXTENSION } from './bsig';
 
-/** A file-system-safe name for a project, with the extension. */
-export function fileNameFor(name: string): string {
+/** A file-system-safe name, with the extension (a project's by default). */
+export function fileNameFor(
+  name: string,
+  extension: string = EXTENSION,
+  fallback = 'Untitled project',
+): string {
   const stem =
     name
       .trim()
       .replace(/[\\/:*?"<>|]+/g, '_')
-      .replace(/\s+/g, ' ') || 'Untitled project';
-  return `${stem}${EXTENSION}`;
+      .replace(/\s+/g, ' ') || fallback;
+  return `${stem}${extension}`;
 }
+
+/** What kind of file a download is, for the save dialog. */
+export interface FileKind {
+  readonly description: string;
+  readonly mime: string;
+  readonly extension: string;
+}
+
+export const BSIG_FILE: FileKind = {
+  description: 'BarelySig project',
+  mime: 'application/json',
+  extension: EXTENSION,
+};
 
 interface SaveWindow {
   showSaveFilePicker?: (options: {
@@ -26,8 +43,8 @@ interface SaveWindow {
 
 const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError';
 
-function anchorDownload(fileName: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+function anchorDownload(fileName: string, data: string | Uint8Array, mime: string): void {
+  const url = URL.createObjectURL(new Blob([data as BlobPart], { type: mime }));
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
@@ -40,22 +57,23 @@ function anchorDownload(fileName: string, text: string): void {
   }, 1000);
 }
 
-/** Saves text as a download; resolves false when the user cancelled the save dialog. */
+/** Saves a file as a download; resolves false when the user cancelled the save dialog. */
 export async function download(
   fileName: string,
-  text: string,
+  data: string | Uint8Array,
   w: SaveWindow = globalThis as SaveWindow,
+  kind: FileKind = BSIG_FILE,
 ): Promise<boolean> {
   if (typeof w.showSaveFilePicker === 'function') {
     try {
       const handle = await w.showSaveFilePicker({
         suggestedName: fileName,
-        types: [{ description: 'BarelySig project', accept: { 'application/json': [EXTENSION] } }],
-        id: 'barelysig-save',
+        types: [{ description: kind.description, accept: { [kind.mime]: [kind.extension] } }],
+        id: kind.extension === EXTENSION ? 'barelysig-save' : 'barelysig-export',
       });
       const out = await handle.createWritable();
       try {
-        await out.write(text);
+        await out.write(data as FileSystemWriteChunkType);
       } finally {
         await out.close();
       }
@@ -66,7 +84,7 @@ export async function download(
       throw e;
     }
   }
-  anchorDownload(fileName, text);
+  anchorDownload(fileName, data, kind.mime);
   return true;
 }
 

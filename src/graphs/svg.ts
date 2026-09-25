@@ -57,9 +57,12 @@ export function sceneToSvg(scene: Scene, opts: SvgOptions = {}): string {
     ? ` width="${num((scene.width * 25.4) / 72)}mm" height="${num((scene.height * 25.4) / 72)}mm"`
     : '';
   const style = opts.fontFaces ? `<style>${opts.fontFaces}</style>` : '';
+  // Kerning off where a browser draws it (screen, PNG), to match the
+  // measured layout; editors ignore the property, so exports leave it out.
+  const kerning = opts.physical && !opts.fontFaces ? '' : ' style="font-kerning:none"';
   return [
     opts.prolog ?? '',
-    `<svg xmlns="http://www.w3.org/2000/svg" version="1.1"${size} viewBox="0 0 ${num(scene.width)} ${num(scene.height)}" font-family="${escapeXml(scene.font)}" style="font-kerning:none">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" version="1.1"${size} viewBox="0 0 ${num(scene.width)} ${num(scene.height)}" font-family="${escapeXml(scene.font)}"${kerning}>`,
     opts.head ?? '',
     style,
     ...scene.marks.map(mark),
