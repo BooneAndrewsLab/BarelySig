@@ -20,7 +20,7 @@ interface Props {
   readonly scene: Scene;
   readonly onClose: () => void;
   /** What the file should carry besides the figure (origin, recipe; #43). */
-  readonly meta?: (format: 'svg' | 'png', dpi: number) => Promise<ExportMeta>;
+  readonly meta?: (format: 'svg' | 'png', dpi: number, withData: boolean) => Promise<ExportMeta>;
   /** Called after a successful export. */
   readonly onExported?: (format: 'svg' | 'png', dpi: number, fileName: string) => void;
 }
@@ -30,6 +30,7 @@ export function ExportDialog({ graph, scene, onClose, meta, onExported }: Props)
   const [dpi, setDpi] = useState(300);
   const [name, setName] = useState(graph.title);
   const [busy, setBusy] = useState(false);
+  const [withData, setWithData] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const resize = (width: number) => {
@@ -41,7 +42,7 @@ export function ExportDialog({ graph, scene, onClose, meta, onExported }: Props)
     setBusy(true);
     setError(null);
     try {
-      const m = meta ? await meta(format, dpi) : {};
+      const m = meta ? await meta(format, dpi, withData) : {};
       const file = fileNameFor(name, format === 'svg' ? '.svg' : '.png', 'Figure');
       const ok =
         format === 'svg'
@@ -143,6 +144,24 @@ export function ExportDialog({ graph, scene, onClose, meta, onExported }: Props)
               </button>
             ))}
           </div>
+        </fieldset>
+        <fieldset>
+          <legend>Reopening later</legend>
+          <label className="option">
+            <input
+              type="checkbox"
+              checked={withData}
+              onChange={(e) => {
+                setWithData(e.currentTarget.checked);
+              }}
+            />
+            Include the data so this figure can be reopened
+          </label>
+          <p className="hint">
+            {withData
+              ? 'The file then contains this graph’s data, analyses and settings, so opening it in BarelySig gets the exact figure back. Turn this off for unpublished data.'
+              : 'The file will only say it was made with BarelySig; it can’t be reopened.'}
+          </p>
         </fieldset>
         <label className="field">
           File name{' '}

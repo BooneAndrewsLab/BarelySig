@@ -92,7 +92,7 @@ export function App() {
         <ProjectMenu />
         <button
           type="button"
-          title="Open a .bsig file (Ctrl+O), or drop one on the window"
+          title="Open a .bsig project or a figure exported from BarelySig (Ctrl+O), or drop one on the window"
           onClick={() => fileInput.current?.click()}
         >
           Open…
@@ -109,7 +109,7 @@ export function App() {
         <input
           ref={fileInput}
           type="file"
-          accept=".bsig,application/json"
+          accept=".bsig,application/json,.svg,image/svg+xml,.png,image/png"
           hidden
           aria-label="Open a project file"
           onChange={(e) => {
@@ -158,7 +158,7 @@ export function App() {
       <StatusLine notice={state.notice}>{table ? summary : null}</StatusLine>
       {dropping && (
         <div className="drop-hint" aria-hidden="true">
-          Drop a .bsig file to open it
+          Drop a .bsig project or an exported figure to open it
         </div>
       )}
       {newTable && (

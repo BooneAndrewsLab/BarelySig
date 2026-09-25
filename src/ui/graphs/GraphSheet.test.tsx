@@ -200,6 +200,15 @@ describe('exporting', () => {
     await screen.findByText('Exported “Viability.svg”.');
     delete (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker;
     expect(suggested).toBe('Viability.svg');
-    expect(String(written)).toMatch(/^<svg [^>]*width="89mm" height="76.3mm"/);
+    expect(String(written)).toMatch(
+      /^<\?xml version="1.0" encoding="UTF-8"\?>\n<!-- Made with BarelySig /,
+    );
+    expect(String(written)).toMatch(/<svg [^>]*width="89mm" height="76.3mm"/);
+    expect(String(written)).toContain('<barelysig:recipe');
+    // The project remembers the export.
+    expect(project(store.getState()).exports.map((x) => [x.fileName, x.format, x.size])).toEqual([
+      ['Viability.svg', 'svg', { width: 89, height: 76.3 }],
+    ]);
+    expect(await screen.findByRole('button', { name: 'Restore this figure' })).toBeInTheDocument();
   });
 });

@@ -277,7 +277,17 @@ the target).
   (#14); PWA with WebR cached on first use (#15); descriptive statistics
   (#16) and t tests (#17) with oracle fixtures; results sheets, the
   Analyze dialog and saved results (#18).
-- Next: 0.5 — style note, graph renderer, bar/beeswarm, brackets, export.
+- 0.5 (first graphs, note 05): Modern and Classic themes with Arimo
+  (Arial metrics) bundled; pure layout → scene → one SVG serialiser;
+  bars and beeswarm dots with error bars from R (a graph's virtual
+  summary analysis); significance brackets from t tests; SVG/PNG export
+  at physical size; figure recipes embedded in exports and an export
+  history (#43). Follow-ups: #44 (real clipboard captures), #45 (drag
+  brackets), #46 (engine-change comparison).
+- `webr:fetch` skips when `public/webr/.stamp` matches; never rebuild
+  `public/webr/` under a running dev server by hand (it then serves
+  index.html for the package files).
+- Next: 0.6 — nonparametric tests, ANOVA and post-hoc, normality, test chooser.
 
 ## Tooling
 

@@ -125,6 +125,13 @@ export interface ExportRecord {
   readonly graph: Id;
   /** ISO 8601. */
   readonly exportedAt: string;
+  readonly fileName: string;
+  readonly format: 'svg' | 'png';
+  /** PNG only. */
+  readonly dpi: number | null;
+  /** Millimetres. */
+  readonly size: { readonly width: number; readonly height: number };
+  /** The recipe: a `.bsig` document of the figure as it was exported. */
   readonly recipe: Json;
 }
 

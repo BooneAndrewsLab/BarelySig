@@ -5,10 +5,12 @@
  */
 import { BsigError, type SavedProject, readBsig, writeBsig } from '@/io/bsig';
 import { download, fileNameFor } from '@/io/files';
+import { figureKind, readFigure } from '@/io/recipe';
 import { type ProjectStorage, getStorage } from '@/io/storage';
 import type { Id } from '@/model/ids';
 import { newId } from '@/model/ids';
 import type { EngineInfo } from '@/model/inputs';
+import type { Json } from '@/model/json';
 import type { ResultEntry } from '@/model/recompute';
 import { type Project, createProject } from '@/model/project';
 
@@ -103,25 +105,53 @@ export class Session {
   }
 
   /** Opens a `.bsig` file as a new project in this browser. */
+  /** Opens a `.bsig` project, or an exported figure's recipe (#43), as a new project in this browser. */
   async openFile(file: File): Promise<void> {
-    let text: string;
+    let bytes: Uint8Array;
     try {
-      text = await file.text();
+      bytes = new Uint8Array(await file.arrayBuffer());
     } catch {
       this.appStore.notify(`Couldn’t read “${file.name}”.`, 'error');
       return;
     }
     try {
-      const saved = readBsig(text);
-      // A project in the browser is a copy of the file: its own id, so
-      // opening the same file twice gives two, never one overwriting another.
-      this.seed(saved);
-      await this.replace({ ...saved.project, id: newId('p') }, { fromFile: true });
-      this.appStore.notify(`Opened “${file.name}”.`);
-      analytics.trackOnce('file', 'open');
+      const figure = figureKind(file.name, bytes.subarray(0, 512));
+      const saved = figure
+        ? await readFigure(figure, bytes)
+        : readBsig(new TextDecoder().decode(bytes));
+      await this.openSaved(saved, { fromFile: figure === null });
+      this.appStore.notify(
+        figure
+          ? `Opened the figure “${file.name}” with the data and settings that made it.`
+          : `Opened “${file.name}”.`,
+      );
+      analytics.trackOnce('file', 'open', figure ?? 'bsig');
     } catch (e: unknown) {
       if (!(e instanceof BsigError)) throw e;
       this.appStore.notify(`“${file.name}”: ${e.message}`, 'error');
+    }
+  }
+
+  /** Reopens a figure from the project's export history (#43). */
+  async openRecipe(recipe: Json): Promise<void> {
+    try {
+      await this.openSaved(readBsig(JSON.stringify(recipe)), { fromFile: false });
+      this.appStore.notify('Restored the figure as it was exported, as a new project.');
+    } catch (e: unknown) {
+      if (!(e instanceof BsigError)) throw e;
+      this.appStore.notify(e.message, 'error');
+    }
+  }
+
+  private async openSaved(saved: SavedProject, opts: { fromFile: boolean }): Promise<void> {
+    // A project in the browser is a copy of the file: its own id, so
+    // opening the same file twice gives two, never one overwriting another.
+    this.seed(saved);
+    await this.replace({ ...saved.project, id: newId('p') }, { fromFile: opts.fromFile });
+    // A figure opens on its graph.
+    const graph = saved.project.order.graphs[0];
+    if (graph && saved.project.tables.size <= 1 && saved.project.graphs.size === 1) {
+      this.appStore.show({ kind: 'graph', id: graph });
     }
   }
 

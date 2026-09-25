@@ -191,6 +191,28 @@ is on screen is what is exported, and tests assert on the scene.
   PNG's chunks survive a round trip. Checking the origin note in
   Inkscape, exiftool and macOS Get Info is a manual step on the issue.
 
+## As built
+
+- **Recipes** keep the graph's table, the t tests it draws and their
+  results, and the graph's summary statistics, with the theme resolved;
+  a recipe read back renders the byte-identical figure (SVG and PNG,
+  tested). SVG carries it gzipped and base64 in `<metadata>`, PNG as a
+  zlib-compressed `iTXt` (Compression Streams API).
+- **Checked outside the app:** PIL reads a PNG's 600 DPI, Software,
+  Description, XMP CreatorTool and the recipe; Inkscape renders an
+  exported SVG correctly with Arimo's metrics and reads its metadata
+  (it warns only that it doesn't know `barelysig:recipe`). macOS Get
+  Info and exiftool were not available here.
+- **Exported without the data**, a figure says so when opened; an image
+  from elsewhere says it wasn't made with BarelySig.
+- **Export history:** every export records its recipe, file name,
+  format, DPI and size in the project; "Restore this figure" opens it as
+  a new project on its graph.
+- **Deferred:** dragging brackets (#45); telling the user whether a
+  reopened figure's numbers changed under a newer engine (#46).
+- **Degenerate axis ranges** (a single subnormal value, found by the
+  layout's property test) widen to a usable span.
+
 ## Decisions made here
 
 1. **Arimo, named after Arial in exports**, text as text.

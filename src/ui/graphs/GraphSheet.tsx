@@ -4,16 +4,21 @@
  * and notes saying what the marks show. The figure is the same SVG an
  * export writes.
  */
-import { useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 
 import { bracketChoices, graphInput, summaryId, withBracket } from '@/graphs/data';
 import { describePlot, layoutColumn } from '@/graphs/layout';
 import { sceneToSvg } from '@/graphs/svg';
+import type { Json } from '@/model/json';
 import type { ColumnPlot, ErrorBar, Graph, Project } from '@/model/project';
 
 import { Icon } from '../Icon';
 import { schemeText } from '../results/format';
 import { getResults } from '../state/results';
+import { pngMeta, recipeText, svgMeta } from '@/io/recipe';
+import { newId } from '@/model/ids';
+
+import { getSession } from '../state/session';
 import { store } from '../state/store';
 import { ExportDialog } from './ExportDialog';
 
@@ -42,6 +47,8 @@ export function GraphSheet({ project, graph }: Props) {
   const engine = bridge.engineState();
   const choices = bracketChoices(project, graph);
   const [exporting, setExporting] = useState(false);
+  const lastRecipe = useRef<string | null>(null);
+  const history = project.exports.filter((x) => x.graph === graph.id).reverse();
 
   const set = (patch: Partial<Graph>) => {
     store.edit({ op: 'setGraph', graph: { ...graph, ...patch } });
@@ -296,6 +303,33 @@ export function GraphSheet({ project, graph }: Props) {
             />
           )}
           <figcaption className="legend">{notes.join(' ')}</figcaption>
+          {history.length > 0 && (
+            <section className="exports" aria-labelledby="exports-title">
+              <h2 id="exports-title">Exported</h2>
+              <ul>
+                {history.map((x) => (
+                  <li key={x.id}>
+                    <span className="export-file">{x.fileName}</span>
+                    <span className="export-detail">
+                      {new Intl.DateTimeFormat(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      }).format(new Date(x.exportedAt))}
+                      , {x.size.width} × {x.size.height} mm{x.dpi ? `, ${String(x.dpi)} DPI` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void getSession().openRecipe(x.recipe);
+                      }}
+                    >
+                      Restore this figure
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </figure>
       </div>
       {exporting && scene && (
@@ -304,6 +338,43 @@ export function GraphSheet({ project, graph }: Props) {
           scene={scene}
           onClose={() => {
             setExporting(false);
+          }}
+          meta={async (format, _dpi, withData) => {
+            const recipe = recipeText(
+              project,
+              graph,
+              bridge.current(),
+              bridge.info,
+              __APP_VERSION__,
+            );
+            lastRecipe.current = recipe;
+            const origin = {
+              app: __APP_VERSION__,
+              engine: bridge.info,
+              title: graph.title,
+              withData,
+            };
+            return format === 'svg'
+              ? await svgMeta(origin, withData ? recipe : null)
+              : { pngChunks: await pngMeta(origin, withData ? recipe : null) };
+          }}
+          onExported={(format, dpi, fileName) => {
+            const recipe = lastRecipe.current;
+            if (!recipe) return;
+            // The project remembers every export's recipe (#43), whatever the file carries.
+            store.edit({
+              op: 'addExport',
+              record: {
+                id: newId('x'),
+                graph: graph.id,
+                exportedAt: new Date().toISOString(),
+                fileName,
+                format,
+                dpi: format === 'png' ? dpi : null,
+                size: graph.size,
+                recipe: JSON.parse(recipe) as Json,
+              },
+            });
           }}
         />
       )}

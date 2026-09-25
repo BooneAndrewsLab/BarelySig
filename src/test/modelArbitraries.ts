@@ -459,6 +459,10 @@ export function resolve(p: Project, s: Shape): Edit | null {
               id: newId('x'),
               graph: g,
               exportedAt: '2026-09-24T12:00:00.000Z',
+              fileName: s.g % 2 ? 'Figure 2.png' : 'Figure 2.svg',
+              format: s.g % 2 ? 'png' : 'svg',
+              dpi: s.g % 2 ? 600 : null,
+              size: { width: 89, height: 60.5 },
               recipe: { note: 'x' },
             },
           };

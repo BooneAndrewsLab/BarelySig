@@ -185,3 +185,69 @@ describe('results with the project', () => {
     bridge.dispose();
   });
 });
+
+describe('opening an exported figure', () => {
+  it('opens its recipe as a project on its graph, results current, nothing rerun', async () => {
+    const { ResultsBridge } = await import('./results');
+    const { recipeText, svgMeta } = await import('@/io/recipe');
+    const { exportSvg } = await import('@/graphs/export');
+    const { layoutColumn } = await import('@/graphs/layout');
+    const { graphInput, summaryId } = await import('@/graphs/data');
+    const { asId } = await import('@/model/ids');
+    const { GRAPH_DEFAULTS } = await import('@/model/project');
+    const p0 = withTable('Paper');
+    const t = [...p0.tables.values()][0];
+    if (!t) throw new Error('unreachable');
+    const graph = {
+      id: asId('g_1'),
+      title: 'Figure 2',
+      source: { kind: 'table' as const, table: t.id },
+      analyses: [],
+      ...GRAPH_DEFAULTS,
+    };
+    const p = applyEdit(p0, { op: 'addGraph', graph });
+    const store = new AppStore(p);
+    const runs: unknown[] = [];
+    const bridge = new ResultsBridge(store, {
+      debounceMs: 0,
+      runner: (job) => {
+        runs.push(job);
+        return new Promise(() => undefined);
+      },
+    });
+    const hash = bridge.recompute.inputHash(summaryId(graph.id));
+    if (!hash) throw new Error('no hash');
+    const results = new Map([
+      [
+        summaryId(graph.id),
+        { inputHash: hash, ok: true as const, value: { groups: [], warnings: [] } },
+      ],
+    ]);
+    const recipe = recipeText(p, graph, results, bridge.info, '0.5.0');
+    const input = graphInput(p, graph, (id) => results.get(id));
+    if (!input.ok) throw new Error(input.reason);
+    const svg = exportSvg(
+      layoutColumn(input.input),
+      await svgMeta(
+        { app: '0.5.0', engine: bridge.info, title: 'Figure 2', withData: true },
+        recipe,
+      ),
+    );
+    store.load(createProject('Something else'));
+    const session = new Session(
+      store,
+      new ProjectStorage(new BarelySigDb(`test-${newId('x')}`)),
+      () => bridge,
+    );
+    await session.openFile(new File([svg], 'Figure 2.svg', { type: 'image/svg+xml' }));
+    expect(store.getState().sheet).toEqual({ kind: 'graph', id: graph.id });
+    expect(project(store.getState()).name).toBe('Figure 2');
+    expect(store.getState().notice?.text).toBe(
+      'Opened the figure “Figure 2.svg” with the data and settings that made it.',
+    );
+    expect(bridge.recompute.status(summaryId(graph.id)).state).toBe('fresh');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(runs).toHaveLength(0);
+    bridge.dispose();
+  });
+});

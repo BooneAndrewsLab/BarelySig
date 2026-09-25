@@ -999,3 +999,43 @@ select {
   align-items: center;
   gap: 6px;
 }
+
+.exports {
+  margin-top: 20px;
+  max-width: 60ch;
+}
+
+.exports h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.exports ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.exports li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 4px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.export-file {
+  font-weight: 600;
+}
+
+.export-detail {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.exports li button {
+  margin-left: auto;
+}

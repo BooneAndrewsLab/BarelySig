@@ -177,6 +177,10 @@ export function writeBsig(saved: SavedProject): string {
         id: x.id,
         graph: x.graph,
         exportedAt: x.exportedAt,
+        fileName: x.fileName,
+        format: x.format,
+        dpi: x.dpi,
+        size: { width: x.size.width, height: x.size.height },
         recipe: x.recipe,
       })),
     },
@@ -432,10 +436,18 @@ function layout(v: Json, p: Path): Layout {
 
 function exportRecord(v: Json, p: Path): ExportRecord {
   const o = obj(v, p);
+  const size = obj(o['size'], p.key('size'));
   return {
     id: id(o['id'], p.key('id')),
     graph: id(o['graph'], p.key('graph')),
     exportedAt: str(o['exportedAt'], p.key('exportedAt')),
+    fileName: str(o['fileName'], p.key('fileName')),
+    format: oneOf(o['format'], p.key('format'), ['svg', 'png'] as const),
+    dpi: o['dpi'] === null ? null : num(o['dpi'], p.key('dpi')),
+    size: {
+      width: num(size['width'], p.key('size').key('width')),
+      height: num(size['height'], p.key('size').key('height')),
+    },
     recipe: o['recipe'] ?? null,
   };
 }

@@ -88,8 +88,9 @@ export async function download(
   return true;
 }
 
-/** The first `.bsig` among dropped or picked files (any file if none is named so). */
+/** The first `.bsig` among dropped or picked files, else a figure, else any file. */
 export function projectFile(files: Iterable<File>): File | null {
   const all = [...files];
-  return all.find((f) => f.name.toLowerCase().endsWith(EXTENSION)) ?? all[0] ?? null;
+  const named = (ext: string) => all.find((f) => f.name.toLowerCase().endsWith(ext));
+  return named(EXTENSION) ?? named('.svg') ?? named('.png') ?? all[0] ?? null;
 }
