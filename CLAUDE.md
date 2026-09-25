@@ -304,6 +304,8 @@ the target).
 
 - Node comes from the `node` conda env:
   `export PATH=$HOME/Programs/miniconda3/envs/node/bin:$PATH`
+- `npm run e2e`: Playwright end-to-end tests against a production build
+  (`e2e/`, about a minute with the build; CI runs them as their own job).
 - `npm run check` (typecheck, lint, format, stage WebR, test) before every
   commit;
   `npm run dev`, `npm run build`. Gate commits on its exit status

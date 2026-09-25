@@ -30,7 +30,13 @@ export default defineConfig(
     },
   },
   {
-    files: ['vite.config.ts', 'eslint.config.js', 'scripts/**/*.{ts,mjs}'],
+    files: [
+      'vite.config.ts',
+      'eslint.config.js',
+      'playwright.config.ts',
+      'e2e/**/*.ts',
+      'scripts/**/*.{ts,mjs}',
+    ],
     languageOptions: {
       globals: { ...globals.node },
     },

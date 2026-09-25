@@ -392,6 +392,23 @@ Deferred to Phase 2 as planned.
   every analysis kind has a page, the words a results sheet uses are
   explained somewhere.
 
+### End-to-end tests (#35)
+
+- `e2e/workflow.spec.ts`: create a Column table, paste an Excel-style
+  block (tab-separated, header row, CRLF) at the first cell, run a t test
+  in the Analyze dialog, make a graph and check its bracket reads
+  "****", export SVG (recipe, size) and PNG at 600 DPI (signature,
+  `pHYs`, recipe), download the `.bsig`, reload (the project comes back
+  from the browser with its results), reopen the `.bsig` and the
+  exported SVG. WebR runs for real; the whole test takes about 8 s once
+  built.
+- The paste is a dispatched `paste` event carrying a `DataTransfer`, the
+  same thing a browser delivers; a real clipboard needs the captures of
+  #44. Downloads go through the `<a download>` path (the test removes
+  `showSaveFilePicker`), which is what Firefox and Safari use.
+- `npm run e2e` (builds, then serves with `vite preview`); CI runs it as
+  its own job with Playwright's Chromium.
+
 ## Decisions made here
 
 1. **Overrides in `GraphFormat`, style as a flat record over a fixed
