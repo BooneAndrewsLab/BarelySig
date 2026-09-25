@@ -398,6 +398,20 @@ n ≥ 8, an empty cell, one value per cell).
   unbalanced summary data (#51), comparisons with an empty cell (#52),
   brackets on grouped graphs (#32).
 
+### Normality (#28)
+
+- D'Agostino-Pearson's formulas written out in base R. fBasics'
+  `dagoTest` checks them from n = 20 (it refuses fewer, the kurtosis
+  approximation's usual advice); Prism runs the test from 8 with the same
+  formulas, and so do we.
+- The companion is created in the same undo step (a `batch` edit) and is
+  offered only when creating a t test or one-way ANOVA on values, not when
+  changing one. Its sheet shows each group in a column, as Prism does, and
+  reads failures by name with the caution always attached.
+- Fixture lesson again: a perfectly symmetric sample has a skewness of 0,
+  which comes back as rounding noise that can't be compared relatively;
+  the fixture nudges one value.
+
 ## Decisions made here
 
 1. **Exact rank-test P values with ties**, by counting over doubled

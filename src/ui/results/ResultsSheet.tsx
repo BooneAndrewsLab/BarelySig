@@ -8,6 +8,7 @@ import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
+import type { NormalityResult, TestOutcome } from '@/analyses/normality/types';
 import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
@@ -25,6 +26,7 @@ import {
   COMPARISON_TEST,
   kruskalMethod,
   kruskalReading,
+  normalityReading,
   oneWayMethod,
   oneWayReading,
   rankTestMethod,
@@ -324,6 +326,67 @@ function fSection(title: string, name: string, f: FTest, question: string): Sect
       [question, yesNo(f.p)],
     ],
   ];
+}
+
+/** Why a normality test didn't run, in a cell. */
+function notRun(t: TestOutcome<unknown>): string | null {
+  if (t.ran) return null;
+  if (t.why === 'few') return `Needs at least ${String(t.limit ?? '')} values`;
+  if (t.why === 'many') return `At most ${String(t.limit ?? '')} values`;
+  return 'All values the same';
+}
+
+function NormalityView({ r }: { readonly r: NormalityResult }) {
+  const head = ['', ...r.groups.map((g) => g.title)];
+  const row = (label: string, f: (g: NormalityResult['groups'][number]) => string) => [
+    label,
+    ...r.groups.map(f),
+  ];
+  const passed = (p: number) => (p > 0.05 ? 'Yes' : 'No');
+  return (
+    <>
+      <p className="reading">{normalityReading(r)}</p>
+      <p className="method">
+        D’Agostino-Pearson omnibus K² test and Shapiro-Wilk test (Royston), each group on its own, α
+        = 0.05.
+      </p>
+      <Grid
+        label="D’Agostino & Pearson test"
+        head={['D’Agostino & Pearson test', ...head.slice(1)]}
+        rows={[
+          row('K2', (g) => (g.dagostino.ran ? sig(g.dagostino.k2) : (notRun(g.dagostino) ?? ''))),
+          row('P value', (g) => (g.dagostino.ran ? pValue(g.dagostino.p) : '—')),
+          row('Passed normality test (α = 0.05)?', (g) =>
+            g.dagostino.ran ? passed(g.dagostino.p) : '—',
+          ),
+          row('P value summary', (g) => (g.dagostino.ran ? stars(g.dagostino.p) : '—')),
+        ]}
+      />
+      <Grid
+        label="Shapiro-Wilk test"
+        head={['Shapiro-Wilk test', ...head.slice(1)]}
+        rows={[
+          row('W', (g) =>
+            g.shapiroWilk.ran ? sig(g.shapiroWilk.w) : (notRun(g.shapiroWilk) ?? ''),
+          ),
+          row('P value', (g) => (g.shapiroWilk.ran ? pValue(g.shapiroWilk.p) : '—')),
+          row('Passed normality test (α = 0.05)?', (g) =>
+            g.shapiroWilk.ran ? passed(g.shapiroWilk.p) : '—',
+          ),
+          row('P value summary', (g) => (g.shapiroWilk.ran ? stars(g.shapiroWilk.p) : '—')),
+        ]}
+      />
+      <Grid
+        label="Number of values"
+        head={['Number of values', ...head.slice(1)]}
+        rows={[row('n', (g) => `${String(g.n)}${droppedText(g.dropped)}`)]}
+      />
+      <p className="legend">
+        “Passed” means P &gt; 0.05: no clear departure from a Gaussian distribution, not proof of
+        one. Asterisks: {STAR_SCHEME}.
+      </p>
+    </>
+  );
 }
 
 function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
@@ -872,6 +935,9 @@ export function ResultsSheet({ project, analysis }: Props) {
         <Status analysis={analysis} />
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} />
+        )}
+        {value !== null && analysis.kind === 'normality' && (
+          <NormalityView r={value as unknown as NormalityResult} />
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
           <TwoWayView r={value as unknown as TwoWayResult} />

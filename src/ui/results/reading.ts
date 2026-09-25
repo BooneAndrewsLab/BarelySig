@@ -6,6 +6,7 @@
  * no evidence of a difference, not evidence of none.
  */
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
+import type { NormalityResult } from '@/analyses/normality/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TwoWayResult } from '@/analyses/twoway/types';
@@ -267,4 +268,33 @@ export function twoWayReading(r: TwoWayResult): string {
     );
   }
   return parts.join(' ');
+}
+
+/**
+ * Normality tests, read so that "passed" is never taken as proof (Prism's
+ * guide: with small samples they have little power; with large ones they
+ * flag departures that don't matter).
+ */
+export function normalityReading(r: NormalityResult): string {
+  const failed: string[] = [];
+  let ran = 0;
+  for (const g of r.groups) {
+    const tests = [
+      ...(g.dagostino.ran ? [['D’Agostino-Pearson', g.dagostino.p] as const] : []),
+      ...(g.shapiroWilk.ran ? [['Shapiro-Wilk', g.shapiroWilk.p] as const] : []),
+    ];
+    ran += tests.length;
+    const bad = tests.filter(([, p]) => p <= 0.05);
+    if (bad.length > 0)
+      failed.push(`${g.title} (${bad.map(([name, p]) => `${name} ${pPhrase(p)}`).join(', ')})`);
+  }
+  if (ran === 0) {
+    return 'The groups are too small for normality tests: Shapiro-Wilk needs at least 3 values and D’Agostino-Pearson 8. Decide from what is known about this kind of measurement.';
+  }
+  const caution =
+    ' A normality test can’t show that data are Gaussian: with few values it rarely flags anything, and with many it flags departures too small to matter for a t test or ANOVA. Base the choice mostly on what you know about this kind of measurement.';
+  if (failed.length === 0) {
+    return `No group departs clearly from a Gaussian (bell-shaped) distribution by these tests (P > 0.05 for each).${caution}`;
+  }
+  return `The values of ${joinAnd(failed)} don’t look Gaussian (P ≤ 0.05). Consider a nonparametric test (Mann-Whitney, Wilcoxon, Kruskal-Wallis), or transforming the values first (e.g. a log for values that vary by fold changes).${caution}`;
 }

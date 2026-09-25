@@ -10,6 +10,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   'one-way-anova': 'anova',
   'kruskal-wallis': 'anova',
   'two-way-anova': 'grouped',
+  normality: 'descriptive-stats',
 };
 
 /** The test's name for an analysis: "Unpaired t test", "Mann-Whitney test". */
@@ -31,5 +32,7 @@ export function testName(spec: AnalysisSpec): string {
       return 'Kruskal-Wallis test';
     case 'two-way-anova':
       return 'Two-way ANOVA';
+    case 'normality':
+      return 'Normality tests';
   }
 }

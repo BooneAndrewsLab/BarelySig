@@ -59,6 +59,12 @@ const KINDS: readonly KindInfo[] = [
     tables: ['column', 'grouped'],
   },
   {
+    kind: 'normality',
+    name: 'Normality tests',
+    blurb: 'Check whether each group’s values look like they come from a bell-shaped distribution.',
+    tables: ['column'],
+  },
+  {
     kind: 't-test',
     name: 't test',
     blurb: 'Compare the means of two groups.',
@@ -629,6 +635,9 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     analysis?.input.kind === 'table' ? analysis.input.dataSets : table.dataSets.map((d) => d.id),
   );
   const [options, setOptions] = useState<Options>(() => initialOptions(analysis));
+  // Prism offers normality tests before a parametric test; so does the dialog (note 06).
+  const [alsoNormality, setAlsoNormality] = useState(true);
+  const offersNormality = !analysis && !summary && (kind === 't-test' || kind === 'one-way-anova');
   const picked = table.dataSets.filter((d) => chosen.includes(d.id)).map((d) => d.id);
   const info = KINDS.find((k) => k.kind === kind);
   const groups = info?.groups;
@@ -648,6 +657,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     switch (kind) {
       case 'descriptive':
         return { kind, options: options.descriptive };
+      case 'normality':
+        return { kind, options: options.normality };
       case 't-test':
         return {
           kind,
@@ -711,8 +722,25 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
       });
     } else {
       const id = newId('a');
+      const main: Analysis = { id, title, input, ...s };
+      const companion: Analysis = {
+        id: newId('a'),
+        title: analysisTitle({ kind: 'normality', options: {} }, table.title),
+        input,
+        kind: 'normality',
+        options: {},
+      };
       store.edit(
-        { op: 'addAnalysis', analysis: { id, title, input, ...s } as Analysis },
+        offersNormality && alsoNormality
+          ? {
+              op: 'batch',
+              label: `Add ${title}`,
+              edits: [
+                { op: 'addAnalysis', analysis: main },
+                { op: 'addAnalysis', analysis: companion },
+              ],
+            }
+          : { op: 'addAnalysis', analysis: main },
         { show: { kind: 'analysis', id } },
       );
       analytics.trackOnce('analysis', `new-${kind}`);
@@ -817,6 +845,26 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               set('rank-test', o);
             }}
           />
+        )}
+
+        {offersNormality && (
+          <fieldset>
+            <legend>Before the test</legend>
+            <label className="option">
+              <input
+                type="checkbox"
+                checked={alsoNormality}
+                onChange={(e) => {
+                  setAlsoNormality(e.currentTarget.checked);
+                }}
+              />
+              Also test each group for normality (a separate analysis)
+            </label>
+            <p className="hint">
+              This test assumes values that follow a bell-shaped (Gaussian) distribution. With few
+              values a normality test can’t confirm that; it can only flag clear departures.
+            </p>
+          </fieldset>
         )}
 
         <div className="actions">

@@ -1,0 +1,64 @@
+{
+  "input": {
+    "g1": [
+      0.034000000000000002, 0.105, 0.182, 0.26600000000000001, 0.35699999999999998,
+      0.45700000000000002, 0.56799999999999995, 0.69299999999999995, 0.83599999999999997,
+      1.0029999999999999, 1.204, 1.4550000000000001, 1.792, 2.3029999999999999, 3.4009999999999998
+    ],
+    "g2": [
+      0.11899999999999999, 0.193, 0.251, 0.30399999999999999, 0.35499999999999998,
+      0.40500000000000003, 0.45700000000000002, 0.50900000000000001, 0.56399999999999995, 0.621,
+      0.68000000000000005, 0.74299999999999999, 0.81000000000000005, 0.88200000000000001,
+      0.95899999999999996, 1.0429999999999999, 1.1339999999999999, 1.234, 1.345, 1.47, 1.611, 1.774,
+      1.9630000000000001, 2.1890000000000001, 2.4660000000000002, 2.819, 3.2930000000000001,
+      3.9870000000000001, 5.1799999999999997, 8.3979999999999997
+    ]
+  },
+  "expected": {
+    "groups": [
+      {
+        "n": 15,
+        "shapiro_wilk": {
+          "w": 0.86483375104982263,
+          "p": 0.028355793514256496
+        },
+        "dagostino": {
+          "k2": 8.1940279050698095,
+          "p": 0.016622236155690726,
+          "z_skewness": 2.3763896554212192,
+          "z_kurtosis": 1.5958697035399945
+        }
+      },
+      {
+        "n": 30,
+        "shapiro_wilk": {
+          "w": 0.7310123101809054,
+          "p": 4.5587519854899527e-6
+        },
+        "dagostino": {
+          "k2": 31.814886774678481,
+          "p": 1.2344830057628031e-7,
+          "z_skewness": 4.349353203427623,
+          "z_kurtosis": 3.5913804430208107
+        }
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    moments <- function(x) {\n        d <- x - mean(x)\n        c(m2 = sum(d^2)/length(x), m3 = sum(d^3)/length(x), m4 = sum(d^4)/length(x))\n    }\n    skew_z <- function(x) {\n        n <- length(x)\n        m <- moments(x)\n        sqrt_b1 <- m[[\"m3\"]]/m[[\"m2\"]]^(3/2)\n        y <- sqrt_b1 * sqrt(((n + 1) * (n + 3))/(6 * (n - 2)))\n        beta2 <- (3 * (n^2 + 27 * n - 70) * (n + 1) * (n + 3))/((n - 2) * (n + 5) * \n            (n + 7) * (n + 9))\n        w <- sqrt(-1 + sqrt(2 * (beta2 - 1)))\n        delta <- 1/sqrt(log(w))\n        alpha <- sqrt(2/(w^2 - 1))\n        delta * asinh(y/alpha)\n    }\n    kurt_z <- function(x) {\n        n <- length(x)\n        m <- moments(x)\n        b2 <- m[[\"m4\"]]/m[[\"m2\"]]^2\n        mean_b2 <- 3 * (n - 1)/(n + 1)\n        var_b2 <- 24 * n * (n - 2) * (n - 3)/((n + 1)^2 * (n + 3) * (n + 5))\n        std <- (b2 - mean_b2)/sqrt(var_b2)\n        sqrt_beta1 <- (6 * (n^2 - 5 * n + 2)/((n + 7) * (n + 9))) * sqrt((6 * (n + \n            3) * (n + 5))/(n * (n - 2) * (n - 3)))\n        A <- 6 + (8/sqrt_beta1) * ((2/sqrt_beta1) + sqrt(1 + 4/sqrt_beta1^2))\n        inner <- (1 - 2/A)/(1 + std * sqrt(2/(A - 4)))\n        ((1 - 2/(9 * A)) - sign(inner) * abs(inner)^(1/3))/sqrt(2/(9 * A))\n    }\n    one <- function(x) {\n        x <- x[!is.na(x)]\n        n <- length(x)\n        same <- n > 0 && diff(range(x)) == 0\n        sw <- if (n < 3) \n            list(why = \"few\", minimum = 3)\n        else if (same) \n            list(why = \"same\")\n        else {\n            s <- shapiro.test(x)\n            list(w = unname(s$statistic), p = s$p.value)\n        }\n        dp <- if (n < 8) \n            list(why = \"few\", minimum = 8)\n        else if (same) \n            list(why = \"same\")\n        else {\n            z1 <- skew_z(x)\n            z2 <- kurt_z(x)\n            list(k2 = z1^2 + z2^2, p = pchisq(z1^2 + z2^2, 2, lower.tail = FALSE), \n                z_skewness = z1, z_kurtosis = z2)\n        }\n        list(n = n, shapiro_wilk = sw, dagostino = dp)\n    }\n    normality <- function(...) list(groups = lapply(list(...), one))\n}",
+    "call": "normality(g1, g2)",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "fBasics": "4052.98"
+      },
+      "code": "{\n    ok <- TRUE\n    for (i in seq_along(expected$groups)) {\n        x <- get(paste0(\"g\", i))\n        x <- x[!is.na(x)]\n        e <- expected$groups[[i]]$dagostino\n        if (!is.null(e$k2) && length(x) >= 20) {\n            t <- fBasics::dagoTest(x)@test\n            ok <- ok && isTRUE(all.equal(unname(t$statistic[1]), e$k2, tolerance = 1e-09)) && \n                isTRUE(all.equal(unname(t$p.value[1]), e$p, tolerance = 1e-09))\n        }\n    }\n    ok\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Exponential and lognormal: clearly not Gaussian."
+}

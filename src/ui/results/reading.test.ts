@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
+import type { NormalityResult } from '@/analyses/normality/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
@@ -9,6 +10,7 @@ import type { TwoWayResult } from '@/analyses/twoway/types';
 import {
   kruskalMethod,
   kruskalReading,
+  normalityReading,
   oneWayMethod,
   oneWayReading,
   rankTestMethod,
@@ -231,5 +233,38 @@ describe('two-way ANOVA readings', () => {
     expect(twoWayReading(base)).toBe(
       'There is no evidence that the rows, averaged over the data sets, differ (P = 0.2000). The data sets, averaged over the rows, differ (P = 0.0100). Tukey’s comparisons between data sets, averaged over rows: 2 of 3 pairs differ after adjusting for the number of comparisons.',
     );
+  });
+});
+
+describe('normality readings', () => {
+  const ran = (p: number) => ({ ran: true as const, w: 0.9, k2: 1, zSkewness: 0, zKurtosis: 0, p });
+  const few = (limit: number) => ({ ran: false as const, why: 'few' as const, limit });
+  const group = (title: string, sw: unknown, dp: unknown) => ({
+    id: title,
+    title,
+    n: 9,
+    dropped: null,
+    shapiroWilk: sw,
+    dagostino: dp,
+  });
+
+  it('names the groups that fail, and never calls a pass proof', () => {
+    const r = {
+      groups: [group('WT', ran(0.4), ran(0.3)), group('KO', ran(0.012), few(8))],
+      warnings: [],
+    } as unknown as NormalityResult;
+    expect(normalityReading(r)).toMatch(
+      /^The values of KO \(Shapiro-Wilk P = 0\.0120\) don’t look Gaussian \(P ≤ 0\.05\)\. Consider a nonparametric test .* A normality test can’t show that data are Gaussian/,
+    );
+    const ok = {
+      groups: [group('WT', ran(0.4), ran(0.3))],
+      warnings: [],
+    } as unknown as NormalityResult;
+    expect(normalityReading(ok)).toMatch(/^No group departs clearly from a Gaussian/);
+  });
+
+  it('says when every group is too small', () => {
+    const r = { groups: [group('WT', few(3), few(8))], warnings: [] } as unknown as NormalityResult;
+    expect(normalityReading(r)).toMatch(/^The groups are too small for normality tests/);
   });
 });

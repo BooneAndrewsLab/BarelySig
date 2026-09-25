@@ -160,7 +160,8 @@ describe('results sheets', () => {
     await screen.findByText(
       'A t test compares two groups; this one has 3. Choose two, or use one-way ANOVA.',
     );
-    expect(runs).toHaveLength(0);
+    // The normality tests added alongside may run; the t test must not.
+    expect(runs.filter((j) => j.analysis.kind === 't-test')).toHaveLength(0);
   });
 
   it('shows an error with a way to run again, and stops a run on request', async () => {
@@ -413,7 +414,7 @@ describe('results sheets', () => {
     });
     let asked: Job | undefined;
     answer = (job) => {
-      asked = job;
+      if (job.analysis.kind === 'one-way-anova') asked = job;
       return Promise.resolve(r as unknown as Json);
     };
     render(<App />);
@@ -481,6 +482,37 @@ describe('results sheets', () => {
     expect(
       within(mc).getByRole('rowheader', { name: 'WT vs. KO' }).closest('tr'),
     ).toHaveTextContent('WT vs. KO-2.333Nons> 0.9999');
+  });
+
+  it('adds normality tests alongside a t test by default, in the same undo step', async () => {
+    render(<App />);
+    analyze(/t test/);
+    await screen.findByText(/P = 0\.0021/);
+    const all = () => [...project(store.getState()).analyses.values()].map((a) => a.kind);
+    expect(all()).toEqual(['t-test', 'normality']);
+    expect(
+      project(store.getState()).analyses.get(runs[0]?.analysis.id ?? ('' as never))?.kind,
+    ).toBe('t-test');
+    const nav = within(screen.getByRole('navigation', { name: 'Project' }));
+    expect(nav.getByRole('button', { name: 'Normality tests of Viability' })).toBeInTheDocument();
+    act(() => {
+      store.undo();
+    });
+    expect(all()).toEqual([]);
+  });
+
+  it('adds only the test when the normality box is unticked', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /one-way ANOVA/i }));
+    fireEvent.click(
+      within(dialog).getByRole('checkbox', { name: /Also test each group for normality/ }),
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
+    expect([...project(store.getState()).analyses.values()].map((a) => a.kind)).toEqual([
+      'one-way-anova',
+    ]);
   });
 
   it('keeps the analysis linked: its table shows it, and it opens its table', async () => {

@@ -128,6 +128,7 @@ function analysisJson(a: Analysis): Json {
 function optionsJson(a: AnalysisSpec): Json {
   switch (a.kind) {
     case 'descriptive':
+    case 'normality':
       return {};
     case 't-test':
       return { paired: a.options.paired, welch: a.options.welch, tails: a.options.tails };
@@ -354,6 +355,7 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
   const opts = obj(o['options'], q);
   switch (kind) {
     case 'descriptive':
+    case 'normality':
       return { kind, options: {} };
     case 't-test': {
       const tailsPath: Path = q.key('tails');

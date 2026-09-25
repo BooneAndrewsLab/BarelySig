@@ -2,6 +2,7 @@
 import { descriptive } from './descriptive';
 import { kruskal } from './kruskal';
 import type { Registry } from './module';
+import { normality } from './normality';
 import { oneway } from './oneway';
 import { ranktest } from './ranktest';
 import { ttest } from './ttest';
@@ -14,4 +15,5 @@ export const REGISTRY: Registry = {
   'one-way-anova': oneway,
   'kruskal-wallis': kruskal,
   'two-way-anova': twoway,
+  normality,
 };

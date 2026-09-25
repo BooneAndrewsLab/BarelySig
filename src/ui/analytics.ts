@@ -64,6 +64,7 @@ export const EVENTS = {
     'new-one-way-anova',
     'new-kruskal-wallis',
     'new-two-way-anova',
+    'new-normality',
   ],
   graph: ['new-column', 'export-svg', 'export-png'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;

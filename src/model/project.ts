@@ -21,11 +21,15 @@ export type AnalysisSpec =
   | { readonly kind: 'rank-test'; readonly options: RankTestOptions }
   | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
   | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions }
-  | { readonly kind: 'two-way-anova'; readonly options: TwoWayOptions };
+  | { readonly kind: 'two-way-anova'; readonly options: TwoWayOptions }
+  | { readonly kind: 'normality'; readonly options: NormalityOptions };
 
 export type AnalysisKind = AnalysisSpec['kind'];
 
 export type DescriptiveOptions = Readonly<Record<string, never>>;
+
+/** Both tests (D'Agostino-Pearson, Shapiro-Wilk) on every group; nothing to choose (note 06). */
+export type NormalityOptions = Readonly<Record<string, never>>;
 
 export interface TTestOptions {
   /** Pair by row (paired t-test) rather than compare independent groups. */
@@ -108,6 +112,7 @@ export const DEFAULT_OPTIONS: {
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },
   'two-way-anova': { family: 'within-rows', comparisons: { kind: 'all', test: 'tukey' } },
+  normality: {},
 };
 
 /** What an analysis reads: data sets of a table, or another analysis's results. */
