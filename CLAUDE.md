@@ -287,6 +287,8 @@ the target).
 - `webr:fetch` skips when `public/webr/.stamp` matches; never rebuild
   `public/webr/` under a running dev server by hand (it then serves
   index.html for the package files).
+- Close project (#47): back to the start screen, which lists the
+  projects kept in this browser.
 - Next: 0.6 — nonparametric tests, ANOVA and post-hoc, normality, test chooser.
 
 ## Tooling
@@ -310,6 +312,42 @@ the target).
 - Brand sources are in `design/` (logo and icon READMEs there);
   `public/icons.svg` is the icon sprite (`<use href="icons.svg#bs-NAME">`,
   accent via `--bs-accent`).
+- Graph font: `scripts/make-graph-font.py` rebuilds `public/fonts/` and
+  `src/graphs/text/metrics.json` from `design/fonts/Arimo[wght].ttf`;
+  `scripts/seaborn-reference.py` renders note 05's reference figures;
+  `scripts/make-icons.sh` the PWA icons. Any Python with fonttools /
+  seaborn runs them.
+- WebR engine pin: `src/engine/lock.json`. `webr:fetch` fails on drift;
+  change only with `npm run webr:fetch -- --update-lock`, then
+  `oracle:pin`, `oracle:generate` and the parity test.
+
+## Lessons (things that bit)
+
+- **Oracle references must be independent** of the app's `analysis.R`:
+  textbook formulas or another package, checked in `oracle.R` against
+  R's own functions before a fixture is written (the check caught a
+  `1 - pf()` that lost a small P's digits). Summary-data cases are
+  checked against raw values with that mean, SD and n. Fixture
+  `options` carry the analysis settings a case uses.
+- **Property tests earn their keep:** they found a subnormal-value axis
+  asking d3 for billions of ticks, export records losing fields on save,
+  and a copy/paste quoting bug. When a model type gains fields, make
+  `src/test/modelArbitraries.ts` generate them, or the round-trip
+  property can't see a codec that forgot them. Break the code once to
+  prove a new test can fail.
+- **Serialisers write fields explicitly, in a fixed order** (`bsig.ts`):
+  spreading objects made the text depend on key order.
+- **jsdom lacks** `ResizeObserver`, `matchMedia` (stubbed in
+  `src/test/setup.ts`), canvas, and `Blob.stream()`; IndexedDB is
+  `fake-indexeddb`, shared across the tests of one file. UI tests
+  replace the engine with `setResults(new ResultsBridge(store, { runner }))`.
+- **The dev server can go stale:** after many edits or a `webr:fetch`
+  that rebuilt `public/webr/`, restart Vite (a stale one served
+  `index.html` for WebR's packages: "need to see wasm magic number").
+- **Text a user reads about statistics is part of correctness:** P shown
+  as Prism does and never contradicting its asterisks, "in either
+  direction" for two-tailed, the one-tailed caveat, "no evidence of a
+  difference", never "the same".
 
 ## Layout
 
