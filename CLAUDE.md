@@ -388,6 +388,13 @@ the target).
   and T3 use fixed Gauss-Legendre rules instead (note 06).
 - **R 4.6 changed `wilcox.test`**: exact P with ties, and CIs by
   inverting that test; check against it only on untied data.
+- **A round-trip property only sees what the generator makes:** graphs
+  were 9 in 200 sessions, so a codec dropping a new format field passed.
+  Count what the generator produces when adding fields (note 07).
+- **Prettier rewrites `*italic*` as `_italic_` in Markdown,** so the guide
+  parser reads both; the guide's lists are flat (no nesting).
+- **Brute-force oracle references can be too slow for WebR:** write them
+  with `parity = FALSE`; the analysis's own test still runs them there.
 - **Text a user reads about statistics is part of correctness:** P shown
   as Prism does and never contradicting its asterisks, "in either
   direction" for two-tailed, the one-tailed caveat, "no evidence of a
