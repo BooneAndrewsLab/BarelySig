@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { writeBsig } from '@/io/bsig';
+import type { Json } from '@/model/json';
 import { BarelySigDb, ProjectStorage } from '@/io/storage';
 import { applyEdit } from '@/model/edits';
 import { newId } from '@/model/ids';
@@ -248,6 +249,105 @@ describe('opening an exported figure', () => {
     expect(bridge.recompute.status(summaryId(graph.id)).state).toBe('fresh');
     await new Promise((r) => setTimeout(r, 20));
     expect(runs).toHaveLength(0);
+    bridge.dispose();
+  });
+});
+
+describe('a figure reopened under a newer engine (#46)', () => {
+  it('keeps its numbers, recomputes, and says which changed', async () => {
+    const { ResultsBridge } = await import('./results');
+    const { recipeText } = await import('@/io/recipe');
+    const { summaryId } = await import('@/graphs/data');
+    const { asId } = await import('@/model/ids');
+    const { GRAPH_DEFAULTS } = await import('@/model/project');
+    const { engineNotice } = await import('../graphs/engineNotice');
+    const p0 = withTable('Paper');
+    const t = [...p0.tables.values()][0];
+    if (!t) throw new Error('unreachable');
+    const graph = {
+      id: asId('g_1'),
+      title: 'Figure 2',
+      source: { kind: 'table' as const, table: t.id },
+      analyses: [],
+      ...GRAPH_DEFAULTS,
+    };
+    const p = applyEdit(p0, { op: 'addGraph', graph });
+    const cell = (mean: number) => ({
+      cells: [{ id: 'x', title: 'A', mean, sd: 2 }],
+      warnings: [],
+    });
+    let mean = 10.0000001;
+    const store = new AppStore(createProject('Something else'));
+    const bridge = new ResultsBridge(store, {
+      debounceMs: 0,
+      // The table is empty; the stand-in runner doesn't mind.
+      check: () => null,
+      runner: () => Promise.resolve(cell(mean)),
+    });
+    const older = { ...bridge.info, webr: '0.5.9', r: '4.5.2' };
+    const results = new Map([
+      [summaryId(graph.id), { inputHash: 'from-0.5.9', ok: true as const, value: cell(10) }],
+    ]);
+    const recipe = JSON.parse(recipeText(p, graph, results, older, '0.9.0')) as Json;
+    const session = new Session(
+      store,
+      new ProjectStorage(new BarelySigDb(`test-${newId('x')}`)),
+      () => bridge,
+    );
+    await session.openRecipe(recipe);
+    expect(session.baseline?.app).toBe('0.9.0');
+    const notice = () =>
+      engineNotice(session.baseline, project(store.getState()), graph, bridge.info, (id) =>
+        bridge.recompute.result(id),
+      );
+    expect(notice()?.kind).toBe('waiting');
+    await bridge.recompute.idle();
+    expect(notice()).toEqual({
+      kind: 'same',
+      text: `This figure was made with BarelySig 0.9.0 (WebR 0.5.9, R 4.5.2) and recomputed with this version (WebR ${bridge.info.webr}, R ${bridge.info.r}): every number is the same.`,
+    });
+    // An engine that gives another mean.
+    mean = 10.5;
+    bridge.recompute.results.forget(summaryId(graph.id));
+    bridge.retry(summaryId(graph.id));
+    await bridge.recompute.idle();
+    expect(notice()).toMatchObject({
+      kind: 'changed',
+      changes: ['Graph statistics: A: mean was 10, now 10.5'],
+    });
+    // Once the data change, the old numbers say nothing.
+    store.edit({ op: 'setTableInfo', table: t.id, title: 'Renamed' });
+    expect(notice()).toBeNull();
+    bridge.dispose();
+  });
+
+  it('keeps nothing when the engine is the same', async () => {
+    const { ResultsBridge } = await import('./results');
+    const store = new AppStore(createProject('P'));
+    const bridge = new ResultsBridge(store, { debounceMs: 0, runner: () => Promise.resolve(null) });
+    const session = new Session(
+      store,
+      new ProjectStorage(new BarelySigDb(`test-${newId('x')}`)),
+      () => bridge,
+    );
+    const { recipeText } = await import('@/io/recipe');
+    const { asId } = await import('@/model/ids');
+    const { GRAPH_DEFAULTS } = await import('@/model/project');
+    const p0 = withTable('Paper');
+    const t = [...p0.tables.values()][0];
+    if (!t) throw new Error('unreachable');
+    const graph = {
+      id: asId('g_1'),
+      title: 'F',
+      source: { kind: 'table' as const, table: t.id },
+      analyses: [],
+      ...GRAPH_DEFAULTS,
+    };
+    const p = applyEdit(p0, { op: 'addGraph', graph });
+    await session.openRecipe(
+      JSON.parse(recipeText(p, graph, new Map(), bridge.info, '1.0.0')) as Json,
+    );
+    expect(session.baseline).toBeNull();
     bridge.dispose();
   });
 });

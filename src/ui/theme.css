@@ -1237,3 +1237,25 @@ select {
 .chooser .suggestion p {
   margin: 0 0 8px;
 }
+
+/* A reopened figure recomputed by a newer engine (#46, note 07). */
+.engine-notice {
+  max-width: 60ch;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--rule-strong);
+  background: var(--tint);
+}
+
+.engine-notice.changed {
+  border-left-color: var(--warning);
+}
+
+.engine-notice p {
+  margin: 0;
+}
+
+.engine-notice ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}

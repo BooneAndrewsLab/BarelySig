@@ -24,6 +24,7 @@ import { store } from '../state/store';
 import { ExportDialog } from './ExportDialog';
 import { elementLabel, offsetOf, withOffset } from './formatting';
 import { GraphSettings } from './GraphSettings';
+import { engineNotice } from './engineNotice';
 import { Inspector } from './Inspector';
 
 interface Props {
@@ -54,6 +55,9 @@ export function GraphSheet({ project, graph: saved }: Props) {
   const scene = input.ok ? layoutColumn(input.input) : null;
   const svg = scene ? sceneToSvg(scene) : '';
   const elements = scene ? elementsOf(scene) : [];
+  const notice = engineNotice(getSession().baseline, project, saved, bridge.info, (id) =>
+    bridge.recompute.result(id),
+  );
   // A selection whose element went away (a bracket hidden, the title turned off) lapses.
   const selected = picked !== null && elements.includes(picked) ? picked : null;
   const regions = scene ? hitRegions(scene, 5) : [];
@@ -148,6 +152,18 @@ export function GraphSheet({ project, graph: saved }: Props) {
             <p className="status-banner" role="status">
               {status}
             </p>
+          )}
+          {notice && (
+            <div className={`engine-notice ${notice.kind}`} role="status">
+              <p>{notice.text}</p>
+              {notice.kind === 'changed' && (
+                <ul>
+                  {notice.changes.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
           {scene && (
             <div

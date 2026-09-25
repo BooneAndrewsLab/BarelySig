@@ -368,6 +368,16 @@ each application's documented clipboard format.
 
 Deferred to Phase 2 as planned.
 
+### Numbers under a newer engine (#46)
+
+- As designed. The session keeps a reopened figure's stored results
+  when its engine differs from the app's; the graph sheet says
+  "Recomputing…", then either that every number is the same or lists
+  what changed ("Graph statistics: WT: mean was 10, now 10.5"), at most
+  eight lines. It holds while the figure's tables and analyses are the
+  ones it was opened with (formatting the graph doesn't end it).
+- A long vector (a violin's density) that changed is one line, not 64.
+
 ## Decisions made here
 
 1. **Overrides in `GraphFormat`, style as a flat record over a fixed

@@ -4,6 +4,7 @@
  * the project changes, so switching never loses the last edit.
  */
 import { BsigError, type SavedProject, readBsig, writeBsig } from '@/io/bsig';
+import { engineDiffers } from '@/io/engineChange';
 import { download, fileNameFor } from '@/io/files';
 import { figureKind, readFigure } from '@/io/recipe';
 import { type ProjectStorage, getStorage } from '@/io/storage';
@@ -22,8 +23,24 @@ import { type AppStore, project, store } from './store';
 
 const APP = __APP_VERSION__;
 
+/**
+ * A reopened figure's results as it was exported, kept when this app's
+ * engine differs, so the graph can say whether the recomputed numbers
+ * are the same (#46, note 07). It holds while the figure's data are
+ * unchanged (the same tables and analyses).
+ */
+export interface Baseline {
+  readonly tables: Project['tables'];
+  readonly analyses: Project['analyses'];
+  readonly engine: EngineInfo;
+  readonly app: string;
+  readonly results: ReadonlyMap<Id, ResultEntry>;
+}
+
 export class Session {
   readonly autosaver: Autosaver;
+  /** The last reopened figure's numbers, when a newer engine recomputes them. */
+  baseline: Baseline | null = null;
 
   constructor(
     private readonly appStore: AppStore = store,
@@ -134,7 +151,7 @@ export class Session {
       const saved = figure
         ? await readFigure(figure, bytes)
         : readBsig(new TextDecoder().decode(bytes));
-      await this.openSaved(saved, { fromFile: figure === null });
+      await this.openSaved(saved, { fromFile: figure === null, figure: figure !== null });
       this.appStore.notify(
         figure
           ? `Opened the figure “${file.name}” with the data and settings that made it.`
@@ -150,7 +167,7 @@ export class Session {
   /** Reopens a figure from the project's export history (#43). */
   async openRecipe(recipe: Json): Promise<void> {
     try {
-      await this.openSaved(readBsig(JSON.stringify(recipe)), { fromFile: false });
+      await this.openSaved(readBsig(JSON.stringify(recipe)), { fromFile: false, figure: true });
       this.appStore.notify('Restored the figure as it was exported, as a new project.');
     } catch (e: unknown) {
       if (!(e instanceof BsigError)) throw e;
@@ -158,10 +175,24 @@ export class Session {
     }
   }
 
-  private async openSaved(saved: SavedProject, opts: { fromFile: boolean }): Promise<void> {
+  private async openSaved(
+    saved: SavedProject,
+    opts: { fromFile: boolean; figure?: boolean },
+  ): Promise<void> {
     // A project in the browser is a copy of the file: its own id, so
     // opening the same file twice gives two, never one overwriting another.
     this.seed(saved);
+    const info = this.results()?.info;
+    this.baseline =
+      opts.figure && saved.engine && info && engineDiffers(saved.engine, info)
+        ? {
+            tables: saved.project.tables,
+            analyses: saved.project.analyses,
+            engine: saved.engine,
+            app: saved.app,
+            results: saved.results,
+          }
+        : null;
     await this.replace({ ...saved.project, id: newId('p') }, { fromFile: opts.fromFile });
     // A figure opens on its graph.
     const graph = saved.project.order.graphs[0];
