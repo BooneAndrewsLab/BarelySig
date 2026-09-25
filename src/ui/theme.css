@@ -969,3 +969,7 @@ select {
   max-width: 60ch;
   margin-top: 8px;
 }
+
+.hint.flush {
+  margin-left: 0;
+}

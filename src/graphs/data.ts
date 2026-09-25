@@ -133,7 +133,10 @@ export function graphInput(
     const from = sets.findIndex((x) => x.ds.id === t.a.id);
     const to = sets.findIndex((x) => x.ds.id === t.b.id);
     if (from < 0 || to < 0) continue;
-    const label = graph.format.bracketLabels === 'exact' ? pPhrase(t.p) : stars(t.p);
+    const label =
+      graph.format.bracketLabels === 'exact'
+        ? pPhrase(t.p)
+        : stars(t.p, graph.format.starScheme ?? 'prism');
     if (label === 'ns' && !graph.format.showNs) continue;
     brackets.push({ id, from, to, label });
   }
@@ -150,5 +153,36 @@ export function graphInput(
       groups,
       brackets,
     },
+  };
+}
+
+/** The t tests of a graph's table, whether the graph draws them or could (note 05, "offers its brackets"). */
+export function bracketChoices(
+  project: Project,
+  graph: Graph,
+): { readonly id: Id; readonly title: string; readonly shown: boolean }[] {
+  const table = graphTable(project, graph);
+  if (!table) return [];
+  return project.order.analyses.flatMap((id) => {
+    const a = project.analyses.get(id);
+    if (a?.kind !== 't-test' || a.input.kind !== 'table' || a.input.table !== table.id) return [];
+    return [
+      {
+        id,
+        title: a.title,
+        shown: graph.analyses.includes(id) && !graph.format.hiddenBrackets.includes(id),
+      },
+    ];
+  });
+}
+
+/** The graph with a t test's bracket shown or hidden. */
+export function withBracket(graph: Graph, id: Id, show: boolean): Graph {
+  const analyses = show && !graph.analyses.includes(id) ? [...graph.analyses, id] : graph.analyses;
+  const hidden = graph.format.hiddenBrackets.filter((x) => x !== id);
+  return {
+    ...graph,
+    analyses,
+    format: { ...graph.format, hiddenBrackets: show ? hidden : [...hidden, id] },
   };
 }

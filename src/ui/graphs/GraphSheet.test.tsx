@@ -118,3 +118,51 @@ describe('graph sheet', () => {
     );
   });
 });
+
+describe('significance brackets on the graph', () => {
+  it('offers the table’s t tests, shows their brackets, and labels them as chosen', async () => {
+    const p0 = project(store.getState());
+    const t = [...p0.tables.values()][0];
+    if (!t) throw new Error('unreachable');
+    const ids = t.dataSets.map((d) => d.id);
+    setResults(
+      new ResultsBridge(store, {
+        debounceMs: 0,
+        runner: (job) =>
+          Promise.resolve(
+            (job.analysis.kind === 't-test'
+              ? { p: 0.0004, a: { id: ids[0] }, b: { id: ids[1] } }
+              : summaryOf(job)) as unknown as Json,
+          ),
+      }),
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    await screen.findByRole('img', { name: /Bars/ });
+    expect(screen.getByText('Run a t test on this table to add its bracket.')).toBeInTheDocument();
+    act(() => {
+      store.edit({
+        op: 'addAnalysis',
+        analysis: {
+          id: 'a_t' as never,
+          title: 'Unpaired t test of Viability',
+          kind: 't-test',
+          options: { paired: false, welch: false, tails: 'two' },
+          input: { kind: 'table', table: t.id, dataSets: ids },
+        },
+      });
+    });
+    const box = await screen.findByRole('checkbox', { name: 'Unpaired t test of Viability' });
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    await screen.findByText('***', { selector: '[data-role="bracket-label"]' });
+    expect(screen.getByText(/Asterisks: ns P ≥ 0.05/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Bracket labels' }), {
+      target: { value: 'exact' },
+    });
+    expect(svg()?.querySelector('[data-role="bracket-label"]')?.textContent).toBe('P = 0.0004');
+    expect(screen.queryByText(/Asterisks:/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Unpaired t test of Viability' }));
+    expect(svg()?.querySelectorAll('[data-role="bracket"]')).toHaveLength(0);
+  });
+});

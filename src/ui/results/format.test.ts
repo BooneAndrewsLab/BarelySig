@@ -31,7 +31,8 @@ describe('P values', () => {
   it('writes sentences and asterisks by Prism’s thresholds', () => {
     expect(pPhrase(0.0021)).toBe('P = 0.0021');
     expect(pPhrase(1e-9)).toBe('P < 0.0001');
-    expect([0.2, 0.05, 0.049, 0.0099, 0.00099, 0.000099].map(stars)).toEqual([
+    expect([0.049, 0.00099, 1e-9].map((p) => stars(p, 'apa'))).toEqual(['*', '***', '***']);
+    expect([0.2, 0.05, 0.049, 0.0099, 0.00099, 0.000099].map((p) => stars(p))).toEqual([
       'ns',
       'ns',
       '*',

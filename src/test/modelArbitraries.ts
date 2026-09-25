@@ -430,6 +430,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
           format: {
             bracketLabels: s.v % 2 ? 'exact' : 'stars',
             showNs: s.v % 3 !== 1,
+            ...(s.v % 3 === 0 ? { starScheme: 'apa' as const } : {}),
             hiddenBrackets: analyses.slice(0, s.v % 2),
             ...(s.v % 5 === 1 ? { yTitle: 'Viability (%)', yMin: -1.5, yMax: 120 } : {}),
           },

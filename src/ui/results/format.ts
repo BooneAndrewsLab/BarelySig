@@ -7,8 +7,15 @@
 /** Prism's default asterisks (CLAUDE.md): ns >= 0.05, * < 0.05, ** < 0.01, *** < 0.001, **** < 0.0001. */
 export const STAR_SCHEME = 'ns P ≥ 0.05, * P < 0.05, ** P < 0.01, *** P < 0.001, **** P < 0.0001';
 
-export function stars(p: number): string {
-  if (p < 0.0001) return '****';
+/** The APA style: three levels. */
+export const APA_SCHEME = 'ns P ≥ 0.05, * P < 0.05, ** P < 0.01, *** P < 0.001';
+
+export type StarScheme = 'prism' | 'apa';
+
+export const schemeText = (s: StarScheme): string => (s === 'apa' ? APA_SCHEME : STAR_SCHEME);
+
+export function stars(p: number, scheme: StarScheme = 'prism'): string {
+  if (p < 0.0001 && scheme === 'prism') return '****';
   if (p < 0.001) return '***';
   if (p < 0.01) return '**';
   if (p < 0.05) return '*';

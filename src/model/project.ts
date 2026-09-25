@@ -78,6 +78,8 @@ export interface GraphFormat {
   readonly yMin?: number;
   readonly yMax?: number;
   readonly bracketLabels: 'stars' | 'exact';
+  /** Asterisk thresholds; unset = Prism's (up to ****), 'apa' stops at ***. */
+  readonly starScheme?: 'apa';
   readonly showNs: boolean;
   /** t tests whose brackets the user hid. */
   readonly hiddenBrackets: readonly Id[];

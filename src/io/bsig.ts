@@ -124,6 +124,7 @@ function graphJson(g: Graph): Json {
     bracketLabels: f.bracketLabels,
     showNs: f.showNs,
     hiddenBrackets: f.hiddenBrackets,
+    ...optional('starScheme', f.starScheme),
     ...optional('yTitle', f.yTitle),
     ...optional('yMin', f.yMin),
     ...optional('yMax', f.yMax),
@@ -389,6 +390,10 @@ function graph(v: Json, p: Path): Graph {
       hiddenBrackets: list(f['hiddenBrackets'], fp.key('hiddenBrackets'), id),
     },
     {
+      starScheme:
+        f['starScheme'] === undefined
+          ? undefined
+          : oneOf(f['starScheme'], fp.key('starScheme'), ['apa'] as const),
       yTitle: optStr(f, 'yTitle', fp),
       yMin: f['yMin'] === undefined ? undefined : num(f['yMin'], fp.key('yMin')),
       yMax: f['yMax'] === undefined ? undefined : num(f['yMax'], fp.key('yMax')),

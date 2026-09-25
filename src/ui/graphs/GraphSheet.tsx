@@ -6,13 +6,13 @@
  */
 import { useSyncExternalStore } from 'react';
 
-import { graphInput, summaryId } from '@/graphs/data';
+import { bracketChoices, graphInput, summaryId, withBracket } from '@/graphs/data';
 import { describePlot, layoutColumn } from '@/graphs/layout';
 import { sceneToSvg } from '@/graphs/svg';
 import type { ColumnPlot, ErrorBar, Graph, Project } from '@/model/project';
 
 import { Icon } from '../Icon';
-import { STAR_SCHEME } from '../results/format';
+import { schemeText } from '../results/format';
 import { getResults } from '../state/results';
 import { store } from '../state/store';
 
@@ -39,6 +39,7 @@ export function GraphSheet({ project, graph }: Props) {
   const table = graph.source.kind === 'table' ? project.tables.get(graph.source.table) : undefined;
   const summaryStatus = bridge.recompute.status(summaryId(graph.id));
   const engine = bridge.engineState();
+  const choices = bracketChoices(project, graph);
 
   const set = (patch: Partial<Graph>) => {
     store.edit({ op: 'setGraph', graph: { ...graph, ...patch } });
@@ -51,7 +52,9 @@ export function GraphSheet({ project, graph }: Props) {
   const svg = scene ? sceneToSvg(scene) : '';
   const notes = [
     `${describePlot(graph.plot)}.`,
-    ...(input.ok && input.input.brackets.length > 0 ? [`Asterisks: ${STAR_SCHEME}.`] : []),
+    ...(input.ok && input.input.brackets.length > 0 && graph.format.bracketLabels === 'stars'
+      ? [`Asterisks: ${schemeText(graph.format.starScheme ?? 'prism')}.`]
+      : []),
     ...(scene?.notes ?? []),
   ];
 
@@ -159,6 +162,65 @@ export function GraphSheet({ project, graph }: Props) {
                 </option>
               ))}
             </select>
+          </fieldset>
+          <fieldset>
+            <legend>Significance</legend>
+            {choices.length === 0 && (
+              <p className="hint flush">Run a t test on this table to add its bracket.</p>
+            )}
+            {choices.map((c) => (
+              <label key={c.id} className="option">
+                <input
+                  type="checkbox"
+                  checked={c.shown}
+                  onChange={(e) => {
+                    store.edit({
+                      op: 'setGraph',
+                      graph: withBracket(graph, c.id, e.currentTarget.checked),
+                    });
+                  }}
+                />
+                {c.title}
+              </label>
+            ))}
+            {choices.length > 0 && (
+              <>
+                <select
+                  aria-label="Bracket labels"
+                  value={
+                    graph.format.bracketLabels === 'exact'
+                      ? 'exact'
+                      : (graph.format.starScheme ?? 'prism')
+                  }
+                  onChange={(e) => {
+                    const v = e.currentTarget.value;
+                    const { starScheme: _drop, ...rest } = graph.format;
+                    set({
+                      format:
+                        v === 'exact'
+                          ? { ...rest, bracketLabels: 'exact' }
+                          : v === 'apa'
+                            ? { ...rest, bracketLabels: 'stars', starScheme: 'apa' }
+                            : { ...rest, bracketLabels: 'stars' },
+                    });
+                  }}
+                >
+                  <option value="prism">Asterisks (Prism: up to ****)</option>
+                  <option value="apa">Asterisks (APA: up to ***)</option>
+                  <option value="exact">Exact P values</option>
+                </select>
+                <label className="option">
+                  <input
+                    type="checkbox"
+                    checked={graph.format.showNs}
+                    onChange={(e) => {
+                      set({ format: { ...graph.format, showNs: e.currentTarget.checked } });
+                    }}
+                  />
+                  Show “ns” for differences that aren’t significant
+                </label>
+              </>
+            )}
           </fieldset>
           <fieldset>
             <legend>Look</legend>
