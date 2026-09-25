@@ -5,6 +5,7 @@
  * not the chance the result is "real", and a non-significant result is
  * no evidence of a difference, not evidence of none.
  */
+import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
@@ -141,6 +142,65 @@ export function oneWayMethod(r: OneWayResult): string {
 const joinAnd = (xs: readonly string[]): string =>
   xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1] ?? ''}`;
 
+/** How the comparisons read, after the overall sentence (one-way ANOVA and Kruskal-Wallis). */
+function comparisonsText(
+  p: number,
+  name: string,
+  pairs: readonly {
+    readonly a: { readonly title: string };
+    readonly b: { readonly title: string };
+    readonly p: number;
+  }[],
+  adjusted: boolean,
+  overall = 'overall test',
+): string {
+  if (pairs.length === 0) return '';
+  const sig = pairs.filter((c) => c.p < 0.05);
+  const after = adjusted ? ' after adjusting for the number of comparisons' : '';
+  if (sig.length === 0) {
+    let text = ` ${name} comparisons find no pair that differs${after}.`;
+    if (p < 0.05)
+      text +=
+        ' That can happen when the difference is spread over several groups rather than between two.';
+    return text;
+  }
+  const rest = pairs.length - sig.length;
+  let text = ` ${name} comparisons: ${joinAnd(sig.map((c) => `${c.a.title} and ${c.b.title} (${pPhrase(c.p)})`))} differ`;
+  text +=
+    rest === 0
+      ? '.'
+      : `; the other ${rest === 1 ? 'pair shows' : `${String(rest)} pairs show`} no evidence of a difference.`;
+  if (p >= 0.05)
+    text += ` The ${overall} and the comparisons ask different questions, so they can disagree near the threshold.`;
+  if (!adjusted)
+    text +=
+      ' These P values are not adjusted for the number of comparisons, so a “significant” pair is more likely to be chance.';
+  return text;
+}
+
+export function kruskalMethod(r: KruskalWallisResult): string {
+  const c = r.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` Dunn’s multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), ${r.corrected ? 'each P multiplied by the number of comparisons' : 'not adjusted for the number of comparisons'}.`;
+  return `Kruskal-Wallis test (nonparametric, compares ranks), approximate P value (chi-square).${comps}`;
+}
+
+export function kruskalReading(r: KruskalWallisResult): string {
+  const phrase = pPhrase(r.p);
+  const often = howOften(r.p);
+  const k = String(r.groups.length);
+  let text =
+    r.p < 0.05
+      ? `The ${k} groups don’t all have the same distribution (${phrase}): values in at least one tend to be higher or lower than in the others. If all came from the same distribution, ranks at least this far apart would turn up in ${often} like this one.`
+      : `There is no evidence that the ${k} groups differ (${phrase}). If all came from the same distribution, ranks at least this far apart would turn up in ${often}. That doesn’t show the groups are the same; the experiment may be too small to see a difference.`;
+  if (r.groups.reduce((n, g) => n + g.n, 0) <= 7)
+    text +=
+      ' With 7 values or fewer in all, this test can’t give P < 0.05 however different the groups are.';
+  return text + comparisonsText(r.p, 'Dunn’s', r.pairs, r.corrected);
+}
+
 export function oneWayReading(r: OneWayResult): string {
   const p = oneWayP(r);
   const phrase = pPhrase(p);
@@ -150,26 +210,9 @@ export function oneWayReading(r: OneWayResult): string {
     p < 0.05
       ? `The means of the ${k} groups are not all the same (${phrase}): at least one differs from the others. If all groups truly had the same mean, differences at least this large would turn up in ${often} like this one.`
       : `There is no evidence that the means of the ${k} groups differ (${phrase}). If they truly had the same mean, differences at least this large would turn up in ${often}. That doesn’t show the means are the same; the experiment may be too small to see a difference.`;
-  if (r.comparisons.kind !== 'none' && r.pairs.length > 0) {
-    const sig = r.pairs.filter((c) => c.p < 0.05);
+  if (r.comparisons.kind !== 'none') {
     const name = COMPARISON_TEST[r.comparisons.test] ?? r.comparisons.test;
-    if (sig.length === 0) {
-      text += ` ${name} comparisons find no pair that differs after adjusting for the number of comparisons.`;
-      if (p < 0.05)
-        text +=
-          ' That can happen when the difference is spread over several groups rather than between two.';
-    } else {
-      const pairs = sig.map((c) => `${c.a.title} and ${c.b.title} (${pPhrase(c.p)})`);
-      const rest = r.pairs.length - sig.length;
-      text += ` ${name} comparisons: ${joinAnd(pairs)} differ`;
-      text +=
-        rest === 0
-          ? '.'
-          : `; the other ${rest === 1 ? 'pair shows' : `${String(rest)} pairs show`} no evidence of a difference.`;
-      if (p >= 0.05)
-        text +=
-          ' The overall ANOVA and the comparisons ask different questions, so they can disagree near the threshold.';
-    }
+    text += comparisonsText(p, name, r.pairs, true, 'overall ANOVA');
   }
   return text;
 }

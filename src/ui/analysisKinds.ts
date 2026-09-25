@@ -8,6 +8,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   't-test': 't-test',
   'rank-test': 't-test',
   'one-way-anova': 'anova',
+  'kruskal-wallis': 'anova',
 };
 
 /** The test's name for an analysis: "Unpaired t test", "Mann-Whitney test". */
@@ -25,5 +26,7 @@ export function testName(spec: AnalysisSpec): string {
       return spec.options.paired ? 'Wilcoxon test' : 'Mann-Whitney test';
     case 'one-way-anova':
       return spec.options.welch ? 'Welch’s ANOVA' : 'One-way ANOVA';
+    case 'kruskal-wallis':
+      return 'Kruskal-Wallis test';
   }
 }

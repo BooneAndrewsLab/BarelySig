@@ -1,0 +1,42 @@
+{
+  "input": {
+    "g1": [1.1000000000000001, 2.2999999999999998, 1.8999999999999999, 2.7999999999999998],
+    "g2": [2.7999999999999998, 3.5, 2.2000000000000002, 4.0999999999999996, 3.2999999999999998]
+  },
+  "expected": {
+    "k": 2,
+    "n_total": 9,
+    "h": 3.403361344537815,
+    "df": 1,
+    "p": 0.065063706878819641,
+    "groups": [
+      {
+        "n": 4,
+        "median": 2.0999999999999996,
+        "rank_sum": 12.5,
+        "mean_rank": 3.125
+      },
+      {
+        "n": 5,
+        "median": 3.2999999999999998,
+        "rank_sum": 32.5,
+        "mean_rank": 6.5
+      }
+    ],
+    "comparisons": []
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = kt$p.value, groups = lapply(seq_len(k), function(i) {\n                list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                  mean_rank = rs[[i]]/n[i])\n            }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "kruskal(groups_of(g1, g2), comps = \"none\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Two groups: the approximate P of a Mann-Whitney test (without continuity correction).",
+  "options": {
+    "comparisons": "none",
+    "corrected": true
+  }
+}

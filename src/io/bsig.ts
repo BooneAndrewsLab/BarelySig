@@ -29,6 +29,7 @@ import {
   type Comparisons,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
+  type KruskalWallisOptions,
   type OneWayOptions,
   WELCH_ALL,
   WELCH_CONTROL,
@@ -132,6 +133,13 @@ function optionsJson(a: AnalysisSpec): Json {
       return { paired: a.options.paired, tails: a.options.tails, zeros: a.options.zeros };
     case 'one-way-anova':
       return { welch: a.options.welch, comparisons: comparisonsJson(a.options.comparisons) };
+    case 'kruskal-wallis': {
+      const c = a.options.comparisons;
+      return {
+        comparisons: c.kind === 'control' ? { kind: c.kind, control: c.control } : { kind: c.kind },
+        corrected: a.options.corrected,
+      };
+    }
   }
 }
 
@@ -358,6 +366,19 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       const options: OneWayOptions = {
         welch: bool(opts['welch'], q.key('welch')),
         comparisons: comparisons(opts['comparisons'], q.key('comparisons')),
+      };
+      return { kind, options };
+    }
+    case 'kruskal-wallis': {
+      const cp = q.key('comparisons');
+      const c = obj(opts['comparisons'], cp);
+      const ck = oneOf(c['kind'], cp.key('kind'), ['none', 'all', 'control'] as const);
+      const options: KruskalWallisOptions = {
+        comparisons:
+          ck === 'control'
+            ? { kind: ck, control: id(c['control'], cp.key('control')) }
+            : { kind: ck },
+        corrected: bool(opts['corrected'], q.key('corrected')),
       };
       return { kind, options };
     }

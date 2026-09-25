@@ -125,7 +125,7 @@ floating comparison.
   samples are small" but gives no threshold. No reference package
   computes an exact P for more than two groups, and a full enumeration
   gets slow quickly (5 groups of 5 is 6·10¹⁴ shuffles). The exact P is a
-  follow-up issue; it needs its own algorithm and a reference.
+  follow-up (#49); it needs its own algorithm and a reference.
 - Reported: H, P, number of groups, and each group's n, median, sum
   and mean of ranks.
 - **Dunn's test** (Prism's formula): z = |mean rank diff| / √([N(N+1)/12
@@ -369,6 +369,15 @@ n ≥ 8, an empty cell, one value per cell).
   WebR as a one-key object, while jsonlite writes it as a number, so
   reference code unnames. `scripts/oracle/run.sh generate` now formats the
   fixtures with Prettier as it writes them.
+
+### Kruskal-Wallis (#26)
+
+- As designed. The reference is R's `kruskal.test` for H and its P, with
+  Dunn's z written out; the `dunn.test` package (two-sided `altp`) checks
+  both. The exact P is #49. With 7 values or fewer in all the reading
+  says no result can be significant, as Prism's guide does.
+- Uncorrected Dunn's P values say, in the reading, that they aren't
+  adjusted.
 
 ## Decisions made here
 

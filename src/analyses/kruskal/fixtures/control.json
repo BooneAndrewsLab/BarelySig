@@ -1,0 +1,89 @@
+{
+  "input": {
+    "g1": [10.199999999999999, 11.1, 9.8000000000000007, 10.5, 10.9, 10.1],
+    "g2": [11.800000000000001, 12.4, 11.1, 12.9],
+    "g3": [10.800000000000001, 11.5, 10.300000000000001, 11.9, 10.6],
+    "g4": [13.1, 12.199999999999999, 13.800000000000001, 12.9, 13.5, 12.699999999999999, 13]
+  },
+  "expected": {
+    "k": 4,
+    "n_total": 22,
+    "h": 16.30675522894289,
+    "df": 3,
+    "p": 0.00098103635407171619,
+    "groups": [
+      {
+        "n": 6,
+        "median": 10.35,
+        "rank_sum": 28.5,
+        "mean_rank": 4.75
+      },
+      {
+        "n": 4,
+        "median": 12.100000000000001,
+        "rank_sum": 54,
+        "mean_rank": 13.5
+      },
+      {
+        "n": 5,
+        "median": 10.800000000000001,
+        "rank_sum": 41,
+        "mean_rank": 8.1999999999999993
+      },
+      {
+        "n": 7,
+        "median": 13,
+        "rank_sum": 129.5,
+        "mean_rank": 18.5
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -8.75,
+        "z": 2.0886919965955175,
+        "p_unadjusted": 0.03673545776928009,
+        "p": 0.11020637330784028
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -3.4499999999999993,
+        "z": 0.87789809898592064,
+        "p_unadjusted": 0.37999902095030597,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": -13.75,
+        "z": 3.808170600912093,
+        "p_unadjusted": 0.00013999867749853677,
+        "p": 0.00041999603249561032
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = kt$p.value, groups = lapply(seq_len(k), function(i) {\n                list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                  mean_rank = rs[[i]]/n[i])\n            }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "kruskal(groups_of(g1, g2, g3, g4), comps = \"control\", control = 1)",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "dunn.test": "1.4.1"
+      },
+      "code": "{\n    cols <- grep(\"^g[0-9]+$\", ls(), value = TRUE)\n    gs <- lapply(mget(cols[order(as.integer(sub(\"g\", \"\", cols)))]), function(x) x[!is.na(x)])\n    if (!length(expected$comparisons)) \n        return(TRUE)\n    d <- suppressWarnings(capture.output(res <- dunn.test::dunn.test(gs, method = \"bonferroni\", \n        altp = TRUE, kw = FALSE, table = FALSE, list = FALSE)))\n    ok <- TRUE\n    for (c in expected$comparisons) {\n        lab <- c(paste(c$j, \"-\", c$i), paste(c$i, \"-\", c$j))\n        at <- match(lab, res$comparisons)\n        at <- at[!is.na(at)][1]\n        ok <- ok && close(abs(res$Z[at]), c$z) && close(res$altP[at], c$p_unadjusted)\n    }\n    ok && close(expected$h, suppressWarnings(kruskal.test(gs)$statistic))\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Against a control: three comparisons, so each P is multiplied by 3.",
+  "options": {
+    "comparisons": "control",
+    "control": 1,
+    "corrected": true
+  }
+}

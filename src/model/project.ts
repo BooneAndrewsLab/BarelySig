@@ -19,7 +19,8 @@ export type AnalysisSpec =
   | { readonly kind: 'descriptive'; readonly options: DescriptiveOptions }
   | { readonly kind: 't-test'; readonly options: TTestOptions }
   | { readonly kind: 'rank-test'; readonly options: RankTestOptions }
-  | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions };
+  | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
+  | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions };
 
 export type AnalysisKind = AnalysisSpec['kind'];
 
@@ -63,6 +64,16 @@ export interface OneWayOptions {
   readonly comparisons: Comparisons;
 }
 
+/** Kruskal-Wallis with Dunn's comparisons, note 06. */
+export interface KruskalWallisOptions {
+  readonly comparisons:
+    | { readonly kind: 'none' }
+    | { readonly kind: 'all' }
+    | { readonly kind: 'control'; readonly control: Id };
+  /** Dunn's P multiplied by the number of comparisons (Prism's default), or each on its own. */
+  readonly corrected: boolean;
+}
+
 export const DEFAULT_OPTIONS: {
   readonly [K in AnalysisKind]: Extract<AnalysisSpec, { kind: K }>['options'];
 } = {
@@ -70,6 +81,7 @@ export const DEFAULT_OPTIONS: {
   't-test': { paired: false, welch: false, tails: 'two' },
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
+  'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },
 };
 
 /** What an analysis reads: data sets of a table, or another analysis's results. */

@@ -16,6 +16,7 @@ import {
   DEFAULT_OPTIONS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
+  type KruskalWallisOptions,
   type OneWayOptions,
   type RankTestOptions,
   type TTestOptions,
@@ -72,6 +73,12 @@ const KINDS: readonly KindInfo[] = [
     kind: 'one-way-anova',
     name: 'One-way ANOVA',
     blurb: 'Compare the means of three or more groups, then which pairs differ.',
+    tables: ['column'],
+  },
+  {
+    kind: 'kruskal-wallis',
+    name: 'Kruskal-Wallis',
+    blurb: 'Compare three or more groups by ranks, without assuming a bell-shaped distribution.',
     tables: ['column'],
   },
 ];
@@ -411,6 +418,77 @@ function OneWayFields(props: {
   );
 }
 
+function KruskalFields(props: {
+  readonly o: KruskalWallisOptions;
+  readonly groups: readonly { readonly id: Id; readonly title: string }[];
+  readonly set: (o: KruskalWallisOptions) => void;
+}) {
+  const { o, set, groups } = props;
+  const c = o.comparisons;
+  const first = groups[0]?.id ?? ('' as Id);
+  return (
+    <fieldset>
+      <legend>Which groups differ? (Dunn’s multiple comparisons)</legend>
+      <Radio
+        name="goal"
+        checked={c.kind === 'all'}
+        onPick={() => {
+          set({ ...o, comparisons: { kind: 'all' } });
+        }}
+      >
+        Compare every group with every other group
+      </Radio>
+      <Radio
+        name="goal"
+        checked={c.kind === 'control'}
+        onPick={() => {
+          set({ ...o, comparisons: { kind: 'control', control: first } });
+        }}
+      >
+        Compare every group with a control group
+      </Radio>
+      <Radio
+        name="goal"
+        checked={c.kind === 'none'}
+        onPick={() => {
+          set({ ...o, comparisons: { kind: 'none' } });
+        }}
+      >
+        Only the overall test
+      </Radio>
+      {c.kind === 'control' && (
+        <label className="option">
+          Control group{' '}
+          <select
+            value={c.control}
+            onChange={(e) => {
+              set({ ...o, comparisons: { kind: 'control', control: e.currentTarget.value as Id } });
+            }}
+          >
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.title || '(untitled)'}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {c.kind !== 'none' && (
+        <label className="option">
+          <input
+            type="checkbox"
+            checked={o.corrected}
+            onChange={(e) => {
+              set({ ...o, corrected: e.currentTarget.checked });
+            }}
+          />
+          Adjust each P for the number of comparisons (recommended, as Prism)
+        </label>
+      )}
+    </fieldset>
+  );
+}
+
 export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const summary = table.format.kind === 'summary';
   const kinds = KINDS.filter((k) => k.tables.includes(table.type));
@@ -445,6 +523,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         };
       case 'rank-test':
         return { kind, options: options['rank-test'] };
+      case 'kruskal-wallis': {
+        const o = options['kruskal-wallis'];
+        const c = o.comparisons;
+        const control = c.kind === 'control' && !picked.includes(c.control) ? picked[0] : undefined;
+        return {
+          kind,
+          options: control !== undefined ? { ...o, comparisons: { kind: 'control', control } } : o,
+        };
+      }
       case 'one-way-anova': {
         const o = options['one-way-anova'];
         const c = o.comparisons;
@@ -552,6 +639,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             groups={table.dataSets.filter((d) => picked.includes(d.id))}
             set={(o) => {
               set('one-way-anova', o);
+            }}
+          />
+        )}
+        {kind === 'kruskal-wallis' && (
+          <KruskalFields
+            o={options['kruskal-wallis']}
+            groups={table.dataSets.filter((d) => picked.includes(d.id))}
+            set={(o) => {
+              set('kruskal-wallis', o);
             }}
           />
         )}

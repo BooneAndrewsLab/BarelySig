@@ -89,6 +89,18 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
       ),
     })
     .map((o): AnalysisSpec => ({ kind: 'one-way-anova', options: { ...o } })),
+  fc
+    .record({
+      comparisons: fc.oneof(
+        fc.constant({ kind: 'none' as const }),
+        fc.constant({ kind: 'all' as const }),
+        fc
+          .string({ minLength: 1, maxLength: 6 })
+          .map((c) => ({ kind: 'control' as const, control: asId(c) })),
+      ),
+      corrected: fc.boolean(),
+    })
+    .map((o): AnalysisSpec => ({ kind: 'kruskal-wallis', options: { ...o } })),
 );
 
 export type Shape =

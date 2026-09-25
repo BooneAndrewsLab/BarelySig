@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
 import {
+  kruskalMethod,
+  kruskalReading,
   oneWayMethod,
   oneWayReading,
   rankTestMethod,
@@ -179,6 +182,28 @@ describe('one-way ANOVA readings', () => {
     );
     expect(oneWayMethod(w)).toBe(
       'Welch’s and Brown-Forsythe ANOVA, not assuming the groups have the same SD. Dunnett’s T3 multiple comparisons (each group against the control), with P values adjusted for the number of comparisons.',
+    );
+  });
+});
+
+describe('Kruskal-Wallis readings', () => {
+  const g = (title: string, n: number) => ({ id: title, title, n });
+  const r = {
+    groups: [g('WT', 2), g('KO', 2), g('Het', 2)],
+    h: 4.57,
+    df: 2,
+    p: 0.1017,
+    comparisons: { kind: 'all' },
+    corrected: false,
+    pairs: [{ a: { title: 'WT' }, b: { title: 'KO' }, p: 0.03 }],
+  } as unknown as KruskalWallisResult;
+
+  it('warns about tiny samples and unadjusted P values', () => {
+    expect(kruskalReading(r)).toBe(
+      'There is no evidence that the 3 groups differ (P = 0.1017). If all came from the same distribution, ranks at least this far apart would turn up in about 10% of experiments. That doesn’t show the groups are the same; the experiment may be too small to see a difference. With 7 values or fewer in all, this test can’t give P < 0.05 however different the groups are. Dunn’s comparisons: WT and KO (P = 0.0300) differ. The overall test and the comparisons ask different questions, so they can disagree near the threshold. These P values are not adjusted for the number of comparisons, so a “significant” pair is more likely to be chance.',
+    );
+    expect(kruskalMethod(r)).toBe(
+      'Kruskal-Wallis test (nonparametric, compares ranks), approximate P value (chi-square). Dunn’s multiple comparisons (every pair of groups), not adjusted for the number of comparisons.',
     );
   });
 });

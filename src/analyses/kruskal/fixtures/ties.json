@@ -1,0 +1,81 @@
+{
+  "input": {
+    "g1": [1, 2, 2, 3, 3, 3],
+    "g2": [2, 3, 4, 4, 5],
+    "g3": [3, 4, 5, 5, 5, 6]
+  },
+  "expected": {
+    "k": 3,
+    "n_total": 17,
+    "h": 8.7674378748928934,
+    "df": 2,
+    "p": 0.012478864104554406,
+    "groups": [
+      {
+        "n": 6,
+        "median": 2.5,
+        "rank_sum": 28,
+        "mean_rank": 4.666666666666667
+      },
+      {
+        "n": 5,
+        "median": 4,
+        "rank_sum": 46.5,
+        "mean_rank": 9.3000000000000007
+      },
+      {
+        "n": 6,
+        "median": 5,
+        "rank_sum": 78.5,
+        "mean_rank": 13.083333333333334
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -4.6333333333333337,
+        "z": 1.5518259893502968,
+        "p_unadjusted": 0.12070386556263037,
+        "p": 0.36211159668789111
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -8.4166666666666679,
+        "z": 2.9565548862149291,
+        "p_unadjusted": 0.0031109685733980009,
+        "p": 0.0093329057201940024
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": -3.7833333333333332,
+        "z": 1.2671384877068967,
+        "p_unadjusted": 0.20510577576657515,
+        "p": 0.61531732729972544
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = kt$p.value, groups = lapply(seq_len(k), function(i) {\n                list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                  mean_rank = rs[[i]]/n[i])\n            }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "kruskal(groups_of(g1, g2, g3))",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "dunn.test": "1.4.1"
+      },
+      "code": "{\n    cols <- grep(\"^g[0-9]+$\", ls(), value = TRUE)\n    gs <- lapply(mget(cols[order(as.integer(sub(\"g\", \"\", cols)))]), function(x) x[!is.na(x)])\n    if (!length(expected$comparisons)) \n        return(TRUE)\n    d <- suppressWarnings(capture.output(res <- dunn.test::dunn.test(gs, method = \"bonferroni\", \n        altp = TRUE, kw = FALSE, table = FALSE, list = FALSE)))\n    ok <- TRUE\n    for (c in expected$comparisons) {\n        lab <- c(paste(c$j, \"-\", c$i), paste(c$i, \"-\", c$j))\n        at <- match(lab, res$comparisons)\n        at <- at[!is.na(at)][1]\n        ok <- ok && close(abs(res$Z[at]), c$z) && close(res$altP[at], c$p_unadjusted)\n    }\n    ok && close(expected$h, suppressWarnings(kruskal.test(gs)$statistic))\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Ties: H and Dunn's SE both corrected for them.",
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}

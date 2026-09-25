@@ -1,0 +1,111 @@
+{
+  "input": {
+    "g1": [12.1, 13.4, null, 11.800000000000001],
+    "g2": [14.199999999999999, 15.1, 13.9, 16, 14.800000000000001, null, 15.5],
+    "g3": [12.9, null, 13.800000000000001, 14.4, 13.1, 12.699999999999999],
+    "g4": [11.199999999999999, 12]
+  },
+  "expected": {
+    "k": 4,
+    "n_total": 16,
+    "h": 11.545588235294126,
+    "df": 3,
+    "p": 0.0091135267677292606,
+    "groups": [
+      {
+        "n": 3,
+        "median": 12.1,
+        "rank_sum": 14,
+        "mean_rank": 4.666666666666667
+      },
+      {
+        "n": 6,
+        "median": 14.949999999999999,
+        "rank_sum": 79,
+        "mean_rank": 13.166666666666666
+      },
+      {
+        "n": 5,
+        "median": 13.1,
+        "rank_sum": 39,
+        "mean_rank": 7.7999999999999998
+      },
+      {
+        "n": 2,
+        "median": 11.6,
+        "rank_sum": 4,
+        "mean_rank": 2
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -8.5,
+        "z": 2.5248762345905194,
+        "p_unadjusted": 0.011573904213159594,
+        "p": 0.069443425278957555
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -3.1333333333333329,
+        "z": 0.90118386189566013,
+        "p_unadjusted": 0.36749056997826157,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": 2.666666666666667,
+        "z": 0.61357199107789639,
+        "p_unadjusted": 0.53949819681806321,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": 5.3666666666666663,
+        "z": 1.861551592503093,
+        "p_unadjusted": 0.062666321980542325,
+        "p": 0.37599793188325392
+      },
+      {
+        "i": 2,
+        "j": 4,
+        "diff": 11.166666666666666,
+        "z": 2.8726013011370228,
+        "p_unadjusted": 0.0040710753598701297,
+        "p": 0.024426452159220777
+      },
+      {
+        "i": 3,
+        "j": 4,
+        "diff": 5.7999999999999998,
+        "z": 1.4560796912349581,
+        "p_unadjusted": 0.14537059099621055,
+        "p": 0.87222354597726337
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = kt$p.value, groups = lapply(seq_len(k), function(i) {\n                list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                  mean_rank = rs[[i]]/n[i])\n            }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "kruskal(groups_of(g1, g2, g3, g4))",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "dunn.test": "1.4.1"
+      },
+      "code": "{\n    cols <- grep(\"^g[0-9]+$\", ls(), value = TRUE)\n    gs <- lapply(mget(cols[order(as.integer(sub(\"g\", \"\", cols)))]), function(x) x[!is.na(x)])\n    if (!length(expected$comparisons)) \n        return(TRUE)\n    d <- suppressWarnings(capture.output(res <- dunn.test::dunn.test(gs, method = \"bonferroni\", \n        altp = TRUE, kw = FALSE, table = FALSE, list = FALSE)))\n    ok <- TRUE\n    for (c in expected$comparisons) {\n        lab <- c(paste(c$j, \"-\", c$i), paste(c$i, \"-\", c$j))\n        at <- match(lab, res$comparisons)\n        at <- at[!is.na(at)][1]\n        ok <- ok && close(abs(res$Z[at]), c$z) && close(res$altP[at], c$p_unadjusted)\n    }\n    ok && close(expected$h, suppressWarnings(kruskal.test(gs)$statistic))\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}

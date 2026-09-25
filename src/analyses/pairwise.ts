@@ -7,6 +7,7 @@
 import type { Json } from '@/model/json';
 import type { Analysis, AnalysisKind } from '@/model/project';
 
+import type { KruskalWallisResult } from './kruskal/types';
 import type { OneWayResult } from './oneway/types';
 import type { RankTestResult } from './ranktest/types';
 import type { TTestResult } from './ttest/types';
@@ -28,6 +29,7 @@ export const BRACKET_KINDS: ReadonlySet<AnalysisKind> = new Set<AnalysisKind>([
   't-test',
   'rank-test',
   'one-way-anova',
+  'kruskal-wallis',
 ]);
 
 export const gives = (a: Analysis): boolean => BRACKET_KINDS.has(a.kind);
@@ -50,7 +52,8 @@ export function pairsOf(analysis: Analysis): readonly Pair[] {
         ? [{ key: analysis.id, a, b }]
         : [];
     }
-    case 'one-way-anova': {
+    case 'one-way-anova':
+    case 'kruskal-wallis': {
       const c = analysis.options.comparisons;
       if (c.kind === 'none') return [];
       if (c.kind === 'control') {
@@ -75,8 +78,9 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
       const r = value as unknown as TTestResult | RankTestResult;
       return [{ key: analysis.id, a: r.a.id, b: r.b.id, p: r.p }];
     }
-    case 'one-way-anova': {
-      const r = value as unknown as OneWayResult;
+    case 'one-way-anova':
+    case 'kruskal-wallis': {
+      const r = value as unknown as OneWayResult | KruskalWallisResult;
       return r.pairs.map((c) => ({
         key: pairKey(analysis.id, c.a.id, c.b.id),
         a: c.a.id,

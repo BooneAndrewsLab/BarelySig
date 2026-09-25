@@ -1,0 +1,112 @@
+{
+  "input": {
+    "g1": [1, 2, 3, 4],
+    "g2": [1.5, 2.5, 3.5, 4.5],
+    "g3": [1.2, 2.2000000000000002, 3.2000000000000002, 4.2000000000000002],
+    "g4": [10, 11, 12, 13]
+  },
+  "expected": {
+    "k": 4,
+    "n_total": 16,
+    "h": 8.823529411764703,
+    "df": 3,
+    "p": 0.031731542814440156,
+    "groups": [
+      {
+        "n": 4,
+        "median": 2.5,
+        "rank_sum": 22,
+        "mean_rank": 5.5
+      },
+      {
+        "n": 4,
+        "median": 3,
+        "rank_sum": 30,
+        "mean_rank": 7.5
+      },
+      {
+        "n": 4,
+        "median": 2.7000000000000002,
+        "rank_sum": 26,
+        "mean_rank": 6.5
+      },
+      {
+        "n": 4,
+        "median": 11.5,
+        "rank_sum": 58,
+        "mean_rank": 14.5
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -2,
+        "z": 0.59408852578600457,
+        "p_unadjusted": 0.5524529048817779,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -1,
+        "z": 0.29704426289300229,
+        "p_unadjusted": 0.76643271645414568,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": -9,
+        "z": 2.6733983660370204,
+        "p_unadjusted": 0.0075087024856988387,
+        "p": 0.045052214914193034
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": 1,
+        "z": 0.29704426289300229,
+        "p_unadjusted": 0.76643271645414568,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 4,
+        "diff": -7,
+        "z": 2.0793098402510157,
+        "p_unadjusted": 0.037588881261074424,
+        "p": 0.22553328756644653
+      },
+      {
+        "i": 3,
+        "j": 4,
+        "diff": -8,
+        "z": 2.3763541031440183,
+        "p_unadjusted": 0.017484674410521359,
+        "p": 0.10490804646312815
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    groups_of <- function(...) lapply(list(...), function(x) x[!is.na(x)])\n    kruskal <- function(groups, comps = \"all\", control = 1, corrected = TRUE) {\n        k <- length(groups)\n        n <- lengths(groups)\n        y <- unlist(groups)\n        g <- rep(seq_len(k), n)\n        kt <- kruskal.test(groups)\n        r <- rank(y)\n        rs <- tapply(r, g, sum)\n        out <- list(k = k, n_total = length(y), h = unname(kt$statistic), df = unname(kt$parameter), \n            p = kt$p.value, groups = lapply(seq_len(k), function(i) {\n                list(n = n[i], median = median(groups[[i]]), rank_sum = rs[[i]], \n                  mean_rank = rs[[i]]/n[i])\n            }))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            N <- length(y)\n            t <- table(y)\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- rs[[i]]/n[i] - rs[[j]]/n[j]\n                se <- sqrt((N * (N + 1) - sum(t^3 - t)/(N - 1))/12 * (1/n[i] + 1/n[j]))\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "kruskal(groups_of(g1, g2, g3, g4))",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "dunn.test": "1.4.1"
+      },
+      "code": "{\n    cols <- grep(\"^g[0-9]+$\", ls(), value = TRUE)\n    gs <- lapply(mget(cols[order(as.integer(sub(\"g\", \"\", cols)))]), function(x) x[!is.na(x)])\n    if (!length(expected$comparisons)) \n        return(TRUE)\n    d <- suppressWarnings(capture.output(res <- dunn.test::dunn.test(gs, method = \"bonferroni\", \n        altp = TRUE, kw = FALSE, table = FALSE, list = FALSE)))\n    ok <- TRUE\n    for (c in expected$comparisons) {\n        lab <- c(paste(c$j, \"-\", c$i), paste(c$i, \"-\", c$j))\n        at <- match(lab, res$comparisons)\n        at <- at[!is.na(at)][1]\n        ok <- ok && close(abs(res$Z[at]), c$z) && close(res$altP[at], c$p_unadjusted)\n    }\n    ok && close(expected$h, suppressWarnings(kruskal.test(gs)$statistic))\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Six comparisons: a P above 1/6 is capped at 1 (Prism shows > 0.9999).",
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
@@ -443,6 +444,42 @@ describe('results sheets', () => {
         .getByRole('rowheader', { name: 'Treatment (between columns)' })
         .closest('tr'),
     ).toHaveTextContent('F (2, 6) = 7.75P = 0.0217');
+  });
+
+  it('runs a Kruskal-Wallis test with Dunn’s comparisons, capped P shown as Prism does', async () => {
+    const r: KruskalWallisResult = {
+      groups: [
+        { id: 'a', title: 'WT', n: 3, median: 2, rankSum: 7, meanRank: 2.333, dropped: null },
+        { id: 'b', title: 'KO', n: 3, median: 5, rankSum: 14, meanRank: 4.667, dropped: null },
+      ],
+      h: 3.857,
+      df: 1,
+      p: 0.0495,
+      comparisons: { kind: 'all' },
+      corrected: true,
+      pairs: [
+        {
+          a: { id: 'a', title: 'WT' },
+          b: { id: 'b', title: 'KO' },
+          diff: -2.333,
+          z: 1.964,
+          pUnadjusted: 0.0495,
+          p: 1,
+        },
+      ],
+      warnings: [],
+    };
+    answer = () => Promise.resolve(r as unknown as Json);
+    render(<App />);
+    analyze(/Kruskal-Wallis/, ['WT', 'KO']);
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Kruskal-Wallis test of Viability' }),
+    ).toBeInTheDocument();
+    await screen.findByText(/^The 2 groups don’t all have the same distribution \(P = 0\.0495\)/);
+    const mc = screen.getByRole('table', { name: 'Multiple comparisons' });
+    expect(
+      within(mc).getByRole('rowheader', { name: 'WT vs. KO' }).closest('tr'),
+    ).toHaveTextContent('WT vs. KO-2.333Nons> 0.9999');
   });
 
   it('keeps the analysis linked: its table shows it, and it opens its table', async () => {

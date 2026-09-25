@@ -7,6 +7,7 @@
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
@@ -21,6 +22,8 @@ import { store } from '../state/store';
 import { STAR_SCHEME, dfText, interval, levelText, pPhrase, pValue, sig, stars } from './format';
 import {
   COMPARISON_TEST,
+  kruskalMethod,
+  kruskalReading,
   oneWayMethod,
   oneWayReading,
   rankTestMethod,
@@ -318,6 +321,91 @@ function fSection(title: string, name: string, f: FTest, question: string): Sect
       [question, yesNo(f.p)],
     ],
   ];
+}
+
+function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
+  const sections: Section[] = [
+    [
+      'Kruskal-Wallis test',
+      [
+        ['P value', pValue(r.p)],
+        ['Exact or approximate P value?', 'Approximate'],
+        ['P value summary', stars(r.p)],
+        ['Do the medians vary significantly (P < 0.05)?', yesNo(r.p)],
+        ['Number of groups', String(r.groups.length)],
+        ['Kruskal-Wallis statistic', sig(r.h)],
+      ],
+    ],
+  ];
+  const adjusted = r.corrected;
+  return (
+    <>
+      <p className="reading">{kruskalReading(r)}</p>
+      <p className="method">{kruskalMethod(r)}</p>
+      <Sections sections={sections} />
+      <Grid
+        label="Data summary"
+        head={['Data summary', 'n', 'Median', 'Sum of ranks', 'Mean rank']}
+        rows={r.groups.map((g) => [
+          `${g.title}${droppedText(g.dropped)}`,
+          String(g.n),
+          sig(g.median),
+          sig(g.rankSum),
+          sig(g.meanRank),
+        ])}
+      />
+      {r.pairs.length > 0 && (
+        <>
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
+              'Mean rank diff.',
+              'Significant?',
+              'Summary',
+              adjusted ? 'Adjusted P value' : 'Individual P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+          <Grid
+            label="Test details"
+            head={[
+              'Test details',
+              'Mean rank 1',
+              'Mean rank 2',
+              'Mean rank diff.',
+              'n1',
+              'n2',
+              'Z',
+            ]}
+            rows={r.pairs.map((x) => {
+              const g1 = r.groups.find((g) => g.id === x.a.id);
+              const g2 = r.groups.find((g) => g.id === x.b.id);
+              return [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(g1?.meanRank ?? null),
+                sig(g2?.meanRank ?? null),
+                sig(x.diff),
+                String(g1?.n ?? ''),
+                String(g2?.n ?? ''),
+                sig(x.z),
+              ];
+            })}
+          />
+        </>
+      )}
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals. The Kruskal-Wallis P is
+        approximate (chi-square), which is accurate except with very small groups.
+      </p>
+    </>
+  );
 }
 
 function OneWayView({ r }: { readonly r: OneWayResult }) {
@@ -644,6 +732,9 @@ export function ResultsSheet({ project, analysis }: Props) {
         <Status analysis={analysis} />
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} />
+        )}
+        {value !== null && analysis.kind === 'kruskal-wallis' && (
+          <KruskalView r={value as unknown as KruskalWallisResult} />
         )}
         {value !== null && analysis.kind === 'one-way-anova' && (
           <OneWayView r={value as unknown as OneWayResult} />
