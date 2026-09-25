@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
 import { applyEdit } from '@/model/edits';
 import type { Json } from '@/model/json';
 import { GRAPH_DEFAULTS, createProject } from '@/model/project';
@@ -13,10 +13,10 @@ import { App } from '../App';
 import { ResultsBridge, setResults } from '../state/results';
 import { project, store } from '../state/store';
 
-function summaryOf(job: Job): DescriptiveResult {
+function summaryOf(job: Job): GraphSummaryResult {
   const ds = job.analysis.input.kind === 'table' ? job.analysis.input.dataSets : [];
   return {
-    groups: ds.map((id, i) => ({
+    cells: ds.map((id, i) => ({
       id,
       title: `G${String(i)}`,
       from: 'values',
@@ -36,6 +36,8 @@ function summaryOf(job: Job): DescriptiveResult {
       cv: 50,
       geomean: 2,
       sum: 4,
+      whiskers: { low: 1, high: 4 + i, beyond: [] },
+      kde: { bw: 1, y: [1, 2.5, 4 + i], density: [0.1, 0.3, 0.1] },
     })),
     warnings: [],
   };
@@ -100,6 +102,37 @@ describe('graph sheet', () => {
     expect(svg()?.querySelectorAll('[data-role="frame"]')).toHaveLength(0);
     const g = [...project(store.getState()).graphs.values()][0];
     expect(g?.plot).toEqual({ kind: 'dots', center: 'mean', error: 'none' });
+  });
+
+  it('draws box and violin plots, with their own settings and no error bars', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    await screen.findByRole('img', { name: /Bars/ });
+    fireEvent.click(screen.getByRole('radio', { name: 'Box and whiskers' }));
+    await screen.findByRole('img', { name: /Boxes: median and quartiles; whiskers: min to max/ });
+    expect(svg()?.querySelectorAll('[data-role="box"]')).toHaveLength(2);
+    expect(screen.queryByRole('combobox', { name: 'Error bars' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Whiskers' }), {
+      target: { value: 'tukey' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Points' }), {
+      target: { value: 'outliers' },
+    });
+    expect([...project(store.getState()).graphs.values()][0]?.plot).toEqual({
+      kind: 'box',
+      whiskers: 'tukey',
+      points: 'outliers',
+    });
+    fireEvent.click(screen.getByRole('radio', { name: 'Violin' }));
+    await screen.findByRole('img', { name: /Violins: distribution/ });
+    expect(svg()?.querySelectorAll('[data-role="violin"]')).toHaveLength(2);
+    expect(screen.getByText(/Bandwidths: /)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Bars' }));
+    expect([...project(store.getState()).graphs.values()][0]?.plot).toEqual({
+      kind: 'bars',
+      error: 'sd',
+      points: true,
+    });
   });
 
   it('resizes the figure in millimetres', async () => {

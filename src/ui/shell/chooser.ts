@@ -3,7 +3,7 @@
  * the reason in words. Pure, so every path is tested; the dialog asks the
  * questions and fills itself with the answer.
  */
-import { type AnalysisSpec, DEFAULT_OPTIONS } from '@/model/project';
+import { DEFAULT_OPTIONS, type UserAnalysisSpec } from '@/model/project';
 import type { TableType } from '@/model/table';
 
 export interface ChooserAnswers {
@@ -24,7 +24,7 @@ export interface ChooserContext {
 export type Suggestion =
   | {
       readonly kind: 'test';
-      readonly spec: AnalysisSpec;
+      readonly spec: UserAnalysisSpec;
       readonly name: string;
       readonly why: string;
     }

@@ -4,10 +4,10 @@
  * error bars (a virtual descriptive analysis run by R), and the brackets
  * of the comparisons it draws.
  */
-import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
 import { comparisons, gives, pairsOf } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
-import type { Analysis, Graph, Project } from '@/model/project';
+import type { Analysis, Graph, GraphSummaryOptions, Project } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
 import { columnGroup } from '@/model/selectors';
 import type { ColumnTable, DataSet } from '@/model/table';
@@ -42,15 +42,24 @@ export function plotted(
   return graph.dataSets.flatMap((id) => all.filter((x) => x.ds.id === id));
 }
 
-/** The descriptive analysis behind a graph's bars and error bars. */
+/** The statistics a graph's plot needs from R (note 07). */
+export function summaryOptions(graph: Graph): GraphSummaryOptions {
+  const p = graph.plot;
+  return {
+    whiskers: p.kind === 'box' ? p.whiskers : null,
+    kde: p.kind === 'violin' ? { adjust: p.smoothing, log: graph.format.yScale === 'log10' } : null,
+  };
+}
+
+/** The analysis behind a graph's bars, error bars, boxes and violins. */
 export function summaryAnalysis(project: Project, graph: Graph): Analysis | null {
   const table = graphTable(project, graph);
   if (!table) return null;
   return {
     id: summaryId(graph.id),
     title: `Summary of ${graph.title}`,
-    kind: 'descriptive',
-    options: {},
+    kind: 'graph-summary',
+    options: summaryOptions(graph),
     input: { kind: 'table', table: table.id, dataSets: plotted(table, graph).map((x) => x.ds.id) },
   };
 }
@@ -94,10 +103,10 @@ export function graphInput(
     };
   const sets = plotted(table, graph);
   const summaryEntry = result(summaryId(graph.id));
-  const summary = summaryEntry?.ok ? (summaryEntry.value as unknown as DescriptiveResult) : null;
+  const summary = summaryEntry?.ok ? (summaryEntry.value as unknown as GraphSummaryResult) : null;
   const groups: GroupInput[] = sets.map(({ ds, index }) => {
     const data = columnGroup(table, ds.id);
-    const s = summary?.groups.find((g) => g.id === ds.id);
+    const s = summary?.cells.find((g) => g.id === ds.id);
     return {
       id: ds.id,
       title: ds.title,
@@ -115,6 +124,10 @@ export function graphInput(
             ciUpper: s.ciUpper,
             min: s.min,
             max: s.max,
+            q1: s.q1,
+            q3: s.q3,
+            whiskers: s.whiskers,
+            kde: s.kde,
           }
         : null,
     };

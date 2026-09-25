@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
-import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
 import { graphInput, summaryId } from '@/graphs/data';
 import { exportSvg } from '@/graphs/export';
 import { layoutColumn } from '@/graphs/layout';
@@ -68,8 +68,8 @@ function setup() {
     ...GRAPH_DEFAULTS,
   };
   p = applyEdit(p, { op: 'addGraph', graph });
-  const summary: DescriptiveResult = {
-    groups: [wt, ko].map((d, i) => ({
+  const summary: GraphSummaryResult = {
+    cells: [wt, ko].map((d, i) => ({
       id: d.id,
       title: d.title,
       from: 'values',
@@ -89,6 +89,8 @@ function setup() {
       cv: null,
       geomean: null,
       sum: null,
+      whiskers: null,
+      kde: null,
     })),
     warnings: [],
   };

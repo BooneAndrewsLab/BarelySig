@@ -220,7 +220,7 @@ describe('opening an exported figure', () => {
     const results = new Map([
       [
         summaryId(graph.id),
-        { inputHash: hash, ok: true as const, value: { groups: [], warnings: [] } },
+        { inputHash: hash, ok: true as const, value: { cells: [], warnings: [] } },
       ],
     ]);
     const recipe = recipeText(p, graph, results, bridge.info, '0.5.0');

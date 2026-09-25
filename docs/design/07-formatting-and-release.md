@@ -311,6 +311,24 @@ each application's documented clipboard format.
   new field (9 graphs in 200 sessions); graphs are now generated four
   times as often, and dropping a field is caught every run.
 
+### Box and violin plots (#31)
+
+- As designed; `graph-summary` replaces the descriptive run behind every
+  graph (bars and dots read the same numbers from it). Its fixtures check
+  whiskers, quartiles, bandwidths and the KDE against written-out
+  references, and `density()` roughly, since its FFT binning is
+  approximate.
+- WebR's conversion unboxes a list of one value that jsonlite keeps as a
+  list (the oracle marks such lists `I()`); the parity test follows the
+  fixture's shape there.
+- The layout found two older faults while growing its property test:
+  the last bracket pass laid out at a top margin it had just raised (the
+  labels ran off the page), and in Classic the top bracket crossed the
+  frame. Brackets now stay inside a boxed frame by raising the axis, as
+  Prism does, and fall back to a taller top margin when raising doesn't
+  help (the data sits low). Brackets dragged so high that no room can be
+  made stop at the top of the figure.
+
 ## Decisions made here
 
 1. **Overrides in `GraphFormat`, style as a flat record over a fixed

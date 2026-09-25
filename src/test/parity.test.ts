@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RObject, WebR } from 'webr';
 
-import { fromR, type RJs } from '@/engine/convert';
+import { type Plain, fromR, type RJs } from '@/engine/convert';
 import { ENGINE } from '@/engine/engineInfo';
 
 import { type Fixture, loadFixtures, mismatches } from './fixtures';
@@ -25,6 +25,29 @@ const referencePackages = (f: Fixture) =>
   Object.keys(f.reference.packages).filter((p) => p !== 'stats');
 const inWebR = (f: Fixture) => referencePackages(f).every((p) => p in ENGINE.packages);
 const runnable = fixtures.filter(inWebR);
+
+/**
+ * WebR's conversion unboxes every vector of one element; jsonlite keeps
+ * one the oracle marked `I()` (a list that happens to hold one value) as
+ * a list. Where the fixture has a list, a lone number becomes a list of it.
+ */
+function asListed(actual: Plain, expected: Plain): Plain {
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual)) return actual === null ? actual : [actual];
+    return actual.map((x, i) => asListed(x, expected[i] ?? null));
+  }
+  if (
+    expected !== null &&
+    typeof expected === 'object' &&
+    actual !== null &&
+    typeof actual === 'object' &&
+    !Array.isArray(actual)
+  )
+    return Object.fromEntries(
+      Object.entries(actual).map(([k, v]) => [k, asListed(v, expected[k] ?? null)]),
+    );
+  return actual;
+}
 
 describe('engine parity with desktop R', () => {
   let webR: WebR;
@@ -69,7 +92,7 @@ describe('engine parity with desktop R', () => {
         for (const p of packages) await shelter.evalR(`library(${p})`, { env });
         if (f.reference.setup !== undefined) await shelter.evalR(f.reference.setup, { env });
         const result = await shelter.evalR(f.reference.call, { env });
-        const actual = fromR((await result.toJs()) as RJs);
+        const actual = asListed(fromR((await result.toJs()) as RJs), f.expected);
         expect(mismatches(actual, f.expected, f.tolerance)).toEqual([]);
       } finally {
         await shelter.purge();

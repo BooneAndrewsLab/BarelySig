@@ -10,7 +10,14 @@ import { graphTable } from '@/graphs/data';
 import type { ElementId } from '@/graphs/hit';
 import { COLORBLIND, paletteColor } from '@/graphs/palette';
 import { graphTheme } from '@/graphs/themes';
-import type { ErrorBar, Graph, PointSymbol, Project, StyleNumber } from '@/model/project';
+import {
+  type ErrorBar,
+  type Graph,
+  type PointSymbol,
+  type Project,
+  type StyleNumber,
+  hasErrorBars,
+} from '@/model/project';
 
 import { store } from '../state/store';
 import {
@@ -118,6 +125,7 @@ const pct = (v: number) => Math.round(v * 100);
 
 export function Inspector({ project, graph, element, onDone }: Props) {
   const theme = graphTheme(graph.theme, graph.format.style);
+  const { plot } = graph;
   const set = (g: Graph) => {
     store.edit({ op: 'setGraph', graph: g });
   };
@@ -329,24 +337,26 @@ export function Inspector({ project, graph, element, onDone }: Props) {
       body = (
         <fieldset>
           <legend>Error bars</legend>
-          <label className="field inspector-field wide">
-            <span>Show</span>
-            <select
-              value={graph.plot.error}
-              onChange={(e) => {
-                set({
-                  ...graph,
-                  plot: { ...graph.plot, error: e.currentTarget.value as ErrorBar },
-                });
-              }}
-            >
-              {ERRORS.map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {hasErrorBars(plot) && (
+            <label className="field inspector-field wide">
+              <span>Show</span>
+              <select
+                value={plot.error}
+                onChange={(e) => {
+                  set({
+                    ...graph,
+                    plot: { ...plot, error: e.currentTarget.value as ErrorBar },
+                  });
+                }}
+              >
+                {ERRORS.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {style('lines.error', 'Line width', theme.lines.error)}
           {percent('capWidth', 'Cap width (of the bar)', theme.capWidth, 200)}
         </fieldset>
@@ -405,9 +415,13 @@ export function Inspector({ project, graph, element, onDone }: Props) {
           )}
           <fieldset>
             <legend>All data sets</legend>
-            {graph.plot.kind === 'bars' && (
+            {plot.kind !== 'dots' && (
               <>
-                {percent('barWidth', 'Bar width', theme.barWidth)}
+                {percent(
+                  'barWidth',
+                  plot.kind === 'bars' ? 'Bar width' : 'Box width',
+                  theme.barWidth,
+                )}
                 {percent('barLighten', 'Fill lightness', theme.barLighten)}
                 {style('lines.barEdge', 'Bar edge width', theme.lines.barEdge)}
               </>

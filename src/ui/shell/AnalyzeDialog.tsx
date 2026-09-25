@@ -9,6 +9,8 @@ import { type Id, newId } from '@/model/ids';
 import {
   type Analysis,
   type AnalysisKind,
+  type UserAnalysisKind,
+  type UserAnalysisSpec,
   type AnalysisSpec,
   type AllPairsTest,
   type Comparisons,
@@ -45,7 +47,7 @@ interface Props {
 }
 
 interface KindInfo {
-  readonly kind: AnalysisKind;
+  readonly kind: UserAnalysisKind;
   readonly name: string;
   readonly blurb: string;
   readonly tables: readonly TableType[];
@@ -633,7 +635,7 @@ function TwoWayFields(props: {
 function Chooser(props: {
   readonly table: Table;
   readonly picked: readonly Id[];
-  readonly onUse: (spec: AnalysisSpec) => void;
+  readonly onUse: (spec: UserAnalysisSpec) => void;
 }) {
   const [answers, setAnswers] = useState<ChooserAnswers>({ matched: null, gaussian: null });
   const { table } = props;
@@ -739,7 +741,9 @@ function Chooser(props: {
 export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const summary = table.format.kind === 'summary';
   const kinds = KINDS.filter((k) => k.tables.includes(table.type));
-  const [kind, setKind] = useState<AnalysisKind>(analysis?.kind ?? 'descriptive');
+  const [kind, setKind] = useState<UserAnalysisKind>(
+    analysis && analysis.kind !== 'graph-summary' ? analysis.kind : 'descriptive',
+  );
   const [choosing, setChoosing] = useState(false);
   const [chosen, setChosen] = useState<readonly Id[]>(
     analysis?.input.kind === 'table' ? analysis.input.dataSets : table.dataSets.map((d) => d.id),
@@ -756,7 +760,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     setOptions((cur) => ({ ...cur, [k]: o }));
   };
 
-  const pickKind = (k: AnalysisKind) => {
+  const pickKind = (k: UserAnalysisKind) => {
     setChoosing(false);
     setKind(k);
     // A test of two groups starts with the first two chosen.

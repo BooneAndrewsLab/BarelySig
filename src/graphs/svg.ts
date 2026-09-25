@@ -4,7 +4,7 @@
  * format, fixed attribute order), plain SVG 1.1 that Illustrator and
  * Inkscape read: no filters, masks or CSS beyond an optional @font-face.
  */
-import type { Mark, Scene } from './scene';
+import type { Mark, Scene, Stroke } from './scene';
 
 export interface SvgOptions {
   /** Physical size attributes (width="70mm"); off for on-screen use, where CSS sizes it. */
@@ -25,8 +25,10 @@ const num = (v: number): string => {
 export const escapeXml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function stroke(line: { stroke: string; width: number } | undefined): string {
-  return line ? ` stroke="${line.stroke}" stroke-width="${num(line.width)}"` : '';
+function stroke(line: Stroke | undefined): string {
+  if (!line) return '';
+  const dash = line.dash === undefined ? '' : ` stroke-dasharray="${line.dash}"`;
+  return ` stroke="${line.stroke}" stroke-width="${num(line.width)}"${dash}`;
 }
 
 const tag = (m: Mark): string =>

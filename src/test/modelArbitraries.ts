@@ -468,17 +468,30 @@ export function resolve(p: Project, s: Shape): Edit | null {
                   ),
                 ],
           plot:
-            s.v % 3 === 0
+            s.v % 11 === 3
               ? {
-                  kind: 'dots',
-                  center: s.v % 5 === 0 ? 'median' : 'mean',
-                  error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                  kind: 'box',
+                  whiskers:
+                    (['min-max', 'tukey', 'p10-90', 'p2.5-97.5'] as const)[s.v % 4] ?? 'tukey',
+                  points: (['none', 'outliers', 'all'] as const)[s.v % 3] ?? 'all',
                 }
-              : {
-                  kind: 'bars',
-                  error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
-                  points: s.v % 7 !== 0,
-                },
+              : s.v % 11 === 5
+                ? {
+                    kind: 'violin',
+                    inner: (['quartiles', 'box', 'points', 'none'] as const)[s.v % 4] ?? 'none',
+                    smoothing: 0.5 + (s.v % 4) * 0.25,
+                  }
+                : s.v % 3 === 0
+                  ? {
+                      kind: 'dots',
+                      center: s.v % 5 === 0 ? 'median' : 'mean',
+                      error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                    }
+                  : {
+                      kind: 'bars',
+                      error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                      points: s.v % 7 !== 0,
+                    },
           size: { width: 20 + (s.v % 160), height: 20 + ((s.v * 7) % 120) + 0.5 },
           theme:
             s.v % 4 === 0

@@ -48,6 +48,7 @@ import {
   TWO_WAY_FAMILIES,
   type TTestOptions,
   type TwoWayOptions,
+  WHISKERS,
 } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
 import {
@@ -134,6 +135,9 @@ function optionsJson(a: AnalysisSpec): Json {
     case 'descriptive':
     case 'normality':
       return {};
+    case 'graph-summary':
+      // Never in a project: graphs' summaries are made from the graph (note 07).
+      return { whiskers: a.options.whiskers, kde: a.options.kde && { ...a.options.kde } };
     case 't-test':
       return { paired: a.options.paired, welch: a.options.welch, tails: a.options.tails };
     case 'rank-test':
@@ -185,6 +189,19 @@ function sortedRecord<V extends Json>(r: Readonly<Record<string, V>>): Json {
   return out;
 }
 
+function plotJson(plot: ColumnPlot): Json {
+  switch (plot.kind) {
+    case 'bars':
+      return { kind: 'bars', error: plot.error, points: plot.points };
+    case 'dots':
+      return { kind: 'dots', center: plot.center, error: plot.error };
+    case 'box':
+      return { kind: 'box', whiskers: plot.whiskers, points: plot.points };
+    case 'violin':
+      return { kind: 'violin', inner: plot.inner, smoothing: plot.smoothing };
+  }
+}
+
 function graphJson(g: Graph): Json {
   const source: Json =
     g.source.kind === 'table'
@@ -214,10 +231,7 @@ function graphJson(g: Graph): Json {
     source,
     dataSets: g.dataSets,
     analyses: g.analyses,
-    plot:
-      g.plot.kind === 'bars'
-        ? { kind: 'bars', error: g.plot.error, points: g.plot.points }
-        : { kind: 'dots', center: g.plot.center, error: g.plot.error },
+    plot: plotJson(g.plot),
     size: { width: g.size.width, height: g.size.height },
     theme:
       g.theme.kind === 'named'
@@ -504,11 +518,36 @@ function oneOf<T extends string>(v: Json | undefined, p: Path, options: readonly
 
 function plot(v: Json | undefined, p: Path): ColumnPlot {
   const o = obj(v, p);
-  const kind = oneOf(o['kind'], p.key('kind'), ['bars', 'dots'] as const);
-  const error = oneOf(o['error'], p.key('error'), ERROR_BARS);
-  return kind === 'bars'
-    ? { kind, error, points: bool(o['points'], p.key('points')) }
-    : { kind, error, center: oneOf(o['center'], p.key('center'), ['mean', 'median'] as const) };
+  const kind = oneOf(o['kind'], p.key('kind'), ['bars', 'dots', 'box', 'violin'] as const);
+  switch (kind) {
+    case 'bars':
+      return {
+        kind,
+        error: oneOf(o['error'], p.key('error'), ERROR_BARS),
+        points: bool(o['points'], p.key('points')),
+      };
+    case 'dots':
+      return {
+        kind,
+        error: oneOf(o['error'], p.key('error'), ERROR_BARS),
+        center: oneOf(o['center'], p.key('center'), ['mean', 'median'] as const),
+      };
+    case 'box':
+      return {
+        kind,
+        whiskers: oneOf(o['whiskers'], p.key('whiskers'), WHISKERS),
+        points: oneOf(o['points'], p.key('points'), ['none', 'outliers', 'all'] as const),
+      };
+    case 'violin': {
+      const smoothing = num(o['smoothing'], p.key('smoothing'));
+      if (!(smoothing > 0)) p.key('smoothing').fail('should be above 0');
+      return {
+        kind,
+        inner: oneOf(o['inner'], p.key('inner'), ['quartiles', 'box', 'points', 'none'] as const),
+        smoothing,
+      };
+    }
+  }
 }
 
 function angle(v: Json | undefined, p: Path): 45 | 90 {

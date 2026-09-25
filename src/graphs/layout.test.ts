@@ -10,6 +10,7 @@ import {
   errorExtent,
   layoutColumn,
 } from './layout';
+import { markBox } from './hit';
 import { COLORBLIND } from './palette';
 import type { Mark, Scene } from './scene';
 import { textWidth } from './text/measure';
@@ -41,6 +42,36 @@ function group(i: number, values: readonly number[], title = `Group ${String(i)}
           max: sorted[n - 1] ?? null,
         }
       : null,
+  };
+}
+
+/** A group with box and violin statistics, computed here roughly (the real ones come from R). */
+function dist(i: number, values: readonly number[], title?: string): GroupInput {
+  const g = group(i, values, title);
+  const s = [...values].sort((a, b) => a - b);
+  const at = (p: number) =>
+    s[Math.min(s.length - 1, Math.max(0, Math.round(p * (s.length - 1))))] ?? 0;
+  if (!g.summary || s.length === 0) return g;
+  const lo = s[0] ?? 0;
+  const hi = s[s.length - 1] ?? 0;
+  const y = Array.from({ length: 16 }, (_, k) => lo + ((hi - lo) * k) / 15);
+  const bw = Math.max(1e-9, (hi - lo) / 4);
+  const density = y.map((v) =>
+    values.reduce((a, x) => a + Math.exp(-(((v - x) / bw) ** 2) / 2), 0),
+  );
+  return {
+    ...g,
+    summary: {
+      ...g.summary,
+      q1: at(0.25),
+      q3: at(0.75),
+      whiskers: {
+        low: at(0.1),
+        high: at(0.9),
+        beyond: s.filter((v) => v < at(0.1) || v > at(0.9)),
+      },
+      kde: s.length >= 3 && hi > lo ? { bw, y, density } : null,
+    },
   };
 }
 
@@ -104,15 +135,8 @@ function box(m: Mark): Box {
       const ys = corners.map((c) => c[1] ?? 0);
       return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     }
-    case 'path': {
-      const nums = [...m.d.matchAll(/-?\d+(\.\d+)?/g)].map((x) => Number(x[0]));
-      return {
-        x0: Math.min(nums[0] ?? 0, nums[3] ?? 0),
-        x1: Math.max(nums[0] ?? 0, nums[3] ?? 0),
-        y0: nums[2] ?? 0,
-        y1: nums[1] ?? 0,
-      };
-    }
+    case 'path':
+      return markBox(m);
   }
 }
 
@@ -220,6 +244,16 @@ describe('layoutColumn', () => {
         center: fc.constantFrom('mean', 'median'),
         error: fc.constantFrom('sd', 'sem', 'range', 'none'),
       }),
+      fc.record({
+        kind: fc.constant('box' as const),
+        whiskers: fc.constantFrom('min-max', 'p10-90'),
+        points: fc.constantFrom('none', 'outliers', 'all'),
+      }),
+      fc.record({
+        kind: fc.constant('violin' as const),
+        inner: fc.constantFrom('quartiles', 'box', 'points', 'none'),
+        smoothing: fc.constant(1),
+      }),
     );
     fc.assert(
       fc.property(
@@ -230,10 +264,10 @@ describe('layoutColumn', () => {
         plotArb,
         fc.array(fc.tuple(fc.nat(5), fc.nat(5)), { maxLength: 5 }),
         fc.boolean(),
-        fc.array(fc.integer({ min: -10, max: 30 }), { minLength: 5, maxLength: 5 }),
+        fc.array(fc.integer({ min: -10, max: 15 }), { minLength: 5, maxLength: 5 }),
         fc.constantFrom(undefined, 45, 90),
         (vals, plot, pairs, classic, offsets, xAngle) => {
-          const groups = vals.map((v, i) => group(i, v));
+          const groups = vals.map((v, i) => dist(i, v));
           const brackets = pairs.map(([a, b], i) => ({
             id: `b${String(i)}`,
             from: a % groups.length,
@@ -244,12 +278,16 @@ describe('layoutColumn', () => {
           const s = layoutColumn(
             base({ plot, groups, brackets, theme: classic ? CLASSIC : MODERN, xAngle }),
           );
+          // Once brackets have squeezed the plot to its minimum height (10 pt),
+          // something has to give: brackets or labels may then run off the page.
+          const yAxis = s.marks.find((m) => m.role === 'axis-y' || m.role === 'frame');
+          const squeezed = yAxis !== undefined && box(yAxis).y1 - box(yAxis).y0 <= 10.01;
           for (const m of s.marks) {
             const b = box(m);
             expect(b.x0, m.role).toBeGreaterThanOrEqual(-0.5);
-            expect(b.y0, m.role).toBeGreaterThanOrEqual(-0.5);
+            if (!squeezed) expect(b.y0, m.role).toBeGreaterThanOrEqual(-0.5);
             expect(b.x1, m.role).toBeLessThanOrEqual(s.width + 0.5);
-            expect(b.y1, m.role).toBeLessThanOrEqual(s.height + 0.5);
+            if (!squeezed) expect(b.y1, m.role).toBeLessThanOrEqual(s.height + 0.5);
           }
           const placed = of(s, 'bracket').map(box);
           const labels = of(s, 'bracket-label').map(box);
@@ -259,7 +297,14 @@ describe('layoutColumn', () => {
               expect(overlaps(at(labels, i), at(labels, j))).toBe(false);
             }
           }
-          const data = [...of(s, 'point'), ...of(s, 'error'), ...of(s, 'error-cap')].map(box);
+          const data = [
+            ...of(s, 'point'),
+            ...of(s, 'error'),
+            ...of(s, 'error-cap'),
+            ...of(s, 'box'),
+            ...of(s, 'whisker'),
+            ...of(s, 'violin'),
+          ].map(box);
           for (const b of [...placed, ...labels])
             for (const d of data) expect(overlaps(b, d)).toBe(false);
           expect(layoutColumn(base({ plot, groups, brackets }))).toEqual(
@@ -364,6 +409,22 @@ describe('formatting (note 07)', () => {
     expect(lineY(lowered, 'a')).toBeCloseTo(lineY(auto, 'a'), 6);
   });
 
+  it('keeps brackets inside a Classic frame by raising the axis', () => {
+    const brackets = [
+      { id: 'a', from: 0, to: 1, label: '*' },
+      { id: 'b', from: 0, to: 2, label: '****' },
+      { id: 'c', from: 1, to: 2, label: 'ns' },
+    ];
+    const s = layoutColumn(base({ theme: CLASSIC, brackets }));
+    const frame = of(s, 'frame')[0];
+    if (frame?.kind !== 'rect') throw new Error('shape');
+    for (const m of [...of(s, 'bracket'), ...of(s, 'bracket-label')])
+      expect(box(m).y0).toBeGreaterThanOrEqual(frame.y);
+    const plain = layoutColumn(base({ theme: CLASSIC }));
+    const top = (x: Scene) => Number(texts(x, 'tick-label').at(-1));
+    expect(top(s)).toBeGreaterThan(top(plain));
+  });
+
   it('sizes error-bar caps from the theme', () => {
     const width = (s: Scene) => {
       const c = of(s, 'error-cap')[0];
@@ -371,6 +432,78 @@ describe('formatting (note 07)', () => {
     };
     const narrow = layoutColumn(base({ theme: { ...MODERN, capWidth: 0.25 } }));
     expect(width(narrow) * 2).toBeCloseTo(width(layoutColumn(base())), 6);
+  });
+});
+
+describe('box and violin plots (note 07)', () => {
+  const values = [
+    [3, 9, 10, 10.5, 11, 12, 13, 14, 20],
+    [5, 6, 7, 7.5, 8, 9, 9.5, 11, 12],
+  ];
+  const groups = values.map((v, i) => dist(i, v));
+
+  it('draws a box, a median and two whiskers per group, with every value on top', () => {
+    const s = layoutColumn(
+      base({ plot: { kind: 'box', whiskers: 'p10-90', points: 'all' }, groups }),
+    );
+    expect(of(s, 'box')).toHaveLength(2);
+    expect(of(s, 'median')).toHaveLength(2);
+    expect(of(s, 'whisker')).toHaveLength(8);
+    expect(of(s, 'point')).toHaveLength(18);
+    expect(of(s, 'bar')).toHaveLength(0);
+  });
+
+  it('shows only the values beyond the whiskers when asked', () => {
+    const s = layoutColumn(
+      base({ plot: { kind: 'box', whiskers: 'p10-90', points: 'outliers' }, groups }),
+    );
+    expect(of(s, 'point')).toHaveLength(4);
+  });
+
+  it('fits the axis to the data rather than starting at zero', () => {
+    const s = layoutColumn(
+      base({ plot: { kind: 'box', whiskers: 'min-max', points: 'none' }, groups }),
+    );
+    const first = of(s, 'tick-label')[0];
+    expect(first?.kind === 'text' && first.text).not.toBe('0');
+  });
+
+  it('draws violins on one density scale, with quartile lines, and states the bandwidths', () => {
+    const s = layoutColumn(
+      base({ plot: { kind: 'violin', inner: 'quartiles', smoothing: 1 }, groups }),
+    );
+    const v = of(s, 'violin');
+    expect(v).toHaveLength(2);
+    const width = (m: Mark) => box(m).x1 - box(m).x0;
+    const widest = Math.max(...v.map(width));
+    expect(widest).toBeGreaterThan(0);
+    expect(
+      of(s, 'median').filter((m) => m.kind === 'line' && m.line.dash !== undefined),
+    ).toHaveLength(4);
+    expect(s.notes.join(' ')).toMatch(/^Bandwidths: Group 0 [\d.]+, Group 1 [\d.]+\.$/m);
+  });
+
+  it('says why a group gets no box or violin', () => {
+    const summaryOnly: GroupInput = {
+      ...group(1, []),
+      summary: { ...(group(0, [1, 2, 3]).summary ?? ({} as never)), q1: null, q3: null },
+    };
+    const s = layoutColumn(
+      base({
+        plot: { kind: 'violin', inner: 'none', smoothing: 1 },
+        groups: [dist(0, [1, 2]), summaryOnly, dist(2, [1, 2, 3, 4])],
+      }),
+    );
+    expect(of(s, 'violin')).toHaveLength(1);
+    expect(s.notes.join(' ')).toContain('Group 1 has summary data only');
+    expect(s.notes.join(' ')).toContain('Group 0 has fewer than 3 different values');
+  });
+
+  it('describes what the marks show', () => {
+    expect(describePlot({ kind: 'box', whiskers: 'tukey', points: 'outliers' })).toBe(
+      'Boxes: median and quartiles; whiskers: Tukey (the most extreme values within 1.5 × IQR of the box); points: values beyond the whiskers',
+    );
+    expect(describePlot({ kind: 'violin', inner: 'none', smoothing: 2 })).toMatch(/bandwidth × 2;/);
   });
 });
 

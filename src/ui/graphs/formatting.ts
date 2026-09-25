@@ -6,13 +6,15 @@
 import { pairsOf } from '@/analyses/pairwise';
 import { graphTable } from '@/graphs/data';
 import type { ElementId } from '@/graphs/hit';
-import type {
-  Graph,
-  GraphFormat,
-  PointSymbol,
-  Project,
-  StyleNumber,
-  StyleOverrides,
+import {
+  type ColumnPlot,
+  hasErrorBars,
+  type Graph,
+  type GraphFormat,
+  type PointSymbol,
+  type Project,
+  type StyleNumber,
+  type StyleOverrides,
 } from '@/model/project';
 
 type Patch<T> = { readonly [K in keyof T]?: T[K] | undefined };
@@ -168,5 +170,20 @@ export function elementLabel(element: ElementId, project: Project, graph: Graph)
     }
     default:
       return element;
+  }
+}
+
+/** A new plot kind, keeping what carries over (the error bars between bars and dots). */
+export function switchPlot(plot: ColumnPlot, kind: ColumnPlot['kind']): ColumnPlot {
+  const error = hasErrorBars(plot) ? plot.error : 'sd';
+  switch (kind) {
+    case 'bars':
+      return { kind, error, points: true };
+    case 'dots':
+      return { kind, error, center: 'mean' };
+    case 'box':
+      return { kind, whiskers: 'min-max', points: 'all' };
+    case 'violin':
+      return { kind, inner: 'quartiles', smoothing: 1 };
   }
 }

@@ -22,14 +22,31 @@ export type AnalysisSpec =
   | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
   | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions }
   | { readonly kind: 'two-way-anova'; readonly options: TwoWayOptions }
-  | { readonly kind: 'normality'; readonly options: NormalityOptions };
+  | { readonly kind: 'normality'; readonly options: NormalityOptions }
+  /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
+  | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
 
 export type AnalysisKind = AnalysisSpec['kind'];
+
+/** The kinds a user adds from the Analyze dialog (every kind but the internal graph summary). */
+export type UserAnalysisKind = Exclude<AnalysisKind, 'graph-summary'>;
+export type UserAnalysisSpec = Exclude<AnalysisSpec, { readonly kind: 'graph-summary' }>;
 
 export type DescriptiveOptions = Readonly<Record<string, never>>;
 
 /** Both tests (D'Agostino-Pearson, Shapiro-Wilk) on every group; nothing to choose (note 06). */
 export type NormalityOptions = Readonly<Record<string, never>>;
+
+/** Box-plot whiskers, as Prism offers them (note 07). */
+export const WHISKERS = ['min-max', 'tukey', 'p10-90', 'p5-95', 'p2.5-97.5', 'p1-99'] as const;
+export type Whiskers = (typeof WHISKERS)[number];
+
+export interface GraphSummaryOptions {
+  /** Box plots: where the whiskers end; null = no box. */
+  readonly whiskers: Whiskers | null;
+  /** Violins: smoothing (× Silverman's bandwidth), on log₁₀ values for a log axis; null = no violin. */
+  readonly kde: { readonly adjust: number; readonly log: boolean } | null;
+}
 
 export interface TTestOptions {
   /** Pair by row (paired t-test) rather than compare independent groups. */
@@ -113,6 +130,7 @@ export const DEFAULT_OPTIONS: {
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },
   'two-way-anova': { family: 'within-rows', comparisons: { kind: 'all', test: 'tukey' } },
   normality: {},
+  'graph-summary': { whiskers: null, kde: null },
 };
 
 /** What an analysis reads: data sets of a table, or another analysis's results. */
@@ -137,7 +155,26 @@ export type ErrorBar = 'sd' | 'sem' | 'ci95' | 'range' | 'none';
 
 export type ColumnPlot =
   | { readonly kind: 'bars'; readonly error: ErrorBar; readonly points: boolean }
-  | { readonly kind: 'dots'; readonly center: 'mean' | 'median'; readonly error: ErrorBar };
+  | { readonly kind: 'dots'; readonly center: 'mean' | 'median'; readonly error: ErrorBar }
+  | {
+      readonly kind: 'box';
+      readonly whiskers: Whiskers;
+      /** Points on top: none, those beyond the whiskers, or every value. */
+      readonly points: 'none' | 'outliers' | 'all';
+    }
+  | {
+      readonly kind: 'violin';
+      /** Inside the violin: median and quartile lines, a thin box, the points, or nothing. */
+      readonly inner: 'quartiles' | 'box' | 'points' | 'none';
+      /** × Silverman's bandwidth; 1 = as the rule gives it. */
+      readonly smoothing: number;
+    };
+
+/** The plots that draw error bars. */
+export const hasErrorBars = (
+  plot: ColumnPlot,
+): plot is Extract<ColumnPlot, { kind: 'bars' | 'dots' }> =>
+  plot.kind === 'bars' || plot.kind === 'dots';
 
 /**
  * The theme a graph uses: named (follows the app's defaults) or fixed (a

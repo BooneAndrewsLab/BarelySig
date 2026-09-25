@@ -14,6 +14,8 @@ export interface Tagged {
 export interface Stroke {
   readonly stroke: string;
   readonly width: number;
+  /** SVG dash pattern in points, e.g. "2 1.5"; unset = solid. */
+  readonly dash?: string;
 }
 
 export type Mark =

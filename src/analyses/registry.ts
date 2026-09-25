@@ -1,5 +1,6 @@
 /** Every analysis module, by kind (item 04). */
 import { descriptive } from './descriptive';
+import { graphSummary } from './graphsummary';
 import { kruskal } from './kruskal';
 import type { Registry } from './module';
 import { normality } from './normality';
@@ -16,4 +17,5 @@ export const REGISTRY: Registry = {
   'kruskal-wallis': kruskal,
   'two-way-anova': twoway,
   normality,
+  'graph-summary': graphSummary,
 };
