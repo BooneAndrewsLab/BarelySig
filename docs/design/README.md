@@ -12,3 +12,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 04 | [Analysis pipeline: engine, analysis modules, results sheets](04-analysis-pipeline.md) | #14–#18 |
 | 05 | [Graphs: style, model, rendering, export, recipes](05-graphs.md) | #19–#23, #43 |
 | 06 | [MVP statistics: rank tests, ANOVA, post-hoc, normality, test chooser](06-mvp-statistics.md) | #24–#29 |
+| 07 | [Formatting and first release: inspector, box/violin, grouped bars, guide, release](07-formatting-and-release.md) | #30–#36, #44–#46, #48, #49 |
