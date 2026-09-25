@@ -16,7 +16,7 @@ import { pPhrase, stars } from '@/ui/results/format';
 
 import type { BracketInput, GroupInput, LayoutInput } from './layout';
 import { paletteColor } from './palette';
-import { resolveTheme } from './themes';
+import { graphTheme } from './themes';
 
 /** The id of a graph's summary statistics, run like an analysis (note 05). */
 export const summaryId = (graph: Id): Id => asId(`${graph}/summary`);
@@ -102,6 +102,7 @@ export function graphInput(
       id: ds.id,
       title: ds.title,
       color: ds.color ?? paletteColor(index),
+      symbol: graph.format.symbols?.[ds.id],
       values: data.kind === 'raw' ? data.values : [],
       summary: s
         ? {
@@ -135,7 +136,7 @@ export function graphInput(
           ? pPhrase(c.p)
           : stars(c.p, graph.format.starScheme ?? 'prism');
       if (label === 'ns' && !graph.format.showNs) continue;
-      brackets.push({ id: c.key, from, to, label });
+      brackets.push({ id: c.key, from, to, label, offset: graph.format.bracketOffsets?.[c.key] });
     }
   }
   return {
@@ -144,10 +145,17 @@ export function graphInput(
     input: {
       plot: graph.plot,
       size: graph.size,
-      theme: resolveTheme(graph.theme),
+      theme: graphTheme(graph.theme, graph.format.style),
       yTitle: valueTitle(table, graph),
       yMin: graph.format.yMin,
       yMax: graph.format.yMax,
+      axis: {
+        scale: graph.format.yScale,
+        step: graph.format.yStep,
+        decimals: graph.format.yDecimals,
+      },
+      xAngle: graph.format.xAngle,
+      title: graph.format.showTitle ? graph.title : undefined,
       groups,
       brackets,
     },

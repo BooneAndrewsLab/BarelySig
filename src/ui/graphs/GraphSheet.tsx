@@ -6,11 +6,12 @@
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
 
-import { bracketChoices, graphInput, summaryId, withBracket, withPair } from '@/graphs/data';
+import { graphInput, summaryId } from '@/graphs/data';
+import { type ElementId, elementBoxes, elementsOf, hitRegions, pick } from '@/graphs/hit';
 import { describePlot, layoutColumn } from '@/graphs/layout';
 import { sceneToSvg } from '@/graphs/svg';
 import type { Json } from '@/model/json';
-import type { ColumnPlot, ErrorBar, Graph, Project } from '@/model/project';
+import type { Graph, Project } from '@/model/project';
 
 import { Icon } from '../Icon';
 import { schemeText } from '../results/format';
@@ -21,44 +22,51 @@ import { newId } from '@/model/ids';
 import { getSession } from '../state/session';
 import { store } from '../state/store';
 import { ExportDialog } from './ExportDialog';
+import { elementLabel, offsetOf, withOffset } from './formatting';
+import { GraphSettings } from './GraphSettings';
+import { Inspector } from './Inspector';
 
 interface Props {
   readonly project: Project;
   readonly graph: Graph;
 }
 
-const ERRORS: readonly (readonly [ErrorBar, string])[] = [
-  ['sd', 'SD'],
-  ['sem', 'SEM'],
-  ['ci95', '95% CI'],
-  ['range', 'Range'],
-  ['none', 'None'],
-];
-
 /** Screen pixels per millimetre at 100% (CSS px are 1/96 in). */
 const PX_PER_MM = 96 / 25.4;
 
-export function GraphSheet({ project, graph }: Props) {
+export function GraphSheet({ project, graph: saved }: Props) {
   const bridge = getResults();
   useSyncExternalStore(bridge.subscribe, bridge.getVersion, bridge.getVersion);
+  const [picked, setSelected] = useState<ElementId | null>(null);
+  // A bracket being dragged is drawn where it would go; the edit comes on release.
+  const [preview, setPreview] = useState<{ key: string; offset: number } | null>(null);
+  const drag = useRef<{ key: string; startY: number; base: number; moved: boolean } | null>(null);
+  const figure = useRef<HTMLDivElement>(null);
+  const graph = preview ? withOffset(saved, preview.key, preview.offset) : saved;
   const input = graphInput(project, graph, (id) => bridge.recompute.result(id));
   const table = graph.source.kind === 'table' ? project.tables.get(graph.source.table) : undefined;
   const summaryStatus = bridge.recompute.status(summaryId(graph.id));
   const engine = bridge.engineState();
-  const choices = bracketChoices(project, graph);
   const [exporting, setExporting] = useState(false);
   const lastRecipe = useRef<string | null>(null);
   const history = project.exports.filter((x) => x.graph === graph.id).reverse();
 
-  const set = (patch: Partial<Graph>) => {
-    store.edit({ op: 'setGraph', graph: { ...graph, ...patch } });
-  };
-  const setPlot = (plot: ColumnPlot) => {
-    set({ plot });
-  };
-
   const scene = input.ok ? layoutColumn(input.input) : null;
   const svg = scene ? sceneToSvg(scene) : '';
+  const elements = scene ? elementsOf(scene) : [];
+  // A selection whose element went away (a bracket hidden, the title turned off) lapses.
+  const selected = picked !== null && elements.includes(picked) ? picked : null;
+  const regions = scene ? hitRegions(scene, 5) : [];
+  const scaleOf = () => {
+    const w = figure.current?.getBoundingClientRect().width ?? 0;
+    return scene && w > 0 ? scene.width / w : 1;
+  };
+  const toScene = (cx: number, cy: number) => {
+    const r = figure.current?.getBoundingClientRect();
+    if (!r || !scene || r.width <= 0) return null;
+    const k = scene.width / r.width;
+    return { x: (cx - r.left) * k, y: (cy - r.top) * k };
+  };
   const notes = [
     `${describePlot(graph.plot)}.`,
     ...(input.ok && input.input.brackets.length > 0 && graph.format.bracketLabels === 'stars'
@@ -105,207 +113,36 @@ export function GraphSheet({ project, graph }: Props) {
         </button>
       </header>
       <div className="graph-body">
-        <form
-          className="graph-controls"
-          aria-label="Graph settings"
-          onSubmit={(e) => {
-            e.preventDefault();
-          }}
-        >
-          <fieldset>
-            <legend>Plot</legend>
-            <label className="option">
-              <input
-                type="radio"
-                name="plot"
-                checked={graph.plot.kind === 'bars'}
-                onChange={() => {
-                  setPlot({ kind: 'bars', error: graph.plot.error, points: true });
-                }}
-              />
-              Bars
-            </label>
-            <label className="option">
-              <input
-                type="radio"
-                name="plot"
-                checked={graph.plot.kind === 'dots'}
-                onChange={() => {
-                  setPlot({ kind: 'dots', center: 'mean', error: graph.plot.error });
-                }}
-              />
-              Dots (every value)
-            </label>
-            {graph.plot.kind === 'bars' ? (
-              <label className="option">
-                <input
-                  type="checkbox"
-                  checked={graph.plot.points}
-                  onChange={(e) => {
-                    setPlot({ ...graph.plot, kind: 'bars', points: e.currentTarget.checked });
-                  }}
-                />
-                Show the individual values
-              </label>
-            ) : (
-              <label className="field">
-                Line at the{' '}
-                <select
-                  value={graph.plot.center}
-                  onChange={(e) => {
-                    setPlot({
-                      kind: 'dots',
-                      error: graph.plot.error,
-                      center: e.currentTarget.value as 'mean' | 'median',
-                    });
-                  }}
-                >
-                  <option value="mean">mean</option>
-                  <option value="median">median</option>
-                </select>
-              </label>
-            )}
-          </fieldset>
-          <fieldset>
-            <legend>Error bars</legend>
+        <div className="graph-side">
+          <label className="field inspector-pick">
+            <span>Format</span>
             <select
-              aria-label="Error bars"
-              value={graph.plot.error}
+              value={selected ?? ''}
               onChange={(e) => {
-                setPlot({ ...graph.plot, error: e.currentTarget.value as ErrorBar });
+                setSelected(e.currentTarget.value || null);
               }}
             >
-              {ERRORS.map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
+              <option value="">The whole graph</option>
+              {elements.map((el) => (
+                <option key={el} value={el}>
+                  {elementLabel(el, project, graph)}
                 </option>
               ))}
             </select>
-          </fieldset>
-          <fieldset>
-            <legend>Significance</legend>
-            {choices.length === 0 && (
-              <p className="hint flush">
-                Compare groups of this table (a t test, for example) to add brackets.
-              </p>
-            )}
-            {choices.map((c) => (
-              <div key={c.id}>
-                <label className="option">
-                  <input
-                    type="checkbox"
-                    checked={c.shown}
-                    onChange={(e) => {
-                      store.edit({
-                        op: 'setGraph',
-                        graph: withBracket(graph, c.id, e.currentTarget.checked),
-                      });
-                    }}
-                  />
-                  {c.title}
-                </label>
-                {c.shown &&
-                  c.pairs.map((x) => (
-                    <label key={x.key} className="option nested">
-                      <input
-                        type="checkbox"
-                        checked={x.shown}
-                        onChange={(e) => {
-                          store.edit({
-                            op: 'setGraph',
-                            graph: withPair(graph, x.key, e.currentTarget.checked),
-                          });
-                        }}
-                      />
-                      {x.label}
-                    </label>
-                  ))}
-              </div>
-            ))}
-            {choices.length > 0 && (
-              <>
-                <select
-                  aria-label="Bracket labels"
-                  value={
-                    graph.format.bracketLabels === 'exact'
-                      ? 'exact'
-                      : (graph.format.starScheme ?? 'prism')
-                  }
-                  onChange={(e) => {
-                    const v = e.currentTarget.value;
-                    const { starScheme: _drop, ...rest } = graph.format;
-                    set({
-                      format:
-                        v === 'exact'
-                          ? { ...rest, bracketLabels: 'exact' }
-                          : v === 'apa'
-                            ? { ...rest, bracketLabels: 'stars', starScheme: 'apa' }
-                            : { ...rest, bracketLabels: 'stars' },
-                    });
-                  }}
-                >
-                  <option value="prism">Asterisks (Prism: up to ****)</option>
-                  <option value="apa">Asterisks (APA: up to ***)</option>
-                  <option value="exact">Exact P values</option>
-                </select>
-                <label className="option">
-                  <input
-                    type="checkbox"
-                    checked={graph.format.showNs}
-                    onChange={(e) => {
-                      set({ format: { ...graph.format, showNs: e.currentTarget.checked } });
-                    }}
-                  />
-                  Show “ns” for differences that aren’t significant
-                </label>
-              </>
-            )}
-          </fieldset>
-          <fieldset>
-            <legend>Look</legend>
-            <select
-              aria-label="Theme"
-              value={graph.theme.kind === 'named' ? graph.theme.name : 'fixed'}
-              onChange={(e) => {
-                set({
-                  theme: { kind: 'named', name: e.currentTarget.value as 'modern' | 'classic' },
-                });
+          </label>
+          {selected ? (
+            <Inspector
+              project={project}
+              graph={graph}
+              element={selected}
+              onDone={() => {
+                setSelected(null);
               }}
-            >
-              <option value="modern">Modern</option>
-              <option value="classic">Classic (Prism-like)</option>
-              {graph.theme.kind === 'fixed' && <option value="fixed">As exported</option>}
-            </select>
-          </fieldset>
-          <fieldset>
-            <legend>Size (mm)</legend>
-            <span className="size-fields">
-              <input
-                type="number"
-                aria-label="Width in millimetres"
-                min={20}
-                max={500}
-                value={graph.size.width}
-                onChange={(e) => {
-                  const w = e.currentTarget.valueAsNumber;
-                  if (w >= 20 && w <= 500) set({ size: { ...graph.size, width: w } });
-                }}
-              />
-              ×
-              <input
-                type="number"
-                aria-label="Height in millimetres"
-                min={20}
-                max={500}
-                value={graph.size.height}
-                onChange={(e) => {
-                  const h = e.currentTarget.valueAsNumber;
-                  if (h >= 20 && h <= 500) set({ size: { ...graph.size, height: h } });
-                }}
-              />
-            </span>
-          </fieldset>
-        </form>
+            />
+          ) : (
+            <GraphSettings project={project} graph={graph} />
+          )}
+        </div>
         <figure className="graph-figure">
           {status && (
             <p className="status-banner" role="status">
@@ -315,12 +152,90 @@ export function GraphSheet({ project, graph }: Props) {
           {scene && (
             <div
               className="graph-canvas"
-              role="img"
-              aria-label={`${graph.title}: ${describePlot(graph.plot)}`}
               style={{ width: `${String(graph.size.width * PX_PER_MM * 1.5)}px` }}
-              // The same SVG an export writes (note 05).
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
+              tabIndex={0}
+              aria-label="Graph: click a part of it to format it"
+              onPointerDown={(e) => {
+                const at = toScene(e.clientX, e.clientY);
+                const el = at ? pick(regions, at.x, at.y) : null;
+                setSelected(el);
+                if (el?.startsWith('bracket:')) {
+                  const key = el.slice('bracket:'.length);
+                  drag.current = {
+                    key,
+                    startY: e.clientY,
+                    base: offsetOf(graph, key),
+                    moved: false,
+                  };
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }
+              }}
+              onPointerMove={(e) => {
+                const d = drag.current;
+                if (d) {
+                  const k = scaleOf();
+                  const dy = (d.startY - e.clientY) * k;
+                  if (Math.abs(dy) >= 0.5) d.moved = true;
+                  if (d.moved) setPreview({ key: d.key, offset: Math.max(0, d.base + dy) });
+                  return;
+                }
+                const at = toScene(e.clientX, e.clientY);
+                const el = at ? pick(regions, at.x, at.y) : null;
+                e.currentTarget.style.cursor = el
+                  ? el.startsWith('bracket:')
+                    ? 'ns-resize'
+                    : 'pointer'
+                  : '';
+              }}
+              onPointerUp={() => {
+                const d = drag.current;
+                drag.current = null;
+                if (d?.moved && preview) {
+                  store.edit({ op: 'setGraph', graph: withOffset(graph, d.key, preview.offset) });
+                }
+                setPreview(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setSelected(null);
+                if (
+                  selected?.startsWith('bracket:') &&
+                  (e.key === 'ArrowUp' || e.key === 'ArrowDown')
+                ) {
+                  e.preventDefault();
+                  const key = selected.slice('bracket:'.length);
+                  const step = (e.shiftKey ? 5 : 1) * (e.key === 'ArrowUp' ? 1 : -1);
+                  store.edit({
+                    op: 'setGraph',
+                    graph: withOffset(graph, key, offsetOf(graph, key) + step),
+                  });
+                }
+              }}
+            >
+              <div
+                ref={figure}
+                role="img"
+                aria-label={`${graph.title}: ${describePlot(graph.plot)}`}
+                // The same SVG an export writes (note 05).
+                dangerouslySetInnerHTML={{ __html: svg }}
+              />
+              {selected && (
+                <svg
+                  className="graph-overlay"
+                  viewBox={`0 0 ${String(scene.width)} ${String(scene.height)}`}
+                  aria-hidden="true"
+                >
+                  {elementBoxes(scene, selected).map((b, i) => (
+                    <rect
+                      key={i}
+                      x={b.x0 - 1.5}
+                      y={b.y0 - 1.5}
+                      width={b.x1 - b.x0 + 3}
+                      height={b.y1 - b.y0 + 3}
+                    />
+                  ))}
+                </svg>
+              )}
+            </div>
           )}
           <figcaption className="legend">{notes.join(' ')}</figcaption>
           {history.length > 0 && (

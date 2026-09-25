@@ -5,7 +5,7 @@
  * fields still renders, with what it saved.
  */
 import type { Json } from '@/model/json';
-import type { GraphThemeRef } from '@/model/project';
+import { type GraphThemeRef, STYLE_NUMBERS, type StyleOverrides } from '@/model/project';
 
 import { type GraphTheme, MODERN, THEMES } from './theme';
 
@@ -31,3 +31,24 @@ export function resolveTheme(ref: GraphThemeRef): GraphTheme {
 
 /** A theme as plain data, for a figure recipe's fixed theme. */
 export const themeJson = (t: GraphTheme): Json => JSON.parse(JSON.stringify(t)) as Json;
+
+/** A theme with a graph's overrides applied (note 07). */
+export function withStyle(theme: GraphTheme, style: StyleOverrides | undefined): GraphTheme {
+  if (!style) return theme;
+  let out: GraphTheme = theme;
+  for (const key of STYLE_NUMBERS) {
+    const v = style[key];
+    if (v === undefined || !Number.isFinite(v)) continue;
+    const [a, b] = key.split('.') as [string, string | undefined];
+    if (b === undefined) out = { ...out, [a]: v };
+    else if (a === 'font') out = { ...out, font: { ...out.font, [b]: v } };
+    else out = { ...out, lines: { ...out.lines, [b]: v } };
+  }
+  if (style.ticks) out = { ...out, ticks: style.ticks };
+  if (style.spines) out = { ...out, spines: style.spines };
+  return out;
+}
+
+/** The theme a graph is drawn with: its named or fixed theme under its overrides. */
+export const graphTheme = (ref: GraphThemeRef, style?: StyleOverrides): GraphTheme =>
+  withStyle(resolveTheme(ref), style);

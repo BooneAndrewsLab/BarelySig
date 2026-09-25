@@ -39,6 +39,8 @@ export type Mark =
       readonly d: string;
       readonly line: Stroke;
       readonly fill?: string;
+      /** Fill opacity; unset = 1. */
+      readonly opacity?: number;
     })
   | (Tagged & {
       readonly kind: 'circle';

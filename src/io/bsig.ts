@@ -39,8 +39,12 @@ import {
   type GraphFormat,
   type GraphSource,
   type Layout,
+  POINT_SYMBOLS,
+  type PointSymbol,
   type Project,
   type RankTestOptions,
+  STYLE_NUMBERS,
+  type StyleOverrides,
   TWO_WAY_FAMILIES,
   type TTestOptions,
   type TwoWayOptions,
@@ -159,6 +163,28 @@ function comparisonsJson(c: Comparisons): Json {
   }
 }
 
+/** Style overrides in `STYLE_NUMBERS` order, then the two choices. */
+function styleJson(st: StyleOverrides): Json {
+  const out: Record<string, Json> = {};
+  for (const k of STYLE_NUMBERS) {
+    const v = st[k];
+    if (v !== undefined) out[k] = v;
+  }
+  if (st.ticks !== undefined) out['ticks'] = st.ticks;
+  if (st.spines !== undefined) out['spines'] = st.spines;
+  return out;
+}
+
+/** A record keyed by ids, written in key order so the text doesn't depend on edit order. */
+function sortedRecord<V extends Json>(r: Readonly<Record<string, V>>): Json {
+  const out: Record<string, Json> = {};
+  for (const k of Object.keys(r).sort()) {
+    const v = r[k];
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
 function graphJson(g: Graph): Json {
   const source: Json =
     g.source.kind === 'table'
@@ -173,6 +199,14 @@ function graphJson(g: Graph): Json {
     ...optional('yTitle', f.yTitle),
     ...optional('yMin', f.yMin),
     ...optional('yMax', f.yMax),
+    ...optional('yScale', f.yScale),
+    ...optional('yStep', f.yStep),
+    ...optional('yDecimals', f.yDecimals),
+    ...optional('xAngle', f.xAngle),
+    ...optional('showTitle', f.showTitle),
+    ...optional('style', f.style && styleJson(f.style)),
+    ...optional('symbols', f.symbols && sortedRecord(f.symbols)),
+    ...optional('bracketOffsets', f.bracketOffsets && sortedRecord(f.bracketOffsets)),
   };
   return {
     id: g.id,
@@ -477,6 +511,33 @@ function plot(v: Json | undefined, p: Path): ColumnPlot {
     : { kind, error, center: oneOf(o['center'], p.key('center'), ['mean', 'median'] as const) };
 }
 
+function angle(v: Json | undefined, p: Path): 45 | 90 {
+  const a = num(v, p);
+  if (a !== 45 && a !== 90) p.fail('should be 45 or 90');
+  return a;
+}
+
+function style(v: Json | undefined, p: Path): StyleOverrides {
+  const o = obj(v, p);
+  const out: Record<string, unknown> = {};
+  for (const k of STYLE_NUMBERS) if (o[k] !== undefined) out[k] = num(o[k], p.key(k));
+  if (o['ticks'] !== undefined)
+    out['ticks'] = oneOf(o['ticks'], p.key('ticks'), ['in', 'out'] as const);
+  if (o['spines'] !== undefined)
+    out['spines'] = oneOf(o['spines'], p.key('spines'), ['left-bottom', 'box'] as const);
+  return out;
+}
+
+function record<V>(
+  v: Json | undefined,
+  p: Path,
+  item: (x: Json | undefined, q: Path) => V,
+): Readonly<Record<string, V>> {
+  const out: Record<string, V> = {};
+  for (const [k, x] of Object.entries(obj(v, p))) out[k] = item(x, p.key(k));
+  return out;
+}
+
 function graph(v: Json, p: Path): Graph {
   const o = obj(v, p);
   const size = obj(o['size'], p.key('size'));
@@ -502,6 +563,27 @@ function graph(v: Json, p: Path): Graph {
       yTitle: optStr(f, 'yTitle', fp),
       yMin: f['yMin'] === undefined ? undefined : num(f['yMin'], fp.key('yMin')),
       yMax: f['yMax'] === undefined ? undefined : num(f['yMax'], fp.key('yMax')),
+      yScale:
+        f['yScale'] === undefined
+          ? undefined
+          : oneOf(f['yScale'], fp.key('yScale'), ['log10'] as const),
+      yStep: f['yStep'] === undefined ? undefined : num(f['yStep'], fp.key('yStep')),
+      yDecimals:
+        f['yDecimals'] === undefined ? undefined : num(f['yDecimals'], fp.key('yDecimals')),
+      xAngle: f['xAngle'] === undefined ? undefined : angle(f['xAngle'], fp.key('xAngle')),
+      showTitle:
+        f['showTitle'] === undefined ? undefined : bool(f['showTitle'], fp.key('showTitle')),
+      style: f['style'] === undefined ? undefined : style(f['style'], fp.key('style')),
+      symbols:
+        f['symbols'] === undefined
+          ? undefined
+          : record(f['symbols'], fp.key('symbols'), (v, q): PointSymbol =>
+              oneOf(v, q, POINT_SYMBOLS),
+            ),
+      bracketOffsets:
+        f['bracketOffsets'] === undefined
+          ? undefined
+          : record(f['bracketOffsets'], fp.key('bracketOffsets'), num),
     },
   );
   return {

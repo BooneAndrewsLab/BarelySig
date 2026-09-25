@@ -15,6 +15,7 @@ export interface GraphTheme {
     readonly axisTitle: number;
     readonly title: number;
     readonly bracket: number;
+    readonly legend: number;
   };
   readonly lines: {
     readonly axis: number;
@@ -42,13 +43,15 @@ export interface GraphTheme {
   readonly pointSize: number;
   /** Bar width as a fraction of its slot. */
   readonly barWidth: number;
+  /** Error-bar caps as a fraction of the bar's width (dots: of the centre line). */
+  readonly capWidth: number;
 }
 
 export const FONT_FAMILY = 'Arial, Arimo, "Liberation Sans", Helvetica, sans-serif';
 
 export const MODERN: GraphTheme = {
   name: 'modern',
-  font: { family: FONT_FAMILY, tick: 7, axisTitle: 8, title: 8, bracket: 7 },
+  font: { family: FONT_FAMILY, tick: 7, axisTitle: 8, title: 8, bracket: 7, legend: 7 },
   lines: {
     axis: 0.75,
     tick: 0.75,
@@ -69,6 +72,7 @@ export const MODERN: GraphTheme = {
   pointColor: null,
   pointSize: 4,
   barWidth: 0.62,
+  capWidth: 0.5,
 };
 
 /** Prism-like: boxed, inward ticks, solid bars with black edges, black points. */

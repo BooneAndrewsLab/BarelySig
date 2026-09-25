@@ -110,9 +110,10 @@ interface GraphFormat {
   edit stores `bracketOffsets[key]` in points. Arrow keys move the
   selected bracket 1 pt (Shift: 5 pt). "Reset" puts it back.
 - Offsets are applied during stacking: a raised bracket raises the
-  brackets stacked on it, so dragging never makes two overlap. A bracket
-  can go down to 1 pt above the highest mark under it, no further, so it
-  can't be hidden in the data. The top margin grows for raised brackets
+  brackets stacked on it, so dragging never makes two overlap. A
+  bracket's automatic place is already the lowest that clears the data
+  and the brackets under it, so it can be raised and brought back down,
+  never lowered into the data. The top margin grows for raised brackets
   as it does for stacked ones.
 - The offset is part of the format, so it is saved, undone, and kept in
   figure recipes.
@@ -289,6 +290,26 @@ each application's documented clipboard format.
 - **Left to the user**, since they are public and hard to undo: making
   the repository public, enabling Pages, connecting Zenodo, and
   publishing the release that triggers the deploy.
+
+## As built
+
+### Inspector and brackets (#30, #45)
+
+- As designed. The inspector's element list ("Format: …") is the
+  keyboard route to every element; clicking the figure picks from hit
+  regions at least 5 pt across. Outlines: each mark of a data set or the
+  error bars, one box around anything else.
+- Number fields commit on Enter or leaving the field (empty = automatic
+  or the theme's value), so typing "12" is one undo step, not two.
+- Tick label size and axis width are shared by both axes (one theme
+  value each); the inspector says "both axes".
+- Brackets are dragged on the figure (a live preview, one edit on
+  release) or moved with the arrow keys (Shift: 5 pt) once selected.
+- A property test of the axis found a subnormal span again, this time
+  inside the axis itself; it widens such spans on its own now.
+- The file's round-trip property generated too few graphs to see every
+  new field (9 graphs in 200 sessions); graphs are now generated four
+  times as often, and dropping a field is caught every run.
 
 ## Decisions made here
 

@@ -20,3 +20,9 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+// Nor pointer capture, which the graph's bracket dragging asks for (note 07).
+if (typeof Element !== 'undefined' && typeof Element.prototype.setPointerCapture !== 'function') {
+  Element.prototype.setPointerCapture = () => undefined;
+  Element.prototype.releasePointerCapture = () => undefined;
+}

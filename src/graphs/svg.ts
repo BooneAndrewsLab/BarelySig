@@ -39,7 +39,7 @@ function mark(m: Mark): string {
     case 'line':
       return `<line${tag(m)} x1="${num(m.x1)}" y1="${num(m.y1)}" x2="${num(m.x2)}" y2="${num(m.y2)}"${stroke(m.line)} stroke-linecap="butt"/>`;
     case 'path':
-      return `<path${tag(m)} d="${m.d}" fill="${m.fill ?? 'none'}"${stroke(m.line)} stroke-linejoin="miter"/>`;
+      return `<path${tag(m)} d="${m.d}" fill="${m.fill ?? 'none'}"${m.opacity !== undefined && m.opacity < 1 ? ` fill-opacity="${num(m.opacity)}"` : ''}${stroke(m.line)} stroke-linejoin="miter"/>`;
     case 'circle':
       return `<circle${tag(m)} cx="${num(m.cx)}" cy="${num(m.cy)}" r="${num(m.r)}" fill="${m.fill}"${m.opacity < 1 ? ` fill-opacity="${num(m.opacity)}"` : ''}${stroke(m.line)}/>`;
     case 'text': {

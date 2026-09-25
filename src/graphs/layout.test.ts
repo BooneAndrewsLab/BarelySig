@@ -83,8 +83,26 @@ function box(m: Mark): Box {
     case 'text': {
       const w = textWidth(m.text, m.size, m.weight);
       const x0 = m.anchor === 'start' ? m.x : m.anchor === 'middle' ? m.x - w / 2 : m.x - w;
-      if (m.rotate === -90) return { x0: m.x - m.size, x1: m.x, y0: m.y - w / 2, y1: m.y + w / 2 };
-      return { x0, x1: x0 + w, y0: m.y - m.size * 0.75, y1: m.y + m.size * 0.2 };
+      const flat = { x0, x1: x0 + w, y0: m.y - m.size * 0.75, y1: m.y + m.size * 0.2 };
+      if (!m.rotate) return flat;
+      // The corners turned about the anchor.
+      const a = (m.rotate * Math.PI) / 180;
+      const corners = [
+        [flat.x0, flat.y0],
+        [flat.x1, flat.y0],
+        [flat.x0, flat.y1],
+        [flat.x1, flat.y1],
+      ].map(([x, y]) => {
+        const dx = (x ?? 0) - m.x;
+        const dy = (y ?? 0) - m.y;
+        return [
+          m.x + dx * Math.cos(a) - dy * Math.sin(a),
+          m.y + dx * Math.sin(a) + dy * Math.cos(a),
+        ];
+      });
+      const xs = corners.map((c) => c[0] ?? 0);
+      const ys = corners.map((c) => c[1] ?? 0);
+      return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     }
     case 'path': {
       const nums = [...m.d.matchAll(/-?\d+(\.\d+)?/g)].map((x) => Number(x[0]));
@@ -212,22 +230,26 @@ describe('layoutColumn', () => {
         plotArb,
         fc.array(fc.tuple(fc.nat(5), fc.nat(5)), { maxLength: 5 }),
         fc.boolean(),
-        (vals, plot, pairs, classic) => {
+        fc.array(fc.integer({ min: -10, max: 30 }), { minLength: 5, maxLength: 5 }),
+        fc.constantFrom(undefined, 45, 90),
+        (vals, plot, pairs, classic, offsets, xAngle) => {
           const groups = vals.map((v, i) => group(i, v));
           const brackets = pairs.map(([a, b], i) => ({
             id: `b${String(i)}`,
             from: a % groups.length,
             to: b % groups.length,
             label: '**',
+            offset: offsets[i],
           }));
           const s = layoutColumn(
-            base({ plot, groups, brackets, theme: classic ? CLASSIC : MODERN }),
+            base({ plot, groups, brackets, theme: classic ? CLASSIC : MODERN, xAngle }),
           );
           for (const m of s.marks) {
             const b = box(m);
             expect(b.x0, m.role).toBeGreaterThanOrEqual(-0.5);
             expect(b.y0, m.role).toBeGreaterThanOrEqual(-0.5);
             expect(b.x1, m.role).toBeLessThanOrEqual(s.width + 0.5);
+            expect(b.y1, m.role).toBeLessThanOrEqual(s.height + 0.5);
           }
           const placed = of(s, 'bracket').map(box);
           const labels = of(s, 'bracket-label').map(box);
@@ -247,6 +269,108 @@ describe('layoutColumn', () => {
       ),
       { numRuns: 150 },
     );
+  });
+});
+
+describe('formatting (note 07)', () => {
+  const texts = (s: Scene, role: string) =>
+    of(s, role).map((m) => (m.kind === 'text' ? m.text : ''));
+
+  it('raises bars from the bottom of a log axis and leaves out values it can’t show', () => {
+    const s = layoutColumn(
+      base({ axis: { scale: 'log10' }, groups: [group(0, [10, 100, 1000]), group(1, [0, 5, 50])] }),
+    );
+    const axis = of(s, 'axis-x')[0];
+    for (const b of of(s, 'bar')) {
+      if (b.kind !== 'rect' || axis?.kind !== 'line') throw new Error('shape');
+      expect(b.y + b.h).toBeCloseTo(axis.y1, 6);
+    }
+    expect(of(s, 'point')).toHaveLength(5);
+    expect(texts(s, 'tick-label')).toContain('100');
+    expect(of(s, 'tick-y-minor').length).toBeGreaterThan(0);
+    expect(s.notes.join(' ')).toMatch(/1 value is zero or negative/);
+  });
+
+  it('draws the symbols asked for, the same size as circles', () => {
+    const s = layoutColumn(
+      base({
+        groups: [
+          { ...group(0, [1, 2, 3]), symbol: 'square' },
+          { ...group(1, [1, 2, 3]), symbol: 'triangle' },
+          group(2, [1, 2, 3]),
+        ],
+      }),
+    );
+    const points = of(s, 'point');
+    expect(points.filter((m) => m.kind === 'path')).toHaveLength(6);
+    expect(points.filter((m) => m.kind === 'circle')).toHaveLength(3);
+    expect(points.every((m) => m.ref !== undefined)).toBe(true);
+  });
+
+  it('draws the title above the plot, which moves down for it', () => {
+    const plain = layoutColumn(base());
+    const titled = layoutColumn(base({ title: 'Viability after 24 h' }));
+    expect(texts(titled, 'title')).toEqual(['Viability after 24 h']);
+    const top = (s: Scene) => {
+      const a = of(s, 'axis-y')[0];
+      return a?.kind === 'line' ? a.y1 : 0;
+    };
+    expect(top(titled)).toBeGreaterThan(top(plain));
+  });
+
+  it('turns group labels without wrapping them, making room below', () => {
+    const long = ['Vehicle control, DMSO 0.1%', 'Compound 1 at 10 µM', 'Compound 2'];
+    const groups = long.map((t, i) => group(i, [1, 2, 3], t));
+    const level = layoutColumn(base({ groups }));
+    const turned = layoutColumn(base({ groups, xAngle: 45 }));
+    expect(texts(turned, 'group-label')).toEqual(long);
+    expect(of(turned, 'group-label').every((m) => m.kind === 'text' && m.rotate === -45)).toBe(
+      true,
+    );
+    const baseY = (s: Scene) => {
+      const a = of(s, 'axis-x')[0];
+      return a?.kind === 'line' ? a.y1 : 0;
+    };
+    expect(baseY(turned)).toBeLessThan(baseY(level));
+  });
+
+  it('raises a bracket by its offset, with the brackets stacked on it, and never lowers it', () => {
+    const brackets = [
+      { id: 'a', from: 0, to: 1, label: '*' },
+      { id: 'b', from: 0, to: 2, label: '**' },
+    ];
+    const lineY = (s: Scene, id: string) => {
+      const m = of(s, 'bracket').find((x) => x.ref === id);
+      if (m?.kind !== 'path') throw new Error('shape');
+      return Number(/V(-?[\d.]+)/.exec(m.d)?.[1]);
+    };
+    const auto = layoutColumn(base({ brackets }));
+    const raised = layoutColumn(
+      base({ brackets: [{ ...brackets[0], offset: 10 }, brackets[1]] as typeof brackets }),
+    );
+    const lowered = layoutColumn(
+      base({ brackets: [{ ...brackets[0], offset: -10 }, brackets[1]] as typeof brackets }),
+    );
+    const gapAuto = lineY(auto, 'a') - lineY(auto, 'b');
+    const gapRaised = lineY(raised, 'a') - lineY(raised, 'b');
+    expect(gapRaised).toBeCloseTo(gapAuto, 6);
+    // Raising grows the top margin, so compare against the data rather than the page.
+    const barTop = (s: Scene) =>
+      Math.min(...of(s, 'point').map((m) => (m.kind === 'circle' ? m.cy : 0)));
+    expect(barTop(raised) - lineY(raised, 'a')).toBeCloseTo(
+      barTop(auto) - lineY(auto, 'a') + 10,
+      0,
+    );
+    expect(lineY(lowered, 'a')).toBeCloseTo(lineY(auto, 'a'), 6);
+  });
+
+  it('sizes error-bar caps from the theme', () => {
+    const width = (s: Scene) => {
+      const c = of(s, 'error-cap')[0];
+      return c?.kind === 'line' ? c.x2 - c.x1 : 0;
+    };
+    const narrow = layoutColumn(base({ theme: { ...MODERN, capWidth: 0.25 } }));
+    expect(width(narrow) * 2).toBeCloseTo(width(layoutColumn(base())), 6);
   });
 });
 

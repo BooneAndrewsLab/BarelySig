@@ -283,7 +283,8 @@ export const shapeArb: fc.Arbitrary<Shape> = fc.oneof(
       v: fc.nat(1000),
       ds: fc.array(idx, { maxLength: 3 }),
     }),
-    weight: 1,
+    // Graphs carry many optional fields; enough of them that each is seen.
+    weight: 4,
   },
   { arbitrary: fc.record({ k: fc.constant('removeTable'), t: idx }), weight: 1 },
   { arbitrary: fc.record({ k: fc.constant('removeAnalysis'), a: idx }), weight: 1 },
@@ -489,6 +490,34 @@ export function resolve(p: Project, s: Shape): Edit | null {
             ...(s.v % 3 === 0 ? { starScheme: 'apa' as const } : {}),
             hiddenBrackets: analyses.slice(0, s.v % 2),
             ...(s.v % 5 === 1 ? { yTitle: 'Viability (%)', yMin: -1.5, yMax: 120 } : {}),
+            ...(s.v % 6 === 2
+              ? {
+                  yScale: 'log10' as const,
+                  yDecimals: 2,
+                  xAngle: 45 as const,
+                  showTitle: true,
+                  style: {
+                    'font.tick': 9,
+                    'lines.axis': 1.25,
+                    barWidth: 0.5,
+                    ticks: 'in' as const,
+                  },
+                  symbols: Object.fromEntries(
+                    table.dataSets
+                      .slice(0, 2)
+                      .map((d, i) => [d.id, i ? 'diamond' : 'square'] as const),
+                  ),
+                  bracketOffsets: Object.fromEntries(analyses.map((a, i) => [a, 2.5 - i * 4])),
+                }
+              : {}),
+            ...(s.v % 6 === 4
+              ? {
+                  yStep: 5,
+                  xAngle: 90 as const,
+                  showTitle: false,
+                  style: { spines: 'box' as const },
+                }
+              : {}),
           },
         },
       };

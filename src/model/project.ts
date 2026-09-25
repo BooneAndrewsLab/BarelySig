@@ -148,12 +148,61 @@ export type GraphThemeRef =
   | { readonly kind: 'named'; readonly name: 'modern' | 'classic' }
   | { readonly kind: 'fixed'; readonly theme: Json };
 
+/**
+ * Theme values a graph can override (note 07), as paths into
+ * `GraphTheme`. The codec writes them in this order.
+ */
+export const STYLE_NUMBERS = [
+  'font.tick',
+  'font.axisTitle',
+  'font.title',
+  'font.bracket',
+  'font.legend',
+  'lines.axis',
+  'lines.tick',
+  'lines.tickLength',
+  'lines.error',
+  'lines.barEdge',
+  'lines.bracket',
+  'lines.pointEdge',
+  'pointSize',
+  'pointOpacity',
+  'barWidth',
+  'barLighten',
+  'capWidth',
+] as const;
+export type StyleNumber = (typeof STYLE_NUMBERS)[number];
+
+export type StyleOverrides = Readonly<Partial<Record<StyleNumber, number>>> & {
+  readonly ticks?: 'in' | 'out';
+  readonly spines?: 'left-bottom' | 'box';
+};
+
+export const POINT_SYMBOLS = ['circle', 'square', 'triangle', 'diamond'] as const;
+export type PointSymbol = (typeof POINT_SYMBOLS)[number];
+
 export interface GraphFormat {
   /** Value-axis title; unset = the table's value title and unit. */
   readonly yTitle?: string;
   /** Value-axis range; unset = automatic. */
   readonly yMin?: number;
   readonly yMax?: number;
+  /** Logarithmic value axis (base 10); unset = linear. */
+  readonly yScale?: 'log10';
+  /** Major tick interval of a linear axis; unset = automatic. */
+  readonly yStep?: number;
+  /** Decimals of the tick labels; unset = what the tick interval needs. */
+  readonly yDecimals?: number;
+  /** Group labels turned by this many degrees; unset = level (wrapped). */
+  readonly xAngle?: 45 | 90;
+  /** The graph's title drawn above it; unset = not shown. */
+  readonly showTitle?: boolean;
+  /** Theme values this graph changes; the rest follow its theme. */
+  readonly style?: StyleOverrides;
+  /** Point symbols by data set; unset = circles. */
+  readonly symbols?: Readonly<Record<string, PointSymbol>>;
+  /** Brackets moved up (points; negative: down), by bracket key (#45). */
+  readonly bracketOffsets?: Readonly<Record<string, number>>;
   readonly bracketLabels: 'stars' | 'exact';
   /** Asterisk thresholds; unset = Prism's (up to ****), 'apa' stops at ***. */
   readonly starScheme?: 'apa';
