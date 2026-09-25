@@ -1039,3 +1039,34 @@ select {
 .exports li button {
   margin-left: auto;
 }
+
+.home-recent {
+  margin-top: 32px;
+}
+
+.home-recent h2 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.home-recent ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.home-recent li {
+  border-bottom: 1px solid var(--rule);
+}
+
+.recent-open {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 8px 6px;
+  text-align: left;
+  border-radius: 0;
+}

@@ -3,14 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { ProjectSummary } from '@/io/storage';
 
 import { getSession } from '../state/session';
+import { whenSaved } from './recent';
 
-const when = (t: number) =>
-  new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(t),
-  );
-
-/** New project, and the projects kept in this browser. */
-export function ProjectMenu() {
+/** New project, close the open one, and the projects kept in this browser. */
+export function ProjectMenu({ canClose }: { readonly canClose: boolean }) {
   const [open, setOpen] = useState(false);
   const [recent, setRecent] = useState<readonly ProjectSummary[]>([]);
   const ref = useRef<HTMLDivElement>(null);
@@ -70,6 +66,16 @@ export function ProjectMenu() {
           >
             New project
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canClose}
+            onClick={() => {
+              run(() => getSession().closeProject());
+            }}
+          >
+            Close project
+          </button>
           {recent.length > 0 && <p className="menu-label">In this browser</p>}
           {recent.map((r) => (
             <button
@@ -82,7 +88,7 @@ export function ProjectMenu() {
               }}
             >
               <span className="recent-name">{r.name}</span>
-              <span className="recent-when">{when(r.updatedAt)}</span>
+              <span className="recent-when">{whenSaved(r.updatedAt)}</span>
             </button>
           ))}
         </div>

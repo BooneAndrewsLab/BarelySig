@@ -251,3 +251,28 @@ describe('opening an exported figure', () => {
     bridge.dispose();
   });
 });
+
+describe('closing a project', () => {
+  it('saves it first, then starts afresh, and it can be opened again', async () => {
+    const { store, storage, session } = setup();
+    store.load(withTable('Screen 3'));
+    store.edit({ op: 'renameProject', name: 'Screen 3b' });
+    await session.closeProject();
+    expect(project(store.getState()).tables.size).toBe(0);
+    expect(store.getState().sheet).toEqual({ kind: 'home' });
+    expect(store.getState().notice?.text).toBe(
+      'Closed “Screen 3b”. It’s kept in this browser: open it again from the list or from Projects.',
+    );
+    const [kept] = await storage.list();
+    expect(kept?.name).toBe('Screen 3b');
+    if (!kept) throw new Error('not kept');
+    await session.openStored(kept.id);
+    expect(project(store.getState()).name).toBe('Screen 3b');
+  });
+
+  it('says nothing when closing an empty project', async () => {
+    const { store, session } = setup();
+    await session.closeProject();
+    expect(store.getState().notice).toBeNull();
+  });
+});

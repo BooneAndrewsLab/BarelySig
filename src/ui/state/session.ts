@@ -88,6 +88,21 @@ export class Session {
     await this.replace(createProject('Untitled project'));
   }
 
+  /**
+   * Closes the open project: any pending change is saved to this browser
+   * first, then the start screen shows, with the project in its list.
+   */
+  async closeProject(): Promise<void> {
+    const p = project(this.appStore.getState());
+    const hadContent = p.tables.size > 0 || p.analyses.size > 0 || p.graphs.size > 0;
+    await this.replace(createProject('Untitled project'));
+    if (hadContent) {
+      this.appStore.notify(
+        `Closed “${p.name}”. It’s kept in this browser: open it again from the list or from Projects.`,
+      );
+    }
+  }
+
   async openExample(): Promise<void> {
     await this.replace(exampleProject());
   }

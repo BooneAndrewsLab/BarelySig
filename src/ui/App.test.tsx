@@ -110,3 +110,23 @@ describe('app shell', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('closing a project', () => {
+  it('returns to the start screen, which lists it to reopen', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    expect(screen.getByRole('menuitem', { name: 'Close project' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Try an example' }));
+    await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' });
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Close project' }));
+    await screen.findByRole('heading', { name: 'Start with a table' });
+    const recent = await screen.findByRole('region', { name: 'Projects in this browser' });
+    // Earlier tests saved example projects too; the newest comes first.
+    const [newest] = within(recent).getAllByRole('button', { name: /Example project/ });
+    if (!newest) throw new Error('not listed');
+    fireEvent.click(newest);
+    await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' });
+  });
+});

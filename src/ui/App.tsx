@@ -89,7 +89,14 @@ export function App() {
         >
           {state.downloaded === p ? 'Downloaded' : 'Saved in this browser'}
         </span>
-        <ProjectMenu />
+        <ProjectMenu
+          canClose={
+            p.tables.size > 0 ||
+            p.analyses.size > 0 ||
+            p.graphs.size > 0 ||
+            store.undoLabel() !== null
+          }
+        />
         <button
           type="button"
           title="Open a .bsig project or a figure exported from BarelySig (Ctrl+O), or drop one on the window"
@@ -148,6 +155,7 @@ export function App() {
           </TableSheet>
         ) : (
           <Home
+            current={p.id}
             onNewTable={setNewTable}
             onExample={() => {
               void getSession().openExample();
