@@ -26,6 +26,7 @@ import {
   WELCH_ALL,
   WELCH_CONTROL,
 } from '@/model/project';
+import { columnGroup } from '@/model/selectors';
 import type { Table, TableType } from '@/model/table';
 
 import { KIND_ICON } from '../analysisKinds';
@@ -33,6 +34,7 @@ import { analytics } from '../analytics';
 import { Icon } from '../Icon';
 import { store } from '../state/store';
 import { Dialog } from './Dialog';
+import { type ChooserAnswers, suggest } from './chooser';
 import { analysisTitle } from './tables';
 
 interface Props {
@@ -627,10 +629,118 @@ function TwoWayFields(props: {
   );
 }
 
+/** "Which test?" (#29): plain questions, a suggestion and why. */
+function Chooser(props: {
+  readonly table: Table;
+  readonly picked: readonly Id[];
+  readonly onUse: (spec: AnalysisSpec) => void;
+}) {
+  const [answers, setAnswers] = useState<ChooserAnswers>({ matched: null, gaussian: null });
+  const { table } = props;
+  const sizes = props.picked.map((id) => {
+    if (table.type !== 'column') return 0;
+    const g = columnGroup(table, id);
+    return g.kind === 'raw' ? g.values.length : (g.n ?? 0);
+  });
+  const context = { tableType: table.type, summary: table.format.kind === 'summary', sizes };
+  const s = suggest(answers, context);
+  const asksMatched = table.type === 'column' && !context.summary && sizes.length >= 2;
+  const asksGaussian = asksMatched && !(answers.matched === true && sizes.length > 2);
+  return (
+    <fieldset className="chooser">
+      <legend>Which test?</legend>
+      <p className="hint flush">
+        {table.type === 'grouped'
+          ? 'A Grouped table: two factors, the rows and the data sets.'
+          : `${String(sizes.length)} ${sizes.length === 1 ? 'group' : 'groups'} chosen below${context.summary ? ', entered as summary data (mean, SD, n)' : ''}.`}
+      </p>
+      {asksMatched && (
+        <div role="radiogroup" aria-label="Same subjects in every group?">
+          <p className="question">Are the same subjects in every group?</p>
+          <Radio
+            name="matched"
+            checked={answers.matched === false}
+            onPick={() => {
+              setAnswers({ ...answers, matched: false });
+            }}
+          >
+            No: different samples, animals or wells in each group
+          </Radio>
+          <Radio
+            name="matched"
+            checked={answers.matched === true}
+            onPick={() => {
+              setAnswers({ ...answers, matched: true });
+            }}
+          >
+            Yes: each row is one subject measured in every group (before and after, matched)
+          </Radio>
+        </div>
+      )}
+      {asksGaussian && answers.matched !== null && (
+        <div role="radiogroup" aria-label="Gaussian values?">
+          <p className="question">
+            Can you assume the values follow a bell-shaped (Gaussian, “normal”) distribution?
+          </p>
+          <Radio
+            name="gaussian"
+            checked={answers.gaussian === 'yes'}
+            onPick={() => {
+              setAnswers({ ...answers, gaussian: 'yes' });
+            }}
+          >
+            Yes: e.g. heights, most well-behaved assay readouts
+          </Radio>
+          <Radio
+            name="gaussian"
+            checked={answers.gaussian === 'no'}
+            onPick={() => {
+              setAnswers({ ...answers, gaussian: 'no' });
+            }}
+          >
+            No: skewed values, scores, counts with a few very large ones
+          </Radio>
+          <Radio
+            name="gaussian"
+            checked={answers.gaussian === 'unsure'}
+            onPick={() => {
+              setAnswers({ ...answers, gaussian: 'unsure' });
+            }}
+          >
+            Not sure
+          </Radio>
+        </div>
+      )}
+      {s.kind !== 'ask' && (
+        <div className="suggestion" role="status">
+          {s.kind === 'test' ? (
+            <>
+              <p>
+                <strong>Suggested: {s.name}.</strong> {s.why}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  props.onUse(s.spec);
+                }}
+              >
+                Use the {s.name}
+              </button>
+            </>
+          ) : (
+            <p>{s.why}</p>
+          )}
+        </div>
+      )}
+    </fieldset>
+  );
+}
+
 export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const summary = table.format.kind === 'summary';
   const kinds = KINDS.filter((k) => k.tables.includes(table.type));
   const [kind, setKind] = useState<AnalysisKind>(analysis?.kind ?? 'descriptive');
+  const [choosing, setChoosing] = useState(false);
   const [chosen, setChosen] = useState<readonly Id[]>(
     analysis?.input.kind === 'table' ? analysis.input.dataSets : table.dataSets.map((d) => d.id),
   );
@@ -647,6 +757,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   };
 
   const pickKind = (k: AnalysisKind) => {
+    setChoosing(false);
     setKind(k);
     // A test of two groups starts with the first two chosen.
     const n = KINDS.find((x) => x.kind === k)?.groups;
@@ -758,12 +869,32 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
       >
         <fieldset className="type-choice">
           <legend>What do you want to know?</legend>
-          {kinds.map((k) => (
-            <label key={k.kind} className={kind === k.kind ? 'type-tile chosen' : 'type-tile'}>
+          {!analysis && (
+            <label className={choosing ? 'type-tile chosen' : 'type-tile'}>
               <input
                 type="radio"
                 name="kind"
-                checked={kind === k.kind}
+                checked={choosing}
+                onChange={() => {
+                  setChoosing(true);
+                }}
+              />
+              <Icon name="analyze" size={28} />
+              <span className="type-name">Help me choose</span>
+              <span className="type-blurb">
+                Answer two questions about your experiment and get a suggested test, with why.
+              </span>
+            </label>
+          )}
+          {kinds.map((k) => (
+            <label
+              key={k.kind}
+              className={!choosing && kind === k.kind ? 'type-tile chosen' : 'type-tile'}
+            >
+              <input
+                type="radio"
+                name="kind"
+                checked={!choosing && kind === k.kind}
                 onChange={() => {
                   pickKind(k.kind);
                 }}
@@ -798,7 +929,17 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           )}
         </fieldset>
 
-        {kind === 't-test' && (
+        {choosing && (
+          <Chooser
+            table={table}
+            picked={picked}
+            onUse={(s) => {
+              setOptions((cur) => ({ ...cur, [s.kind]: s.options }));
+              pickKind(s.kind);
+            }}
+          />
+        )}
+        {!choosing && kind === 't-test' && (
           <TTestFields
             o={summary ? { ...options['t-test'], paired: false } : options['t-test']}
             summary={summary}
@@ -807,7 +948,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             }}
           />
         )}
-        {kind === 'one-way-anova' && (
+        {!choosing && kind === 'one-way-anova' && (
           <OneWayFields
             o={options['one-way-anova']}
             groups={table.dataSets.filter((d) => picked.includes(d.id))}
@@ -816,7 +957,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             }}
           />
         )}
-        {kind === 'two-way-anova' && (
+        {!choosing && kind === 'two-way-anova' && (
           <TwoWayFields
             o={options['two-way-anova']}
             columns={table.dataSets.filter((d) => picked.includes(d.id))}
@@ -829,7 +970,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             }}
           />
         )}
-        {kind === 'kruskal-wallis' && (
+        {!choosing && kind === 'kruskal-wallis' && (
           <KruskalFields
             o={options['kruskal-wallis']}
             groups={table.dataSets.filter((d) => picked.includes(d.id))}
@@ -838,7 +979,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             }}
           />
         )}
-        {kind === 'rank-test' && (
+        {!choosing && kind === 'rank-test' && (
           <RankTestFields
             o={options['rank-test']}
             set={(o) => {
@@ -847,7 +988,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           />
         )}
 
-        {offersNormality && (
+        {!choosing && offersNormality && (
           <fieldset>
             <legend>Before the test</legend>
             <label className="option">
@@ -871,7 +1012,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           <button type="button" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="primary" disabled={picked.length === 0}>
+          <button type="submit" className="primary" disabled={picked.length === 0 || choosing}>
             {analysis ? 'Update' : 'Analyze'}
           </button>
         </div>

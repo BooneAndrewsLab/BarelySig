@@ -1082,3 +1082,20 @@ select {
   font-size: 1em;
   margin: 18px 0 6px;
 }
+
+/* The "Which test?" questions and their suggestion (note 06). */
+.chooser .question {
+  margin: 10px 0 2px;
+  font-weight: 600;
+}
+
+.chooser .suggestion {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--bs-accent);
+  background: color-mix(in srgb, var(--bs-accent) 7%, transparent);
+}
+
+.chooser .suggestion p {
+  margin: 0 0 8px;
+}

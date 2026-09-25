@@ -515,6 +515,31 @@ describe('results sheets', () => {
     ]);
   });
 
+  it('suggests a test from two plain questions, and fills the dialog with it', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Help me choose/ }));
+    for (const box of within(dialog).getAllByRole('checkbox')) {
+      if ((box.parentElement?.textContent ?? '') === 'Het') fireEvent.click(box);
+    }
+    expect(within(dialog).getByRole('button', { name: 'Analyze' })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole('radio', { name: /^Yes: each row is one subject/ }));
+    fireEvent.click(within(dialog).getByRole('radio', { name: /^No: skewed values/ }));
+    expect(within(dialog).getByRole('status')).toHaveTextContent(
+      /Suggested: Wilcoxon matched-pairs test\..*can’t give P < 0\.05/,
+    );
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Use the Wilcoxon matched-pairs test' }),
+    );
+    expect(within(dialog).getByRole('radio', { name: /Mann-Whitney \/ Wilcoxon/ })).toBeChecked();
+    expect(within(dialog).getByRole('radio', { name: /^Paired/ })).toBeChecked();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Wilcoxon test of Viability' }),
+    ).toBeInTheDocument();
+  });
+
   it('keeps the analysis linked: its table shows it, and it opens its table', async () => {
     render(<App />);
     analyze(/t test/);

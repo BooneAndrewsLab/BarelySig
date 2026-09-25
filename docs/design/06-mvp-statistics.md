@@ -412,6 +412,22 @@ n ≥ 8, an empty cell, one value per cell).
   which comes back as rounding noise that can't be compared relatively;
   the fixture nudges one value.
 
+### Which test? (#29)
+
+- "Help me choose" is the first tile of the Analyze dialog when creating
+  an analysis. It asks at most two questions (same subjects? Gaussian?);
+  the number of groups comes from the groups ticked below, and Grouped
+  tables and summary data skip straight to what they allow. "Use the …"
+  fills the dialog, options included (paired, for instance).
+- **Small samples:** a rank test that can never reach P < 0.05 with these
+  sizes (Mann-Whitney 3 vs 3 or any 7 values in all; Wilcoxon up to 5
+  pairs) is not suggested for "not sure". The t test is, with the reason
+  and a pointer to log transforms. For "no" the rank test is still
+  suggested, with the same warning. This is a judgement call for users who
+  often have n = 3; Prism's guide makes the same point about power.
+- The logic is a pure function (`src/ui/shell/chooser.ts`) with a test
+  for every path.
+
 ## Decisions made here
 
 1. **Exact rank-test P values with ties**, by counting over doubled
