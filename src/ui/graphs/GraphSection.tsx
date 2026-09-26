@@ -8,8 +8,9 @@
 import { type ReactNode, useRef, useState, useSyncExternalStore } from 'react';
 
 import { graphInput, summaryId } from '@/graphs/data';
-import { elementsIn, regionsOf, sceneOf, svgOf } from '@/graphs/cache';
-import { type ElementId, elementBoxes, pick } from '@/graphs/hit';
+import { outlinePath, pickIn } from '@/graphs/drawn';
+import type { ElementId } from '@/graphs/hit';
+import { getRenderer } from '@/graphs/renderer';
 import { describePlot } from '@/graphs/layout';
 import type { Json } from '@/model/json';
 import type { Graph, Project } from '@/model/project';
@@ -27,6 +28,7 @@ import { elementLabel, offsetOf, withOffset } from './formatting';
 import { GraphSettings } from './GraphSettings';
 import { engineNotice } from './engineNotice';
 import { Inspector } from './Inspector';
+import { useFigure } from './useFigure';
 import { Section } from '../notebook/Section';
 
 interface Props {
@@ -57,31 +59,35 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
   const lastRecipe = useRef<string | null>(null);
   const history = project.exports.filter((x) => x.graph === graph.id).reverse();
 
-  const scene = input.ok ? sceneOf(input.input) : null;
-  const svg = scene ? svgOf(scene) : '';
-  const elements = scene ? elementsIn(scene) : [];
+  const layoutInput = input.ok ? input.input : null;
+  const view = useFigure(saved.id, layoutInput);
+  const drawn = view.drawn;
+  const elements = drawn?.elements ?? [];
   const notice = engineNotice(getSession().baseline, project, saved, bridge.info, (id) =>
     bridge.recompute.result(id),
   );
   // A selection whose element went away (a bracket hidden, the title turned off) lapses.
   const selected = picked !== null && elements.includes(picked) ? picked : null;
-  const regions = scene ? regionsOf(scene) : [];
   const scaleOf = () => {
     const w = figure.current?.getBoundingClientRect().width ?? 0;
-    return scene && w > 0 ? scene.width / w : 1;
+    return drawn && w > 0 ? drawn.width / w : 1;
   };
   const toScene = (cx: number, cy: number) => {
     const r = figure.current?.getBoundingClientRect();
-    if (!r || !scene || r.width <= 0) return null;
-    const k = scene.width / r.width;
+    if (!r || !drawn || r.width <= 0) return null;
+    const k = drawn.width / r.width;
     return { x: (cx - r.left) * k, y: (cy - r.top) * k };
+  };
+  const pickAt = (cx: number, cy: number) => {
+    const at = toScene(cx, cy);
+    return at && drawn ? pickIn(drawn.regions, at.x, at.y) : null;
   };
   const notes = [
     `${describePlot(graph.plot)}.`,
     ...(input.ok && input.input.brackets.length > 0 && graph.format.bracketLabels === 'stars'
       ? [`Asterisks: ${schemeText(graph.format.starScheme ?? 'prism')}.`]
       : []),
-    ...(scene?.notes ?? []),
+    ...(drawn?.notes ?? []),
   ];
 
   let status: string | null = null;
@@ -138,7 +144,7 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
           <button
             type="button"
             className="primary"
-            disabled={!scene}
+            disabled={!layoutInput}
             onClick={() => {
               setExporting(true);
             }}
@@ -200,15 +206,20 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
               )}
             </div>
           )}
-          {scene && (
+          {view.error && (
+            <p className="status-banner error" role="alert">
+              {view.error}
+            </p>
+          )}
+          {layoutInput && (
             <div
-              className="graph-canvas"
+              className={view.busy ? 'graph-canvas busy' : 'graph-canvas'}
+              aria-busy={view.busy}
               style={{ width: `${String(graph.size.width * PX_PER_MM * 1.5)}px` }}
               tabIndex={0}
               aria-label="Graph: click a part of it to format it"
               onPointerDown={(e) => {
-                const at = toScene(e.clientX, e.clientY);
-                const el = at ? pick(regions, at.x, at.y) : null;
+                const el = pickAt(e.clientX, e.clientY);
                 setSelected(el);
                 if (el?.startsWith('bracket:')) {
                   const key = el.slice('bracket:'.length);
@@ -230,8 +241,7 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
                   if (d.moved) setPreview({ key: d.key, offset: Math.max(0, d.base + dy) });
                   return;
                 }
-                const at = toScene(e.clientX, e.clientY);
-                const el = at ? pick(regions, at.x, at.y) : null;
+                const el = pickAt(e.clientX, e.clientY);
                 e.currentTarget.style.cursor = el
                   ? el.startsWith('bracket:')
                     ? 'ns-resize'
@@ -262,29 +272,49 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
                 }
               }}
             >
-              <div
-                ref={figure}
-                role="img"
-                aria-label={`${graph.title}: ${describePlot(graph.plot)}`}
-                // The same SVG an export writes (note 05).
-                dangerouslySetInnerHTML={{ __html: svg }}
-              />
-              {selected && (
+              {drawn?.picture.kind === 'svg' ? (
+                <div
+                  ref={figure}
+                  role="img"
+                  aria-label={`${graph.title}: ${describePlot(graph.plot)}`}
+                  // The same SVG an export writes (note 05).
+                  dangerouslySetInnerHTML={{ __html: drawn.picture.svg }}
+                />
+              ) : (
+                <div
+                  ref={figure}
+                  role="img"
+                  aria-label={`${graph.title}: ${describePlot(graph.plot)}`}
+                  className="graph-picture"
+                  // The graph's proportions until its picture comes (item 11).
+                  style={
+                    drawn
+                      ? undefined
+                      : {
+                          aspectRatio: `${String(graph.size.width)} / ${String(graph.size.height)}`,
+                        }
+                  }
+                >
+                  {/* The scene painted by the worker (item 11); exports are its SVG. */}
+                  {drawn?.picture.kind === 'png' && (
+                    <img src={drawn.picture.url} alt="" draggable={false} />
+                  )}
+                </div>
+              )}
+              {selected && drawn && (
                 <svg
                   className="graph-overlay"
-                  viewBox={`0 0 ${String(scene.width)} ${String(scene.height)}`}
+                  viewBox={`0 0 ${String(drawn.width)} ${String(drawn.height)}`}
                   aria-hidden="true"
                 >
-                  {elementBoxes(scene, selected).map((b, i) => (
-                    <rect
-                      key={i}
-                      x={b.x0 - 1.5}
-                      y={b.y0 - 1.5}
-                      width={b.x1 - b.x0 + 3}
-                      height={b.y1 - b.y0 + 3}
-                    />
-                  ))}
+                  <path d={outlinePath(drawn.outlines.get(selected) ?? new Float32Array(), 1.5)} />
                 </svg>
+              )}
+              {view.busy && (
+                <div className={drawn ? 'graph-busy' : 'graph-busy first'} role="status">
+                  <span className="spinner" aria-hidden="true" />
+                  <span>{drawn ? 'Redrawing…' : 'Drawing the graph…'}</span>
+                </div>
               )}
             </div>
           )}
@@ -318,10 +348,10 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
           )}
         </figure>
       </div>
-      {exporting && scene && (
+      {exporting && layoutInput && (
         <ExportDialog
           graph={graph}
-          scene={scene}
+          scene={() => getRenderer().scene(layoutInput)}
           onClose={() => {
             setExporting(false);
           }}

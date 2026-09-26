@@ -1,7 +1,7 @@
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import { graphInput } from '@/graphs/data';
-import { imageOf, sceneOf } from '@/graphs/cache';
+import { imageOf } from '@/graphs/cache';
 import type { Id } from '@/model/ids';
 import type { Project } from '@/model/project';
 import { duplicateTable } from '@/model/table';
@@ -16,13 +16,16 @@ import { type Sheet, store } from '../state/store';
 import { partsOf, sectionsOf, summaryLine } from './experiments';
 import { MoreMenu } from './MoreMenu';
 import { RenameInput } from './RenameInput';
+import { useFigure } from '../graphs/useFigure';
 
 /** The experiment's first graph, small; its table's icon until it has one. */
 function Thumbnail({ project, table }: { readonly project: Project; readonly table: Id }) {
   const bridge = getResults();
   const graph = partsOf(project, table).graphs[0];
   const input = graph ? graphInput(project, graph, (id) => bridge.recompute.result(id)) : null;
-  if (!input?.ok || !input.summaryReady) {
+  const ready = input?.ok && input.summaryReady ? input.input : null;
+  const { drawn } = useFigure(`thumb:${graph?.id ?? table}`, ready);
+  if (!drawn) {
     const t = project.tables.get(table);
     return (
       <span className="thumb icon-thumb" aria-hidden="true">
@@ -32,8 +35,8 @@ function Thumbnail({ project, table }: { readonly project: Project; readonly tab
   }
   return (
     <span className="thumb" aria-hidden="true">
-      {/* The figure's own SVG, scaled down (note 05), as a picture. */}
-      <img src={imageOf(sceneOf(input.input))} alt="" />
+      {/* The figure's own picture, scaled down (note 05, item 11). */}
+      <img src={imageOf(drawn)} alt="" />
     </span>
   );
 }

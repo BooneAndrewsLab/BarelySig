@@ -6,6 +6,11 @@ bars of every cell, clustered by row, with a legend. The graph appears as
 a section at the end of the experiment's page and follows the table:
 change a value and the graph redraws.
 
+Graphs are drawn in the background, so the page never freezes: a graph of
+thousands of points can take a second or two, and a spinner shows in its
+place meanwhile. While a change is being drawn, the previous version
+stays in view, faded.
+
 **Format**, in the graph's header, opens its settings beside it. Click any
 part of the graph to format that part instead: see
 [Formatting a graph](13-formatting.md).

@@ -334,6 +334,13 @@ the target).
   `vendor/` and loaded lazily in a worker, pure `guess.ts`. Workbook
   fixtures come from `scripts/make-import-fixtures.py` (openpyxl, odfpy,
   xlwt), never from SheetJS itself.
+- Graphs drawn in a worker (#62, note 11): `src/graphs/render.worker.ts`
+  lays out and paints the scene (`paint.ts`, held to `svg.ts` mark by
+  mark) to a PNG; hit regions and outlines come back as typed arrays
+  (`drawn.ts`); the latest request per figure wins (`renderer.ts`); a
+  spinner while drawing. Without a worker canvas (jsdom, old browsers)
+  the figure is the inline SVG, drawn on the main thread. Exports are
+  still the SVG.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
@@ -422,6 +429,11 @@ the target).
   every store change, via the results bridge) redid it all. Graphs are now
   cached per input object (`src/graphs/cache.ts`); keep derived objects
   identity-stable, and time new per-point code at a few thousand points.
+- **Measure a freeze before moving work:** with 14,600 marks, parsing and
+  laying out the SVG in the page cost as much as our layout, and an SVG
+  `<img>` is decoded on the main thread too (0.6 s); only a raster picture
+  painted in a worker took it all off the page (note 11). Time it in a
+  production build (dev renders twice under StrictMode).
 - **Text a user reads about statistics is part of correctness:** P shown
   as Prism does and never contradicting its asterisks, "in either
   direction" for two-tailed, the one-tailed caveat, "no evidence of a

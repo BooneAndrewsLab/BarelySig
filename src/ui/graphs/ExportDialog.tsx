@@ -17,7 +17,8 @@ import { store } from '../state/store';
 
 interface Props {
   readonly graph: Graph;
-  readonly scene: Scene;
+  /** The figure's scene, laid out when an export starts (item 11). */
+  readonly scene: () => Promise<Scene>;
   readonly onClose: () => void;
   /** What the file should carry besides the figure (origin, recipe; #43). */
   readonly meta?: (format: 'svg' | 'png', dpi: number, withData: boolean) => Promise<ExportMeta>;
@@ -42,16 +43,17 @@ export function ExportDialog({ graph, scene, onClose, meta, onExported }: Props)
     setBusy(true);
     setError(null);
     try {
+      const drawn = await scene();
       const m = meta ? await meta(format, dpi, withData) : {};
       const file = fileNameFor(name, format === 'svg' ? '.svg' : '.png', 'Figure');
       const ok =
         format === 'svg'
-          ? await download(file, exportSvg(scene, m), undefined, {
+          ? await download(file, exportSvg(drawn, m), undefined, {
               description: 'SVG image',
               mime: 'image/svg+xml',
               extension: '.svg',
             })
-          : await download(file, await exportPng(scene, dpi, m), undefined, {
+          : await download(file, await exportPng(drawn, dpi, m), undefined, {
               description: 'PNG image',
               mime: 'image/png',
               extension: '.png',

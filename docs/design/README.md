@@ -16,3 +16,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 08 | [Notebook layout: one page per experiment, with margin notes](08-notebook.md) | #55, #56 |
 | 09 | [Project manager: the list, close, delete](09-project-manager.md) | #59 |
 | 10 | [Opening a data file and guessing its layout](10-open-data-file.md) | #60 |
+| 11 | [Drawing graphs off the main thread](11-graph-worker.md) | #62 |

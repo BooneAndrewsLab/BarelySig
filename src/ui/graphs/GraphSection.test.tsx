@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
+import { drawnParts } from '@/graphs/drawn';
+import { layoutColumn } from '@/graphs/layout';
+import {
+  type RenderReply,
+  type RenderRequest,
+  WorkerRenderer,
+  type WorkerLike,
+  setRenderer,
+} from '@/graphs/renderer';
 import type { TTestResult } from '@/analyses/ttest/types';
 import { applyEdit } from '@/model/edits';
 import type { Json } from '@/model/json';
@@ -345,7 +354,13 @@ describe('formatting on the graph (note 07)', () => {
     fireEvent.pointerDown(canvas(), { clientX: x * k, clientY: y * k, pointerId: 1 });
     fireEvent.pointerUp(canvas(), { pointerId: 1 });
     expect(screen.getByRole('heading', { name: 'Data set: KO' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.graph-overlay rect').length).toBeGreaterThan(0);
+    // One outline per mark of the data set, drawn as one path (item 11).
+    const ref = bar?.getAttribute('data-ref') ?? '';
+    const outlined = document.querySelector('.graph-overlay path')?.getAttribute('d') ?? '';
+    expect(outlined.match(/M/g)).toHaveLength(
+      svg()?.querySelectorAll(`[data-ref="${ref}"]:is([data-role="bar"], [data-role="point"])`)
+        .length ?? -1,
+    );
     fireEvent.click(screen.getByRole('radio', { name: '#029e73' }));
     const t = [...project(store.getState()).tables.values()][0];
     expect(t?.dataSets[1]?.color).toBe('#029e73');
@@ -453,5 +468,90 @@ describe('exporting', () => {
       ['Viability.svg', 'svg', { width: 89, height: 76.3 }],
     ]);
     expect(await screen.findByRole('button', { name: 'Restore this figure' })).toBeInTheDocument();
+  });
+});
+
+describe('drawn in a worker (item 11)', () => {
+  /** A worker that paints only when told to. */
+  class Painter implements WorkerLike {
+    onmessage: ((e: MessageEvent<RenderReply>) => void) | null = null;
+    onerror: ((e: ErrorEvent) => void) | null = null;
+    pending: RenderRequest[] = [];
+    postMessage(req: RenderRequest): void {
+      this.pending.push(req);
+    }
+    terminate(): void {
+      // Nothing runs.
+    }
+    /** Answers every request so far. */
+    paint(): void {
+      const reqs = this.pending;
+      this.pending = [];
+      act(() => {
+        for (const req of reqs) {
+          if (req.type !== 'draw') continue;
+          this.onmessage?.({
+            data: {
+              type: 'drawn',
+              id: req.id,
+              ok: true,
+              parts: drawnParts(layoutColumn(req.input)),
+              png: new Blob(['png'], { type: 'image/png' }),
+            },
+          } as MessageEvent<RenderReply>);
+        }
+      });
+    }
+  }
+
+  let painter: Painter;
+  // jsdom has no blob URLs.
+  const saved: Partial<Record<string, PropertyDescriptor>> = Object.getOwnPropertyDescriptors(URL);
+  beforeEach(() => {
+    painter = new Painter();
+    setRenderer(new WorkerRenderer(() => painter));
+    let n = 0;
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: () => `blob:picture-${String((n += 1))}`,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => undefined });
+  });
+  afterEach(() => {
+    setRenderer(null);
+    for (const k of ['createObjectURL', 'revokeObjectURL'] as const) {
+      const d = saved[k];
+      if (d) Object.defineProperty(URL, k, d);
+      else Reflect.deleteProperty(URL, k);
+    }
+  });
+
+  it('shows a spinner in the placeholder, then the picture; the old picture while redrawing', async () => {
+    render(<App />);
+    newGraph();
+    const picture = screen.getByRole('img', { name: /Viability/ });
+    const canvas = picture.closest('.graph-canvas');
+    expect(canvas).toHaveAttribute('aria-busy', 'true');
+    expect(within(canvas as HTMLElement).getByRole('status')).toHaveTextContent(
+      'Drawing the graph…',
+    );
+    expect(picture.querySelector('img')).toBeNull();
+    // Drawn without error bars, then again when they come.
+    await waitFor(() => {
+      painter.paint();
+      expect(screen.queryByText(/Calculating the means/)).toBeNull();
+      expect(canvas).toHaveAttribute('aria-busy', 'false');
+    });
+    const first = picture.querySelector('img')?.getAttribute('src');
+    expect(first).toMatch(/^blob:/);
+    expect(within(canvas as HTMLElement).queryByRole('status')).toBeNull();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Show the graph’s name/ }));
+    expect(canvas).toHaveAttribute('aria-busy', 'true');
+    expect(within(canvas as HTMLElement).getByRole('status')).toHaveTextContent('Redrawing…');
+    expect(picture.querySelector('img')?.getAttribute('src')).toBe(first);
+    painter.paint();
+    expect(canvas).toHaveAttribute('aria-busy', 'false');
+    expect(picture.querySelector('img')?.getAttribute('src')).not.toBe(first);
   });
 });

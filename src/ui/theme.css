@@ -1119,10 +1119,79 @@ select {
   outline-offset: 2px;
 }
 
-.graph-canvas svg {
+.graph-canvas svg,
+.graph-picture img {
   display: block;
   width: 100%;
   height: auto;
+}
+
+/* Item 11: the worker's picture, a placeholder of the graph's proportions until it comes. */
+.graph-picture {
+  position: relative;
+}
+
+.graph-picture img {
+  user-select: none;
+  transition: opacity 0.2s;
+}
+
+/* A newer version being drawn: the old picture fades, a spinner comes (both after a
+   moment, so a quick redraw doesn't flicker). */
+.graph-canvas.busy .graph-picture img {
+  opacity: 0.45;
+  transition-delay: 0.15s;
+}
+
+.graph-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ink-2);
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0;
+  animation: graph-busy-in 0.2s ease-out 0.15s forwards;
+}
+
+.graph-busy.first {
+  animation-delay: 0s;
+}
+
+@keyframes graph-busy-in {
+  to {
+    opacity: 1;
+  }
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid color-mix(in srgb, var(--bs-accent) 22%, transparent);
+  border-top-color: var(--bs-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* The selection outline (note 07): over the figure, never part of it. */
@@ -1133,7 +1202,7 @@ select {
   pointer-events: none;
 }
 
-.graph-overlay rect {
+.graph-overlay path {
   fill: color-mix(in srgb, var(--bs-accent) 8%, transparent);
   stroke: var(--bs-accent);
   stroke-width: 0.6;

@@ -21,6 +21,26 @@ async function paste(page: Page, text: string): Promise<void> {
   }, text);
 }
 
+/**
+ * The figure's picture (painted by the worker, item 11) once drawn, and
+ * the parts the Format list offers: the picture has no shapes to read.
+ */
+async function figureParts(page: Page, name: RegExp): Promise<string[]> {
+  const figure = page.getByRole('img', { name });
+  const section = page.locator('.graph-section').filter({ has: figure });
+  await expect(section.locator('.graph-canvas')).toHaveAttribute('aria-busy', 'false');
+  await expect
+    .poll(() => figure.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBeGreaterThan(0);
+  const format = section.getByRole('button', { name: 'Format', exact: true });
+  if ((await format.getAttribute('aria-pressed')) !== 'true') await format.click();
+  const list = section.locator('.inspector-pick select');
+  await expect(list).toBeVisible();
+  const parts = await list.locator('option').allTextContents();
+  await format.click();
+  return parts;
+}
+
 test.beforeEach(async ({ page }) => {
   // Downloads go through an <a download> the test can catch, as in Firefox.
   await page.addInitScript(() => {
@@ -56,9 +76,11 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
 
   // A bar graph of the table draws the test's bracket.
   await page.getByRole('button', { name: 'New graph' }).click();
-  const figure = page.getByRole('img', { name: /Viability: Bars: mean ± SD/ });
-  await expect(figure.locator('[data-role="bar"]')).toHaveCount(2);
-  await expect(figure.locator('[data-role="bracket-label"]')).toHaveText('****');
+  await expect
+    .poll(() => figureParts(page, /Viability: Bars: mean ± SD/))
+    .toEqual(
+      expect.arrayContaining(['Data set: Vehicle', 'Data set: Drug', 'Bracket: Vehicle vs. Drug']),
+    );
 
   // SVG export, with its recipe.
   await page.getByRole('button', { name: 'Export…' }).click();
@@ -69,7 +91,8 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
   const svgText = readFileSync(await svg.path(), 'utf8');
   expect(svgText).toContain('<barelysig:recipe');
   expect(svgText).toMatch(/width="70mm"/);
-  expect(svgText).toContain('****');
+  expect(svgText).toContain('>****</text>');
+  expect(svgText.match(/data-role="bar"/g)).toHaveLength(2);
 
   // PNG export at 600 DPI: the signature, the DPI chunk and the recipe.
   await page.getByRole('button', { name: 'Export…' }).click();
@@ -108,9 +131,7 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
     buffer: readFileSync(bsigPath),
   });
   await expect(page.getByText('Opened “Viability.bsig”.')).toBeVisible();
-  await expect(
-    page.getByRole('img', { name: /Viability/ }).locator('[data-role="bracket-label"]'),
-  ).toHaveText('****');
+  await expect.poll(() => figureParts(page, /Viability/)).toContain('Bracket: Vehicle vs. Drug');
 
   // The exported SVG reopens as the figure it was.
   await page.locator('input[type="file"]').setInputFiles({
@@ -119,7 +140,7 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
     buffer: Buffer.from(svgText),
   });
   await expect(page.getByText(/Opened the figure “Viability.svg”/)).toBeVisible();
-  await expect(
-    page.getByRole('img', { name: /Viability/ }).locator('[data-role="bar"]'),
-  ).toHaveCount(2);
+  expect(
+    (await figureParts(page, /Viability/)).filter((x) => x.startsWith('Data set:')),
+  ).toHaveLength(2);
 });
