@@ -34,6 +34,8 @@ import {
   WELCH_ALL,
   WELCH_CONTROL,
   type ExportRecord,
+  type NestedComparisons,
+  type NestedOneWayOptions,
   type NestedTTestOptions,
   type GraphPlot,
   type Graph,
@@ -148,6 +150,8 @@ function optionsJson(a: AnalysisSpec): Json {
       return { paired: a.options.paired, tails: a.options.tails, zeros: a.options.zeros };
     case 'one-way-anova':
       return { welch: a.options.welch, comparisons: comparisonsJson(a.options.comparisons) };
+    case 'nested-one-way-anova':
+      return { comparisons: comparisonsJson(a.options.comparisons) };
     case 'two-way-anova':
       return { family: a.options.family, comparisons: comparisonsJson(a.options.comparisons) };
     case 'kruskal-wallis': {
@@ -447,6 +451,12 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       };
       return { kind, options };
     }
+    case 'nested-one-way-anova': {
+      const options: NestedOneWayOptions = {
+        comparisons: nestedComparisons(opts['comparisons'], q.key('comparisons')),
+      };
+      return { kind, options };
+    }
     case 'two-way-anova': {
       const options: TwoWayOptions = {
         family: oneOf(opts['family'], q.key('family'), TWO_WAY_FAMILIES),
@@ -496,6 +506,23 @@ function comparisons(v: Json | undefined, p: Path): Comparisons {
         kind,
         control: id(o['control'], p.key('control')),
         test: oneOf(o['test'], p.key('test'), [...EQUAL_SD_CONTROL, ...WELCH_CONTROL]),
+      };
+  }
+}
+
+function nestedComparisons(v: Json | undefined, p: Path): NestedComparisons {
+  const o = obj(v, p);
+  const kind = oneOf(o['kind'], p.key('kind'), ['none', 'all', 'control'] as const);
+  switch (kind) {
+    case 'none':
+      return { kind };
+    case 'all':
+      return { kind, test: oneOf(o['test'], p.key('test'), EQUAL_SD_ALL) };
+    case 'control':
+      return {
+        kind,
+        control: id(o['control'], p.key('control')),
+        test: oneOf(o['test'], p.key('test'), EQUAL_SD_CONTROL),
       };
   }
 }

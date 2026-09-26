@@ -1,4 +1,4 @@
-# Nested tables and the nested t test
+# Nested tables, the nested t test and nested one-way ANOVA
 
 A Nested table is for data with **two levels**: several biological
 replicates (separate experiments, animals, dishes) in each group, and
@@ -53,5 +53,24 @@ The results report:
   compared with the within-replicate SD is a sign that which day or
   animal you used matters more than which individual thing you measured.
 
-Comparing three or more groups this way, and the SuperPlot graph itself,
-are coming in a later release.
+## Comparing three or more groups: nested one-way ANOVA
+
+Choose **nested one-way ANOVA** instead of the nested t test when
+comparing three or more groups. It reports:
+
+- **The overall F, df and P**: whether the group means differ at all.
+  It doesn't say which groups differ; the comparisons below do.
+- **Which groups differ (multiple comparisons)**, the same choice as the
+  ordinary one-way ANOVA's: compare every group with every other
+  (**Tukey**, **Bonferroni** or **Šidák**), or every group with a
+  control (**Dunnett**, Bonferroni or Šidák). Each P is adjusted for the
+  number of comparisons.
+- **Between-replicate SD** and **within-replicate SD**, as the nested t
+  test reports them.
+
+There's no Welch or Brown-Forsythe version here: the model already
+separates how much replicates vary from each other from how much
+individual values vary within one replicate, so there's nothing
+analogous to "assume the groups have different SDs" to turn on.
+
+The SuperPlot graph itself is coming in a later release.

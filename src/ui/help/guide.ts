@@ -65,6 +65,7 @@ export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   descriptive: '11-descriptive',
   't-test': '05-t-tests',
   'nested-t-test': '17-nested-tables',
+  'nested-one-way-anova': '17-nested-tables',
   'rank-test': '06-rank-tests',
   'one-way-anova': '07-one-way-anova',
   'kruskal-wallis': '08-kruskal-wallis',

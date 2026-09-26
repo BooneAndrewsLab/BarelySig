@@ -63,6 +63,7 @@ export const EVENTS = {
     'new-nested-t-test',
     'new-rank-test',
     'new-one-way-anova',
+    'new-nested-one-way-anova',
     'new-kruskal-wallis',
     'new-two-way-anova',
     'new-normality',

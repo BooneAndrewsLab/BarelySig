@@ -19,6 +19,8 @@ import {
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
   type KruskalWallisOptions,
+  type NestedComparisons,
+  type NestedOneWayOptions,
   type OneWayOptions,
   type RankTestOptions,
   TWO_WAY_FAMILIES,
@@ -82,6 +84,13 @@ const KINDS: readonly KindInfo[] = [
     blurb: 'Compare two groups, weighing each biological replicate by how many values it has.',
     tables: ['nested'],
     groups: 2,
+  },
+  {
+    kind: 'nested-one-way-anova',
+    name: 'Nested one-way ANOVA',
+    blurb:
+      'Compare three or more groups, weighing each biological replicate by how many values it has.',
+    tables: ['nested'],
   },
   {
     kind: 'rank-test',
@@ -443,6 +452,105 @@ function OneWayFields(props: {
         </p>
       </fieldset>
     </>
+  );
+}
+
+function NestedOneWayFields(props: {
+  readonly o: NestedOneWayOptions;
+  readonly groups: readonly { readonly id: Id; readonly title: string }[];
+  readonly set: (o: NestedOneWayOptions) => void;
+}) {
+  const { o, set, groups } = props;
+  const c = o.comparisons;
+  const firstId = groups[0]?.id;
+  const controlId = c.kind === 'control' ? c.control : firstId;
+  const tests: readonly (AllPairsTest | ControlTest)[] =
+    c.kind === 'all' ? EQUAL_SD_ALL : EQUAL_SD_CONTROL;
+  const goal = (kind: NestedComparisons['kind']) => {
+    const next: NestedComparisons =
+      kind === 'none'
+        ? { kind }
+        : kind === 'all'
+          ? { kind, test: 'tukey' }
+          : { kind, control: controlId ?? ('' as Id), test: 'dunnett' };
+    set({ comparisons: next });
+  };
+  return (
+    <fieldset>
+      <legend>Which groups differ? (multiple comparisons)</legend>
+      <Radio
+        name="goal"
+        checked={c.kind === 'all'}
+        onPick={() => {
+          goal('all');
+        }}
+      >
+        Compare every group with every other group
+      </Radio>
+      <Radio
+        name="goal"
+        checked={c.kind === 'control'}
+        onPick={() => {
+          goal('control');
+        }}
+      >
+        Compare every group with a control group
+      </Radio>
+      <Radio
+        name="goal"
+        checked={c.kind === 'none'}
+        onPick={() => {
+          goal('none');
+        }}
+      >
+        Only the overall ANOVA
+      </Radio>
+      {c.kind === 'control' && (
+        <label className="option">
+          Control group{' '}
+          <select
+            value={c.control}
+            onChange={(e) => {
+              set({ comparisons: { ...c, control: e.currentTarget.value as Id } });
+            }}
+          >
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.title || '(untitled)'}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {c.kind !== 'none' && (
+        <label className="option">
+          Test{' '}
+          <select
+            aria-label="Multiple comparisons test"
+            value={c.test}
+            onChange={(e) => {
+              const test = e.currentTarget.value;
+              set({
+                comparisons:
+                  c.kind === 'all'
+                    ? { kind: 'all', test: test as (typeof EQUAL_SD_ALL)[number] }
+                    : { ...c, test: test as (typeof EQUAL_SD_CONTROL)[number] },
+              });
+            }}
+          >
+            {tests.map((t) => (
+              <option key={t} value={t}>
+                {TEST_LABEL[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <p className="hint">
+        Each P value is adjusted for the number of comparisons, so the 5% chance of a false
+        “significant” applies to the whole set, not to each pair.
+      </p>
+    </fieldset>
   );
 }
 
@@ -831,6 +939,16 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               : o,
         };
       }
+      case 'nested-one-way-anova': {
+        const o = options['nested-one-way-anova'];
+        const c = o.comparisons;
+        const control = c.kind === 'control' && !picked.includes(c.control) ? picked[0] : undefined;
+        return {
+          kind,
+          options:
+            control !== undefined && c.kind === 'control' ? { comparisons: { ...c, control } } : o,
+        };
+      }
     }
   };
 
@@ -986,6 +1104,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             groups={table.dataSets.filter((d) => picked.includes(d.id))}
             set={(o) => {
               set('one-way-anova', o);
+            }}
+          />
+        )}
+        {!choosing && kind === 'nested-one-way-anova' && (
+          <NestedOneWayFields
+            o={options['nested-one-way-anova']}
+            groups={table.dataSets.filter((d) => picked.includes(d.id))}
+            set={(o) => {
+              set('nested-one-way-anova', o);
             }}
           />
         )}

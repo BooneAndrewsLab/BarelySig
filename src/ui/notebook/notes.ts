@@ -161,6 +161,21 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
         },
       ];
     }
+    case 'nested-one-way-anova': {
+      const o = analysis.options;
+      const comps = comparisonsText(table, o.comparisons);
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Asks whether the group means are all the same, weighing each biological replicate by how many values it has. It doesn’t say which groups differ; the comparisons below do.',
+            ...(comps ? [comps] : []),
+            NS,
+          ],
+        },
+      ];
+    }
     case 'kruskal-wallis': {
       const o = analysis.options;
       const dunn =

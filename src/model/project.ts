@@ -19,6 +19,7 @@ export type AnalysisSpec =
   | { readonly kind: 'descriptive'; readonly options: DescriptiveOptions }
   | { readonly kind: 't-test'; readonly options: TTestOptions }
   | { readonly kind: 'nested-t-test'; readonly options: NestedTTestOptions }
+  | { readonly kind: 'nested-one-way-anova'; readonly options: NestedOneWayOptions }
   | { readonly kind: 'rank-test'; readonly options: RankTestOptions }
   | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
   | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions }
@@ -64,6 +65,24 @@ export interface TTestOptions {
  */
 export interface NestedTTestOptions {
   readonly tails: 'two' | 'one';
+}
+
+/**
+ * Comparisons after a nested one-way ANOVA (item 13): the same tests as
+ * an ordinary (equal-SD) ANOVA's — no Welch-style variant, since the
+ * mixed model already separates between- and within-replicate variance.
+ */
+export type NestedComparisons =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'all'; readonly test: (typeof EQUAL_SD_ALL)[number] }
+  | {
+      readonly kind: 'control';
+      readonly control: Id;
+      readonly test: (typeof EQUAL_SD_CONTROL)[number];
+    };
+
+export interface NestedOneWayOptions {
+  readonly comparisons: NestedComparisons;
 }
 
 /** Mann-Whitney (unpaired) or Wilcoxon matched pairs (paired), note 06. */
@@ -136,6 +155,7 @@ export const DEFAULT_OPTIONS: {
   descriptive: {},
   't-test': { paired: false, welch: false, tails: 'two' },
   'nested-t-test': { tails: 'two' },
+  'nested-one-way-anova': { comparisons: { kind: 'all', test: 'tukey' } },
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },

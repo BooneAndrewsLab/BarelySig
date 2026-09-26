@@ -1,0 +1,81 @@
+{
+  "input": {
+    "value": [
+      4.0999999999999996, 4.2999999999999998, 6, 6.2000000000000002, 8, 8.4000000000000004, 10.1,
+      9.8000000000000007, 12, 12.4, 14.1, 13.9
+    ],
+    "group_idx": [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3],
+    "replicate_idx": [1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2],
+    "k": [3]
+  },
+  "expected": {
+    "means": [5.1500000000002384, 9.0749999999999194, 13.099999999999969],
+    "n_rep": [2, 2, 2],
+    "n_values": [4, 4, 4],
+    "f": 19.129128192387853,
+    "dfn": 2,
+    "dfd": 3,
+    "p": 0.019607199901222241,
+    "between_replicate_sd": 1.2767145,
+    "within_replicate_sd": 0.2101587,
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -3.9249999999999958,
+        "se": 1.2853339384394771,
+        "df": 3,
+        "statistic": -3.0536811350094242,
+        "ci_lower": -10.16742642005887,
+        "ci_upper": 2.317426420058879,
+        "p": 0.16580218443958966
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -7.9499999999999948,
+        "se": 1.2853339384394769,
+        "df": 3,
+        "statistic": -6.1851630632674999,
+        "ci_lower": -14.192426420058869,
+        "ci_upper": -1.7075735799411209,
+        "p": 0.025533403238401215
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": -4.0249999999999986,
+        "se": 1.2853339384394769,
+        "df": 3,
+        "statistic": -3.1314819282580748,
+        "ci_lower": -10.267426420058872,
+        "ci_upper": 2.2174264200588754,
+        "p": 0.15601716624706427
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0",
+      "lme4": "2.0.6",
+      "nlme": "3.1.169",
+      "emmeans": "2.0.3"
+    },
+    "setup": "{\n    same <- function(x, y, tol = 1e-04) stopifnot(isTRUE(all.equal(unname(x), unname(y), \n        tolerance = tol)))\n    frame <- function(value, group_idx, replicate_idx, k) {\n        data.frame(value = value, group = factor(paste0(\"g\", group_idx), levels = paste0(\"g\", \n            seq_len(k))), unit = factor(paste0(group_idx, \"_\", replicate_idx)))\n    }\n    pairs_from <- function(fit, comps, control, test) {\n        em <- emmeans::emmeans(fit, ~group)\n        adjust <- if (test == \"dunnett\") \n            \"mvt\"\n        else test\n        ct <- if (comps == \"control\") {\n            emmeans::contrast(em, method = \"trt.vs.ctrl\", ref = control, adjust = adjust)\n        }\n        else {\n            emmeans::contrast(em, method = \"pairwise\", adjust = adjust)\n        }\n        s <- as.data.frame(summary(ct, infer = c(TRUE, TRUE)))\n        idxof <- function(label) as.integer(sub(\"^g\", \"\", label))\n        flip <- comps == \"control\"\n        lapply(seq_len(nrow(s)), function(x) {\n            parts <- strsplit(as.character(s$contrast[x]), \" - \", fixed = TRUE)[[1]]\n            a <- idxof(parts[1])\n            b2 <- idxof(parts[2])\n            sign <- if (flip) \n                -1\n            else 1\n            list(i = if (flip) b2 else a, j = if (flip) a else b2, diff = sign * \n                s$estimate[x], se = s$SE[x], df = s$df[x], statistic = sign * s$t.ratio[x], \n                ci_lower = if (flip) -s$upper.CL[x] else s$lower.CL[x], ci_upper = if (flip) -s$lower.CL[x] else s$upper.CL[x], \n                p = s$p.value[x])\n        })\n    }\n    oneway <- function(value, group_idx, replicate_idx, k, comps, control, test) {\n        n_rep <- vapply(seq_len(k), function(i) length(unique(replicate_idx[group_idx == \n            i])), 0)\n        d <- frame(value, group_idx, replicate_idx, k)\n        fit4 <- lme4::lmer(value ~ group + (1 | unit), data = d, REML = TRUE)\n        fe <- unname(lme4::fixef(fit4))\n        means <- fe[1] + c(0, fe[-1])\n        dfd <- sum(n_rep) - k\n        idx <- 2:k\n        b <- fe[idx]\n        Vb <- as.matrix(vcov(fit4))[idx, idx, drop = FALSE]\n        f <- as.numeric(t(b) %*% solve(Vb) %*% b)/(k - 1)\n        p <- pf(f, k - 1, dfd, lower.tail = FALSE)\n        fit <- nlme::lme(value ~ group, random = ~1 | unit, data = d, method = \"REML\")\n        vc <- nlme::VarCorr(fit)\n        list(means = means, n_rep = n_rep, n_values = vapply(seq_len(k), function(i) sum(group_idx == \n            i), 0), f = f, dfn = k - 1, dfd = dfd, p = p, between_replicate_sd = as.numeric(vc[\"(Intercept)\", \n            \"StdDev\"]), within_replicate_sd = as.numeric(vc[\"Residual\", \"StdDev\"]), \n            comparisons = pairs_from(fit, comps, control, test))\n    }\n    check_nlme <- function(value, group_idx, replicate_idx, k, expected) {\n        d <- frame(value, group_idx, replicate_idx, k)\n        fit <- nlme::lme(value ~ group, random = ~1 | unit, data = d, method = \"REML\")\n        a <- anova(fit)\n        same(expected$f, unname(a[\"group\", \"F-value\"]))\n        same(expected$dfd, unname(a[\"group\", \"denDF\"]))\n        same(expected$p, unname(a[\"group\", \"p-value\"]))\n        TRUE\n    }\n}",
+    "call": "oneway(value, group_idx, replicate_idx, k, \"all\", 1, \"bonferroni\")",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "nlme": "3.1.169"
+      },
+      "code": "check_nlme(value, group_idx, replicate_idx, k, expected)"
+    }
+  },
+  "tolerance": 0.0001,
+  "note": "Two replicates per group, the minimum a nested one-way ANOVA can run on.",
+  "options": {
+    "comparisons": "all",
+    "test": "bonferroni"
+  }
+}

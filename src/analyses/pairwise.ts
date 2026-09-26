@@ -9,6 +9,7 @@ import type { Json } from '@/model/json';
 import type { Analysis, AnalysisKind, Project } from '@/model/project';
 
 import type { KruskalWallisResult } from './kruskal/types';
+import type { NestedOneWayResult } from './nested-oneway/types';
 import type { NestedTTestResult } from './nested-ttest/types';
 import type { OneWayResult } from './oneway/types';
 import type { RankTestResult } from './ranktest/types';
@@ -33,6 +34,7 @@ export const BRACKET_KINDS: ReadonlySet<AnalysisKind> = new Set<AnalysisKind>([
   'nested-t-test',
   'rank-test',
   'one-way-anova',
+  'nested-one-way-anova',
   'kruskal-wallis',
   'two-way-anova',
 ]);
@@ -79,6 +81,7 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
         : [];
     }
     case 'one-way-anova':
+    case 'nested-one-way-anova':
     case 'kruskal-wallis': {
       return among(ids, analysis.options.comparisons).map(([a, b]) => ({
         key: pairKey(analysis.id, a, b),
@@ -130,8 +133,9 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
       return [{ key: analysis.id, a: r.a.id, b: r.b.id, p: r.p }];
     }
     case 'one-way-anova':
+    case 'nested-one-way-anova':
     case 'kruskal-wallis': {
-      const r = value as unknown as OneWayResult | KruskalWallisResult;
+      const r = value as unknown as OneWayResult | NestedOneWayResult | KruskalWallisResult;
       return r.pairs.map((c) => ({
         key: pairKey(analysis.id, c.a.id, c.b.id),
         a: c.a.id,
