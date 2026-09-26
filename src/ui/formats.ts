@@ -26,6 +26,13 @@ export const TABLE_TYPES: readonly TableTypeInfo[] = [
     blurb:
       'Two factors: rows are one (e.g. genotype), columns the other (e.g. treatment). For two-way ANOVA and grouped bars.',
   },
+  {
+    type: 'nested',
+    name: 'Nested',
+    icon: 'grouped',
+    blurb:
+      'Each column a group, subcolumns its biological replicates, rows the individual values within a replicate. For the nested t test, nested one-way ANOVA and SuperPlots.',
+  },
 ];
 
 export function tableTypeInfo(type: TableType): TableTypeInfo {

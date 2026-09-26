@@ -9,6 +9,7 @@ import {
   type TableType,
   createColumnTable,
   createGroupedTable,
+  createNestedTable,
 } from '@/model/table';
 
 import { testName } from '../analysisKinds';
@@ -35,6 +36,7 @@ export function buildTable(
   entry: Entry,
   replicates: number,
 ): Table {
+  if (type === 'nested') return createNestedTable({ title, groups: [], replicates });
   const format: EntryFormat =
     entry === 'raw'
       ? { kind: 'replicates', count: type === 'column' ? 1 : replicates }

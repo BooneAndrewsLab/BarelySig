@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { type Edit, applyEdit } from '@/model/edits';
 import { type Project, createProject } from '@/model/project';
-import { type Table, createColumnTable, createGroupedTable } from '@/model/table';
+import {
+  type Table,
+  createColumnTable,
+  createGroupedTable,
+  createNestedTable,
+} from '@/model/table';
 import { validateProject } from '@/model/validate';
 
 import {
@@ -45,6 +50,7 @@ function setup(table: Table) {
 }
 
 const column = () => setup(createColumnTable({ title: 'T', groups: [] }));
+const nested = () => setup(createNestedTable({ title: 'N', groups: ['ctrl'], replicates: 2 }));
 
 describe('parseCell', () => {
   it.each([
@@ -155,6 +161,30 @@ describe('layout', () => {
     expect(l.subHeaders).toBe(true);
   });
 
+  it('labels a Nested table by replicate, with no row-title column', () => {
+    const n = createNestedTable({ title: 'N', groups: ['ctrl', 'treated'], replicates: 3 });
+    const l = makeLayout(n, SIZE);
+    expect(l.rowTitles).toBe(false);
+    expect(l.columns.map((c) => c.label).slice(0, 3)).toEqual([
+      'Replicate 1',
+      'Replicate 2',
+      'Replicate 3',
+    ]);
+    expect(l.growsRows).toBe(true);
+    expect(l.subHeaders).toBe(true);
+  });
+
+  it('uses a Nested table’s own replicate titles when given', () => {
+    const n = createNestedTable({
+      title: 'N',
+      groups: ['ctrl'],
+      replicates: 3,
+      replicateTitles: ['Dish 1', null, 'Dish 3'],
+    });
+    const l = makeLayout(n, SIZE);
+    expect(l.columns.map((c) => c.label).slice(0, 3)).toEqual(['Dish 1', 'Replicate 2', 'Dish 3']);
+  });
+
   it('gives a Column table of summary data exactly one row', () => {
     const t = createColumnTable({
       title: 'S',
@@ -190,6 +220,26 @@ describe('typing into the grid', () => {
     expect(g.current().rows).toHaveLength(0);
     g.type(-1, 0, 'WT');
     expect(g.current().dataSets.map((d) => d.title)).toEqual(['WT']);
+  });
+
+  it('writes into a Nested table’s replicate subcolumns like any other', () => {
+    const n = nested();
+    n.type(0, 0, '1.2');
+    n.type(1, 0, '1.4');
+    n.type(0, 1, '3.1');
+    expect(n.current().rows).toHaveLength(2);
+    expect(n.values()).toEqual([
+      [
+        [1.2, 1.4],
+        [3.1, null],
+      ],
+    ]);
+  });
+
+  it('creates a new group typed past a Nested table’s last replicate column', () => {
+    const n = nested();
+    n.type(0, 2, '5');
+    expect(n.current().dataSets.map((d) => d.title)).toEqual(['ctrl', 'Group B']);
   });
 
   it('writes nothing for an empty entry in a spare cell', () => {

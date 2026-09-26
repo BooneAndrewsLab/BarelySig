@@ -25,6 +25,27 @@ export function EntryFields({
 }: Props) {
   const setEntry = onEntry;
   const setReplicates = onReplicates;
+  if (type === 'nested') {
+    return (
+      <fieldset>
+        <legend>{legend}</legend>
+        <p className="hint flush">Individual values, grouped into biological replicates.</p>
+        <label className="indent">
+          Biological replicates per group{' '}
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={replicates}
+            onChange={(e) => {
+              setReplicates(e.currentTarget.valueAsNumber);
+            }}
+            aria-invalid={!valid}
+          />
+        </label>
+      </fieldset>
+    );
+  }
   return (
     <fieldset>
       <legend>{legend}</legend>

@@ -241,7 +241,14 @@ export function App() {
           onCreate={(t) => {
             setNewTable(null);
             store.edit({ op: 'addTable', table: t }, { show: { kind: 'table', id: t.id } });
-            analytics.trackOnce('table', t.type === 'column' ? 'new-column' : 'new-grouped');
+            analytics.trackOnce(
+              'table',
+              t.type === 'column'
+                ? 'new-column'
+                : t.type === 'grouped'
+                  ? 'new-grouped'
+                  : 'new-nested',
+            );
           }}
         />
       )}

@@ -39,6 +39,19 @@ export function dataNotes(table: Table): Note[] {
       },
     ];
   }
+  if (table.type === 'nested') {
+    return [
+      {
+        kicker,
+        title: 'Biological replicates',
+        text: [
+          'Each column is a group; the subcolumns under it are separate biological replicates (separate experiments, animals or dishes). Each value is one individual measurement within a replicate.',
+          EMPTY_CELLS,
+          'This is what a SuperPlot is drawn from: it lets the test count how many times you ran the experiment, not how many individual things you measured.',
+        ],
+      },
+    ];
+  }
   if (table.type === 'grouped') {
     return [
       {

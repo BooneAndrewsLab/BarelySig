@@ -90,6 +90,14 @@ export function subcolumnLabels(table: Table): readonly string[] {
   if (format.kind === 'summary') {
     return summarySubcolumns(format.stats).map((s) => SUBCOLUMN_LABELS[s]);
   }
+  if (table.type === 'nested') {
+    if (format.count === 1) return [''];
+    const titles = table.replicateTitles;
+    return Array.from(
+      { length: format.count },
+      (_, i) => titles?.[i] ?? `Replicate ${String(i + 1)}`,
+    );
+  }
   return format.count === 1
     ? ['']
     : Array.from({ length: format.count }, (_, i) => `Y${String(i + 1)}`);
