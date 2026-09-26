@@ -345,6 +345,24 @@ the target).
   which keeps its last complete version meanwhile; banners only for
   problems. Left: the "points were squeezed" caption line appears once a
   big graph is first drawn (it comes from the worker's layout).
+- Milestone 10 "Nested tables & SuperPlots" (2026-09-26): a Nested table
+  type (design note 13) — groups, biological replicates, individual
+  values, reusing the existing `DataSet.subcolumns`/grid machinery
+  almost unchanged (#63). Nested t test and nested one-way ANOVA (#66,
+  #67): a real REML mixed model (`nlme::lme`, replicate random within
+  group via a single `group:replicate` interaction factor — nlme's own
+  nesting operator double-counts a factor already fixed and gives a
+  degenerate df, caught before any fixture was written), post-hoc
+  comparisons for the ANOVA via `emmeans` (its first shipped runtime
+  use); `nlme` pinned (#65). Data entry UI (#64) and the SuperPlot graph
+  (#68) — colour by replicate, replicate-mean overlay, no new graph
+  kind needed. Guide page and "Help me choose" wiring (#69). Browser
+  testing (not just Node) surfaced and fixed two real bugs: `nlme`
+  failed to install under Vite's dev server specifically (its SPA
+  fallback masks a missing `PACKAGES.rds`/`.gz` as a 200, which WebR
+  can't tell from a malformed index), and `ResultsSection.tsx`'s
+  per-kind view is a plain conditional chain, not an exhaustive switch,
+  so a missing case compiled clean and rendered nothing.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
@@ -442,6 +460,33 @@ the target).
   as Prism does and never contradicting its asterisks, "in either
   direction" for two-tailed, the one-tailed caveat, "no evidence of a
   difference", never "the same".
+- **nlme's own nesting operator (`random = ~1 | a/b`) is for when
+  neither level is already a fixed effect.** Nested t-test/ANOVA has
+  `group` as fixed and only `replicate` random within it; `~1 | a/b`
+  adds a second, unwanted variance component for `group` and gives a
+  degenerate df (=0) and a NaN P. Collapse `group` and `replicate` into
+  one interaction factor first, then `~1 | unit` — confirmed against
+  synthetic data, and against `lme4`'s `(1|group:replicate)`, before any
+  fixture was written (note 13).
+- **A results view keyed by `analysis.kind === X && <View/>` isn't
+  exhaustive:** a new analysis kind with no case compiles clean and
+  renders nothing (`ResultsSection.tsx`, note 13). Grep for every other
+  place an analysis kind is matched (brackets, margin notes, the Analyze
+  dialog, `.bsig`, the results view) when adding one; nothing catches a
+  missed one at compile time.
+- **A package that has never been loaded in the running app can hide a
+  real bug:** every analysis before note 13 passed `packages: []`, so
+  `webR.installPackages()` had never actually run in the dev server.
+  Vite's SPA fallback serves `index.html` (200 OK) for WebR's missing
+  `PACKAGES.rds`/`.gz` instead of a 404, which WebR can't tell from a
+  malformed index, so it gives up instead of falling back to the plain
+  `PACKAGES` file `webr:fetch` actually generates — invisible in Node
+  tests (a real static file server there) and in production (GitHub
+  Pages 404s for real). `vite.config.ts` now answers a real 404 for
+  `/webr/` there too, the same fix the PWA's `navigateFallbackDenylist`
+  already applies in production. First hit by loading `nlme`/`emmeans`
+  at runtime for the first time; test any newly-`packages`-bearing
+  analysis in an actual dev-server browser, not just `npm run test`.
 
 ## Layout
 
