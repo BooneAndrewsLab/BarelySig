@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export interface MenuItem {
   readonly label: string;
@@ -16,6 +16,17 @@ interface Props {
 /** The grid's context menu: arrow keys move, Escape or a click outside closes. */
 export function GridMenu({ x, y, items, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  // Opened near the right or bottom edge, the menu moves back onto the screen.
+  const [pos, setPos] = useState({ left: x, top: y });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    const margin = 4;
+    setPos({
+      left: Math.max(margin, Math.min(x, window.innerWidth - r.width - margin)),
+      top: Math.max(margin, Math.min(y, window.innerHeight - r.height - margin)),
+    });
+  }, [x, y]);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
     const outside = (e: MouseEvent) => {
@@ -31,7 +42,7 @@ export function GridMenu({ x, y, items, onClose }: Props) {
       ref={ref}
       className="menu grid-menu"
       role="menu"
-      style={{ position: 'fixed', left: x, top: y }}
+      style={{ position: 'fixed', left: pos.left, top: pos.top }}
       onMouseDown={(e) => {
         e.stopPropagation();
       }}

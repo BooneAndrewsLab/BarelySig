@@ -758,6 +758,9 @@ select {
 
 .grid-menu {
   z-index: 50;
+  /* .menu anchors dropdowns with right: 0; this one is placed at the pointer. */
+  right: auto;
+  width: max-content;
 }
 
 .warning-note {
