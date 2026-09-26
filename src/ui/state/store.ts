@@ -136,13 +136,17 @@ export class AppStore {
     return s ? `Redo ${s.label}` : null;
   }
 
-  /** Replaces the project (opening a file or a saved project); history starts afresh. */
-  load(p: Project, opts: { readonly fromFile?: boolean } = {}): void {
+  /**
+   * Replaces the project (opening a file or a saved project); history starts
+   * afresh. `hasFile`: a `.bsig` of it exists (opened from one, or kept as
+   * downloaded).
+   */
+  load(p: Project, opts: { readonly hasFile?: boolean } = {}): void {
     this.set({
       history: startHistory(p),
       sheet: fallback(p),
       notice: null,
-      downloaded: opts.fromFile === true ? p : null,
+      downloaded: opts.hasFile === true ? p : null,
     });
   }
 

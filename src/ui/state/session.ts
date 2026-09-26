@@ -7,7 +7,7 @@ import { BsigError, type SavedProject, readBsig, writeBsig } from '@/io/bsig';
 import { engineDiffers } from '@/io/engineChange';
 import { download, fileNameFor } from '@/io/files';
 import { figureKind, readFigure } from '@/io/recipe';
-import { type ProjectStorage, getStorage } from '@/io/storage';
+import { type KeptProject, type ProjectStorage, getStorage } from '@/io/storage';
 import type { Id } from '@/model/ids';
 import { newId } from '@/model/ids';
 import type { EngineInfo } from '@/model/inputs';
@@ -16,8 +16,10 @@ import type { ResultEntry } from '@/model/recompute';
 import { type Project, createProject } from '@/model/project';
 
 import { analytics } from '../analytics';
+import { copyName } from '../copyName';
 import { exampleProject } from '../examples';
 import { Autosaver } from './autosave';
+import { keepStorageQuietly } from './storageSafety';
 import { type ResultsBridge, getResults } from './results';
 import { type AppStore, project, store } from './store';
 
@@ -58,6 +60,9 @@ export class Session {
         );
       },
       () => this.extras(),
+      () => {
+        void keepStorageQuietly();
+      },
     );
   }
 
@@ -87,18 +92,25 @@ export class Session {
     this.results()?.seed(saved.results);
   }
 
+  private reopen(saved: KeptProject): void {
+    this.autosaver.markSaved(saved.project);
+    this.seed(saved);
+    this.appStore.load(saved.project, { hasFile: saved.downloaded });
+  }
+
   /** Reopens the project changed most recently in this browser, if any. */
   async restore(): Promise<void> {
     const saved = await this.storage.latest();
-    if (!saved) return;
-    this.autosaver.markSaved(saved.project);
-    this.seed(saved);
-    this.appStore.load(saved.project);
+    if (saved) this.reopen(saved);
   }
 
-  private async replace(p: Project, opts: { fromFile?: boolean } = {}): Promise<void> {
+  private async replace(p: Project, opts: { hasFile?: boolean } = {}): Promise<void> {
     await this.autosaver.flush();
     this.appStore.load(p, opts);
+  }
+
+  private isOpen(id: Id): boolean {
+    return project(this.appStore.getState()).id === id;
   }
 
   async newProject(): Promise<void> {
@@ -115,7 +127,7 @@ export class Session {
     await this.replace(createProject('Untitled project'));
     if (hadContent) {
       this.appStore.notify(
-        `Closed “${p.name}”. It’s kept in this browser: open it again from the list or from Projects.`,
+        `Closed “${p.name}”. It’s kept in this browser: open it again from the list.`,
       );
     }
   }
@@ -125,18 +137,64 @@ export class Session {
   }
 
   async openStored(id: Id): Promise<void> {
+    if (this.isOpen(id)) return;
+    await this.autosaver.flush();
     const saved = await this.storage.load(id);
     if (!saved) {
-      this.appStore.notify('That project can’t be opened by this version of BarelySig.', 'error');
+      this.appStore.notify(CANT_READ, 'error');
       return;
     }
-    await this.autosaver.flush();
-    this.autosaver.markSaved(saved.project);
-    this.seed(saved);
-    this.appStore.load(saved.project);
+    this.reopen(saved);
   }
 
-  /** Opens a `.bsig` file as a new project in this browser. */
+  /**
+   * Deletes a project from this browser for good (item 09). The open one
+   * is closed first, and its pending autosave dropped, not written.
+   */
+  async deleteProject(id: Id, name: string): Promise<void> {
+    if (this.isOpen(id)) {
+      await this.autosaver.discard();
+      this.appStore.load(createProject('Untitled project'));
+    }
+    await this.storage.remove(id);
+    this.appStore.notify(`Deleted “${name}” from this browser.`);
+  }
+
+  /** Renames a project in the list; the open one is renamed as an edit (so undo works). */
+  async renameStored(id: Id, name: string): Promise<void> {
+    if (this.isOpen(id)) {
+      this.appStore.edit({ op: 'renameProject', name });
+      return;
+    }
+    if (!(await this.storage.rename(id, name, APP))) this.appStore.notify(CANT_READ, 'error');
+  }
+
+  /** Copies a project in the list, as “Name (copy)”. */
+  async duplicateStored(id: Id, name: string): Promise<void> {
+    if (this.isOpen(id)) await this.autosaver.flush();
+    const taken = new Set((await this.storage.list()).map((r) => r.name));
+    const copy = await this.storage.duplicate(
+      id,
+      { id: newId('p'), name: copyName(name, taken) },
+      APP,
+    );
+    if (copy) this.appStore.notify(`Made a copy: “${copy.name}”.`);
+    else this.appStore.notify(CANT_READ, 'error');
+  }
+
+  /** Downloads a project in the list without opening it: its stored `.bsig` as it is. */
+  async downloadStored(id: Id): Promise<boolean> {
+    if (this.isOpen(id)) return this.download();
+    const kept = await this.storage.text(id);
+    if (!kept) return false;
+    const name = fileNameFor(kept.name);
+    if (!(await download(name, kept.text))) return false;
+    await this.storage.markDownloaded(id);
+    this.appStore.notify(`Downloaded “${name}”.`);
+    analytics.trackOnce('file', 'download');
+    return true;
+  }
+
   /** Opens a `.bsig` project, or an exported figure's recipe (#43), as a new project in this browser. */
   async openFile(file: File): Promise<void> {
     let bytes: Uint8Array;
@@ -151,7 +209,7 @@ export class Session {
       const saved = figure
         ? await readFigure(figure, bytes)
         : readBsig(new TextDecoder().decode(bytes));
-      await this.openSaved(saved, { fromFile: figure === null, figure: figure !== null });
+      await this.openSaved(saved, { hasFile: figure === null, figure: figure !== null });
       this.appStore.notify(
         figure
           ? `Opened the figure “${file.name}” with the data and settings that made it.`
@@ -167,7 +225,7 @@ export class Session {
   /** Reopens a figure from the project's export history (#43). */
   async openRecipe(recipe: Json): Promise<void> {
     try {
-      await this.openSaved(readBsig(JSON.stringify(recipe)), { fromFile: false, figure: true });
+      await this.openSaved(readBsig(JSON.stringify(recipe)), { hasFile: false, figure: true });
       this.appStore.notify('Restored the figure as it was exported, as a new project.');
     } catch (e: unknown) {
       if (!(e instanceof BsigError)) throw e;
@@ -177,7 +235,7 @@ export class Session {
 
   private async openSaved(
     saved: SavedProject,
-    opts: { fromFile: boolean; figure?: boolean },
+    opts: { hasFile: boolean; figure?: boolean },
   ): Promise<void> {
     // A project in the browser is a copy of the file: its own id, so
     // opening the same file twice gives two, never one overwriting another.
@@ -193,7 +251,7 @@ export class Session {
             results: saved.results,
           }
         : null;
-    await this.replace({ ...saved.project, id: newId('p') }, { fromFile: opts.fromFile });
+    await this.replace({ ...saved.project, id: newId('p') }, { hasFile: opts.hasFile });
     // A figure opens on its graph.
     const graph = saved.project.order.graphs[0];
     if (graph && saved.project.tables.size <= 1 && saved.project.graphs.size === 1) {
@@ -201,15 +259,20 @@ export class Session {
     }
   }
 
-  async download(): Promise<void> {
+  /** Downloads the open project; false when the save dialog was cancelled. */
+  async download(): Promise<boolean> {
     const p = project(this.appStore.getState());
     const name = fileNameFor(p.name);
     const { results, engine } = this.extras();
     const text = writeBsig({ project: p, results, engine, app: APP });
-    if (!(await download(name, text))) return;
+    if (!(await download(name, text))) return false;
     this.appStore.markDownloaded();
+    // The row says a file of it exists now (item 09); a pending save writes that itself.
+    await this.autosaver.flush();
+    await this.storage.markDownloaded(p.id);
     this.appStore.notify(`Downloaded “${name}”.`);
     analytics.trackOnce('file', 'download');
+    return true;
   }
 
   /** Writes a pending autosave when the page is hidden or closed. */
@@ -228,6 +291,8 @@ export class Session {
     };
   }
 }
+
+const CANT_READ = 'That project can’t be opened by this version of BarelySig.';
 
 let shared: Session | null = null;
 

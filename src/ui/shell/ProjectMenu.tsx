@@ -1,38 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { ProjectSummary } from '@/io/storage';
+import type { Id } from '@/model/ids';
 
 import { getSession } from '../state/session';
-import { whenSaved } from './recent';
+import { type DeleteTarget, DeleteProjectDialog } from './DeleteProjectDialog';
+import { useProjects, whenEdited } from './recent';
 
-/** New project, close the open one, and the projects kept in this browser. */
-export function ProjectMenu({ canClose }: { readonly canClose: boolean }) {
+/** How many other projects the menu lists; the start screen lists them all. */
+const RECENT = 5;
+
+interface Props {
+  /** The open project, left out of the list. */
+  readonly current: Id;
+  /** The open project has something in it (or an edit to undo). */
+  readonly canClose: boolean;
+  /** What deleting the open project would lose, for the dialog. */
+  readonly deleteTarget: DeleteTarget;
+}
+
+/** New, close and delete the open project, and switch to a recent one (item 09). */
+export function ProjectMenu({ current, canClose, deleteTarget }: Props) {
   const [open, setOpen] = useState(false);
-  const [recent, setRecent] = useState<readonly ProjectSummary[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const recent = (useProjects(current) ?? []).slice(0, RECENT);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    let live = true;
-    void getSession()
-      .storage.list()
-      .then((r) => {
-        if (live) setRecent(r);
-      })
-      .catch(() => {
-        if (live) setRecent([]);
-      });
     const outside = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', outside);
     return () => {
-      live = false;
       document.removeEventListener('mousedown', outside);
     };
   }, [open]);
 
-  const run = (f: () => Promise<void>) => {
+  const run = (f: () => Promise<unknown>) => {
     setOpen(false);
     void f();
   };
@@ -70,13 +74,25 @@ export function ProjectMenu({ canClose }: { readonly canClose: boolean }) {
             type="button"
             role="menuitem"
             disabled={!canClose}
+            title="Back to the start screen, which lists every project in this browser"
             onClick={() => {
               run(() => getSession().closeProject());
             }}
           >
             Close project
           </button>
-          {recent.length > 0 && <p className="menu-label">In this browser</p>}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canClose}
+            onClick={() => {
+              setOpen(false);
+              setDeleting(true);
+            }}
+          >
+            Delete project…
+          </button>
+          {recent.length > 0 && <p className="menu-label">Recent</p>}
           {recent.map((r) => (
             <button
               key={r.id}
@@ -88,10 +104,18 @@ export function ProjectMenu({ canClose }: { readonly canClose: boolean }) {
               }}
             >
               <span className="recent-name">{r.name}</span>
-              <span className="recent-when">{whenSaved(r.updatedAt)}</span>
+              <span className="recent-when">{whenEdited(r.updatedAt)}</span>
             </button>
           ))}
         </div>
+      )}
+      {deleting && (
+        <DeleteProjectDialog
+          target={deleteTarget}
+          onClose={() => {
+            setDeleting(false);
+          }}
+        />
       )}
     </div>
   );

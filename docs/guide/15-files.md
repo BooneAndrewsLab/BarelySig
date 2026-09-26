@@ -6,13 +6,40 @@ Every change is kept in this browser, a second after you make it. Close
 the tab, come back tomorrow, and the project is where you left it. The bar
 says **Saved in this browser**.
 
-**Projects** lists the projects kept in this browser; **New project**
-starts another and **Close project** goes back to the start screen, where
-they are listed too.
+## Your projects
+
+**Projects ▸ Close project** goes back to the start screen, which lists
+every project kept in this browser, the most recently changed first. Each
+says what it holds ("3 experiments · 2 graphs"), when it was last edited,
+and **not downloaded** when you have no file of its latest state. Click
+one to open it. Once there are many, **Find a project** filters them by
+name.
+
+Each project's **⋯** menu opens, renames, duplicates or downloads it
+without opening it, or deletes it. **Projects** in the sidebar has **New
+project**, **Close project**, **Delete project…** (the open one) and your
+five most recent projects.
+
+**Deleting can't be undone**: the project goes from this browser, and
+undo only works inside an open project. BarelySig asks first, and when
+you haven't downloaded the project since it last changed, it says so and
+offers **Download a copy** right there. A file you downloaded is never
+touched.
+
+## If the browser may clear them
 
 The browser's storage belongs to this browser on this computer: another
 browser or another computer doesn't see it, and clearing the browser's
 site data deletes it. So keep [a file](#files) of anything that matters.
+
+Most browsers also treat a site's storage as "best effort" and may clear
+it, without asking, when the disk is nearly full. When yours does, the
+start screen says so and **Ask the browser to keep them** asks it to
+treat your projects as persistent (Firefox asks you to confirm; Chrome
+and Edge decide by themselves). Browsers usually agree once BarelySig is
+installed as an app, bookmarked or used often. Until yours does, the
+sidebar says **Saved in this browser only**: download the projects that
+matter.
 
 ## Files
 

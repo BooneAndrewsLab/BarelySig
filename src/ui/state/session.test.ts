@@ -54,6 +54,15 @@ describe('autosave', () => {
     expect(await storage.list()).toEqual([]);
   });
 
+  it('does not keep a blank project because its results changed', async () => {
+    const { store, storage, session } = setup();
+    store.load(createProject('Untitled project'));
+    session.autosaver.resultsChanged();
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY * 2);
+    await session.autosaver.flush();
+    expect(await storage.list()).toEqual([]);
+  });
+
   it('writes the pending change before switching project', async () => {
     const { store, storage, session } = setup();
     store.edit({ op: 'renameProject', name: 'Unsaved yet' });
@@ -361,7 +370,7 @@ describe('closing a project', () => {
     expect(project(store.getState()).tables.size).toBe(0);
     expect(store.getState().sheet).toEqual({ kind: 'home' });
     expect(store.getState().notice?.text).toBe(
-      'Closed “Screen 3b”. It’s kept in this browser: open it again from the list or from Projects.',
+      'Closed “Screen 3b”. It’s kept in this browser: open it again from the list.',
     );
     const [kept] = await storage.list();
     expect(kept?.name).toBe('Screen 3b');
@@ -374,5 +383,131 @@ describe('closing a project', () => {
     const { store, session } = setup();
     await session.closeProject();
     expect(store.getState().notice).toBeNull();
+  });
+});
+
+function stubPicker() {
+  const picker = vi.fn(() =>
+    Promise.resolve({
+      createWritable: () =>
+        Promise.resolve({ write: () => Promise.resolve(), close: () => Promise.resolve() }),
+    } as unknown as FileSystemFileHandle),
+  );
+  (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker = picker;
+  return picker;
+}
+
+afterEach(() => {
+  delete (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+});
+
+describe('the project manager (item 09)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('deletes the open project, and its pending autosave never brings it back', async () => {
+    const { store, storage, session } = setup();
+    const p = withTable('Doomed');
+    await storage.save(p, '1.0.0');
+    await session.openStored(p.id);
+    store.edit({ op: 'renameProject', name: 'Doomed, edited' });
+    await session.deleteProject(p.id, 'Doomed, edited');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY * 2);
+    await session.autosaver.flush();
+    expect(await storage.list()).toEqual([]);
+    expect(project(store.getState()).tables.size).toBe(0);
+    expect(store.getState().notice?.text).toBe('Deleted “Doomed, edited” from this browser.');
+  });
+
+  it('waits for a write under way before deleting', async () => {
+    const { store, storage, session } = setup();
+    store.load(withTable('In flight'));
+    store.edit({ op: 'renameProject', name: 'In flight 2' });
+    const id = project(store.getState()).id;
+    // A slow disk: the write is still under way when the delete comes.
+    const save = storage.save.bind(storage);
+    const opened: { release?: () => void } = {};
+    const gate = new Promise<void>((r) => {
+      opened.release = r;
+    });
+    vi.spyOn(storage, 'save').mockImplementation(async (...args) => {
+      await gate;
+      await save(...args);
+    });
+    const writing = session.autosaver.flush();
+    const deleting = session.deleteProject(id, 'In flight 2');
+    await vi.advanceTimersByTimeAsync(10);
+    opened.release?.();
+    await Promise.all([writing, deleting]);
+    expect(await storage.list()).toEqual([]);
+  });
+
+  it('deletes a project that is not open, leaving the open one alone', async () => {
+    const { store, storage, session } = setup();
+    const other = withTable('Other');
+    await storage.save(other, '1.0.0');
+    store.load(withTable('Open'));
+    const open = project(store.getState());
+    await session.deleteProject(other.id, 'Other');
+    expect(project(store.getState())).toBe(open);
+    expect(await storage.load(other.id)).toBeNull();
+  });
+
+  it('marks the row downloaded, keeps that on reopening, and an edit clears it', async () => {
+    const { store, storage, session } = setup();
+    store.load(withTable('Figure 3'));
+    store.edit({ op: 'renameProject', name: 'Figure 3b' });
+    const id = project(store.getState()).id;
+    stubPicker();
+    await session.download();
+    expect((await storage.list())[0]).toMatchObject({ name: 'Figure 3b', downloaded: true });
+    await session.newProject();
+    await session.openStored(id);
+    expect(store.getState().downloaded).toBe(project(store.getState()));
+    store.edit({ op: 'renameProject', name: 'Figure 3c' });
+    await session.autosaver.flush();
+    expect((await storage.list())[0]).toMatchObject({ name: 'Figure 3c', downloaded: false });
+  });
+
+  it('downloads a project in the list without opening it', async () => {
+    const { store, storage, session } = setup();
+    const p = withTable('Elsewhere');
+    await storage.save(p, '1.0.0');
+    const open = project(store.getState());
+    const picker = stubPicker();
+    expect(await session.downloadStored(p.id)).toBe(true);
+    expect(picker).toHaveBeenCalledWith(
+      expect.objectContaining({ suggestedName: 'Elsewhere.bsig' }),
+    );
+    expect(project(store.getState())).toBe(open);
+    expect((await storage.list())[0]?.downloaded).toBe(true);
+  });
+
+  it('renames the open project as an edit, and another one in storage', async () => {
+    const { store, storage, session } = setup();
+    const other = withTable('Other');
+    await storage.save(other, '1.0.0');
+    store.load(withTable('Open'));
+    await session.renameStored(project(store.getState()).id, 'Open, renamed');
+    expect(store.undoLabel()).toBe('Undo Rename project');
+    await session.renameStored(other.id, 'Other, renamed');
+    expect((await storage.load(other.id))?.project.name).toBe('Other, renamed');
+  });
+
+  it('duplicates as “Name (copy)”, then “Name (copy 2)”', async () => {
+    const { storage, session } = setup();
+    const p = withTable('Assay');
+    await storage.save(p, '1.0.0');
+    await session.duplicateStored(p.id, 'Assay');
+    await session.duplicateStored(p.id, 'Assay');
+    expect((await storage.list()).map((r) => r.name).sort()).toEqual([
+      'Assay',
+      'Assay (copy 2)',
+      'Assay (copy)',
+    ]);
   });
 });

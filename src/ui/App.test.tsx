@@ -2,9 +2,12 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { applyEdit } from '@/model/edits';
 import { createProject } from '@/model/project';
+import { createColumnTable as createColumnTableModel } from '@/model/table';
 
 import { App } from './App';
+import { getSession } from './state/session';
 import { project, store } from './state/store';
 
 beforeEach(() => {
@@ -206,11 +209,122 @@ describe('closing a project', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Close project' }));
     await screen.findByRole('heading', { name: 'Start with a table' }, slow);
-    const recent = await screen.findByRole('region', { name: 'Projects in this browser' }, slow);
+    const recent = await screen.findByRole('region', { name: 'Your projects' }, slow);
     // Earlier tests saved example projects too; the newest comes first.
     const [newest] = within(recent).getAllByRole('button', { name: /Example project/ });
     if (!newest) throw new Error('not listed');
     fireEvent.click(newest);
     await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' }, slow);
+  });
+});
+
+describe('the project list', () => {
+  const slow = { timeout: 5000 };
+
+  async function keep(name: string, opts: { downloaded?: boolean } = {}) {
+    const p = applyEdit(createProject(name), {
+      op: 'addTable',
+      table: createColumnTableModel({ title: 'T', groups: ['A'], rows: 1 }),
+    });
+    await getSession().storage.save(p, '1.0.0', opts);
+    return p;
+  }
+
+  const row = (list: HTMLElement, name: string) => {
+    const item = within(list)
+      .getAllByRole('listitem')
+      .find((li) => li.querySelector('.proj-name')?.textContent === name);
+    if (!item) throw new Error(`${name} is not listed`);
+    return within(item);
+  };
+
+  it('says what each project holds, and renames and duplicates one without opening it', async () => {
+    await keep('Western blots');
+    render(<App />);
+    const list = await screen.findByRole('region', { name: 'Your projects' }, slow);
+    await within(list).findByText('Western blots', {}, slow);
+    expect(row(list, 'Western blots').getByText(/1 experiment/)).toHaveTextContent(
+      '1 experiment · edited just now · not downloaded',
+    );
+
+    fireEvent.click(
+      row(list, 'Western blots').getByRole('button', { name: 'More for Western blots' }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    const box = screen.getByRole('textbox', { name: 'Project name' });
+    fireEvent.change(box, { target: { value: 'Westerns, June' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await within(list).findByText('Westerns, June', {}, slow);
+
+    fireEvent.click(
+      row(list, 'Westerns, June').getByRole('button', { name: 'More for Westerns, June' }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    await within(list).findByText('Westerns, June (copy)', {}, slow);
+  });
+
+  it('warns before deleting a project that was never downloaded', async () => {
+    await keep('Only here');
+    render(<App />);
+    const list = await screen.findByRole('region', { name: 'Your projects' }, slow);
+    await within(list).findByText('Only here', {}, slow);
+    fireEvent.click(row(list, 'Only here').getByRole('button', { name: 'More for Only here' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete “Only here”?' });
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'You haven’t downloaded this project since it last changed.',
+    );
+    expect(within(dialog).getByRole('button', { name: 'Download a copy' })).toHaveFocus();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete without a copy' }));
+    await vi.waitFor(() => {
+      expect(within(list).queryByText('Only here')).not.toBeInTheDocument();
+    }, slow);
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted “Only here” from this browser.');
+  });
+
+  it('deletes a downloaded project without the warning', async () => {
+    await keep('Filed away', { downloaded: true });
+    render(<App />);
+    const list = await screen.findByRole('region', { name: 'Your projects' }, slow);
+    await within(list).findByText('Filed away', {}, slow);
+    expect(row(list, 'Filed away').queryByText(/not downloaded/)).not.toBeInTheDocument();
+    fireEvent.click(row(list, 'Filed away').getByRole('button', { name: 'More for Filed away' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete “Filed away”?' });
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await vi.waitFor(() => {
+      expect(within(list).queryByText('Filed away')).not.toBeInTheDocument();
+    }, slow);
+  });
+
+  it('deletes the open project from the Projects menu, back to the start screen', async () => {
+    const p = await keep('Open one');
+    await act(() => getSession().openStored(p.id));
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete project…' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete “Open one”?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete without a copy' }));
+    await screen.findByRole('heading', { name: 'Start with a table' }, slow);
+    await vi.waitFor(async () => {
+      expect(await getSession().storage.load(p.id)).toBeNull();
+    }, slow);
+  });
+
+  it('filters by name once the list is long', async () => {
+    for (let i = 1; i <= 7; i += 1) await keep(`Plate ${String(i)}`);
+    await keep('Mouse cohort');
+    render(<App />);
+    const list = await screen.findByRole('region', { name: 'Your projects' }, slow);
+    await within(list).findByText('Mouse cohort', {}, slow);
+    fireEvent.change(within(list).getByRole('searchbox', { name: 'Find a project' }), {
+      target: { value: 'mouse' },
+    });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    fireEvent.change(within(list).getByRole('searchbox', { name: 'Find a project' }), {
+      target: { value: 'zebrafish' },
+    });
+    expect(within(list).getByText('No project’s name contains “zebrafish”.')).toBeInTheDocument();
   });
 });

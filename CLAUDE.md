@@ -318,6 +318,14 @@ the target).
   beside each section, hideable (#56). Open: #57 (key numbers first),
   #58 (UI font). The old navigator and sheets are gone: `Sheet` still
   names what to show, the page scrolls to its section.
+- Project manager (#59, note 09): the start screen lists every project
+  kept in this browser (contents, "edited 3 hours ago", "not
+  downloaded", search), each with Open / Rename / Duplicate / Download /
+  Delete…; deleting asks, and warns when there is no downloaded copy
+  (a `downloaded` flag per row). The start screen warns when the
+  browser's storage is best-effort and asks it to persist from a click
+  (`src/ui/state/storageSafety.ts`). Filed next: #60 (open a CSV / TSV /
+  xls / xlsx / ods data file, detect its layout).
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling

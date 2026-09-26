@@ -8,6 +8,7 @@ import type { Project } from '@/model/project';
 import { duplicateTable } from '@/model/table';
 
 import { Icon } from '../Icon';
+import { copyName } from '../copyName';
 import { Logo } from '../Logo';
 import { tableTypeInfo } from '../formats';
 import { deletionNote } from '../shell/tables';
@@ -16,14 +17,6 @@ import { type Sheet, store } from '../state/store';
 import { partsOf, sectionsOf, summaryLine } from './experiments';
 import { MoreMenu } from './MoreMenu';
 import { RenameInput } from './RenameInput';
-
-function copyTitle(project: Project, title: string): string {
-  const taken = new Set([...project.tables.values()].map((t) => t.title));
-  for (let i = 1; ; i += 1) {
-    const candidate = i === 1 ? `${title} (copy)` : `${title} (copy ${String(i)})`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
 
 /** The experiment's first graph, small; its table's icon until it has one. */
 function Thumbnail({ project, table }: { readonly project: Project; readonly table: Id }) {
@@ -114,7 +107,10 @@ function ExperimentItem({ project, id, active }: ItemProps) {
           {
             label: 'Duplicate',
             onSelect: () => {
-              const copy = duplicateTable(table, copyTitle(project, table.title));
+              const copy = duplicateTable(
+                table,
+                copyName(table.title, new Set([...project.tables.values()].map((t) => t.title))),
+              );
               store.edit(
                 { op: 'addTable', table: copy, at: project.order.tables.indexOf(id) + 1 },
                 { show: { kind: 'table', id: copy.id } },

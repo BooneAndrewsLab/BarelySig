@@ -1023,35 +1023,150 @@ select {
   margin-left: auto;
 }
 
-.home-recent {
-  margin-top: 32px;
+/* The project list on the start screen (item 09). */
+.projects {
+  margin-top: 36px;
 }
 
-.home-recent h2 {
-  margin: 0 0 6px;
-  font-size: 14px;
+.projects-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.projects-head h2 {
+  margin: 0;
+  font-size: 16px;
   font-weight: 600;
 }
 
-.home-recent ul {
+.projects-search {
+  width: min(100%, 240px);
+}
+
+.projects-lead {
+  margin: 4px 0 12px;
+  color: var(--ink-2);
+}
+
+.projects ul {
   list-style: none;
   margin: 0;
   padding: 0;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.proj-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 6px;
+}
+
+.proj-row + .proj-row {
   border-top: 1px solid var(--rule);
 }
 
-.home-recent li {
-  border-bottom: 1px solid var(--rule);
-}
-
-.recent-open {
+.proj-open {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  width: 100%;
-  padding: 8px 6px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
   text-align: left;
   border-radius: 0;
+}
+
+.proj-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj-meta {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.proj-flag {
+  color: var(--warning);
+}
+
+.proj-rename {
+  flex: 1;
+  margin: 8px 6px 8px 8px;
+}
+
+.proj-row .more-button {
+  visibility: hidden;
+}
+
+.proj-row:hover .more-button,
+.proj-row .more-button:focus-visible,
+.proj-row .more-button[aria-expanded='true'] {
+  visibility: visible;
+}
+
+.projects-none {
+  color: var(--ink-3);
+}
+
+.storage-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 8%, var(--sheet));
+}
+
+.storage-warning p {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
+.storage-warning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.storage-warning-actions button:not(.link) {
+  border-color: var(--rule-strong);
+  background: var(--sheet);
+}
+
+.save-state.at-risk {
+  color: var(--warning);
+}
+
+.delete-contents {
+  margin-top: -8px;
+  color: var(--ink-2);
+}
+
+.delete-warning {
+  padding: 10px 12px;
+  border-left: 3px solid var(--error);
+  background: color-mix(in srgb, var(--error) 6%, var(--sheet));
+}
+
+button.danger {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+}
+
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
 }
 
 /* A heading between results tables (two-way comparisons, note 06). */
@@ -1322,7 +1437,13 @@ select {
   top: auto;
   bottom: 100%;
   left: 0;
-  right: auto;
+  right: 0;
+  /* As wide as the sidebar, which would clip it otherwise. */
+  min-width: 0;
+}
+
+.side-foot .menu .recent {
+  min-width: 0;
 }
 
 .page {

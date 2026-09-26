@@ -43,7 +43,7 @@ table and everything made from it: the analyses run on it and its graphs.
   **⋯** menu renames, duplicates or deletes it. Deleting says what goes
   with it and can be undone. **New experiment** starts one. **On this
   page** lists the open experiment's sections and jumps to them. At the
-  foot: **Projects** (new, close, and the projects kept in this browser),
+  foot: **Projects** (new, close, delete, and your recent projects),
   **Open…** and **Download**.
 - **The page** in the middle is the open experiment, top to bottom: its
   title and a description (click to write one: cell line, assay, date),

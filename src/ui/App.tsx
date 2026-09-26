@@ -7,6 +7,8 @@ import { analytics } from './analytics';
 import { DataGrid } from './grid/DataGrid';
 import { Home } from './shell/Home';
 import { ProjectMenu } from './shell/ProjectMenu';
+import { contentsLine, useProjects } from './shell/recent';
+import { SaveState } from './shell/SaveState';
 import { NewTableDialog } from './shell/NewTableDialog';
 import { StatusLine } from './shell/StatusLine';
 import { ExperimentPage } from './notebook/ExperimentPage';
@@ -18,6 +20,7 @@ import { commandFor } from './shortcuts';
 import { projectFile } from '@/io/files';
 
 import { getSession } from './state/session';
+import { checkStorage } from './state/storageSafety';
 import { project, store } from './state/store';
 import { useAppState } from './state/useAppState';
 
@@ -28,6 +31,10 @@ export function App() {
   const [summary, setSummary] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const [dropping, setDropping] = useState(false);
+
+  useEffect(() => {
+    void checkStorage();
+  }, []);
 
   useEffect(() => {
     analytics.start(__APP_VERSION__, globalThis.matchMedia('(max-width: 900px)').matches);
@@ -77,6 +84,14 @@ export function App() {
     };
   }, []);
 
+  // A fresh project with nothing in it, not in the list: nothing to close, delete or keep.
+  const stored = useProjects()?.some((r) => r.id === p.id) === true;
+  const blank =
+    !stored &&
+    p.tables.size === 0 &&
+    p.analyses.size === 0 &&
+    p.graphs.size === 0 &&
+    store.undoLabel() === null;
   const experiment = experimentOf(p, state.sheet);
   const table = experiment === null ? undefined : p.tables.get(experiment);
 
@@ -91,12 +106,14 @@ export function App() {
         }}
       >
         <ProjectMenu
-          canClose={
-            p.tables.size > 0 ||
-            p.analyses.size > 0 ||
-            p.graphs.size > 0 ||
-            store.undoLabel() !== null
-          }
+          current={p.id}
+          canClose={!blank}
+          deleteTarget={{
+            id: p.id,
+            name: p.name,
+            contents: contentsLine({ tables: p.tables.size, graphs: p.graphs.size }),
+            downloaded: state.downloaded === p,
+          }}
         />
         <button
           type="button"
@@ -114,12 +131,7 @@ export function App() {
         >
           Download
         </button>
-        <span
-          className="save-state"
-          title="Your work is kept in this browser as you go. Download it to keep a file of your own or to share it."
-        >
-          {state.downloaded === p ? 'Downloaded' : 'Saved in this browser'}
-        </span>
+        {!blank && <SaveState downloaded={state.downloaded === p} />}
         <input
           ref={fileInput}
           type="file"

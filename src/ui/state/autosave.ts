@@ -10,16 +10,27 @@ import type { Id } from '@/model/ids';
 import type { EngineInfo } from '@/model/inputs';
 import type { ResultEntry } from '@/model/recompute';
 
-import { type AppStore, project } from './store';
+import { type AppState, type AppStore, project } from './store';
 
 export const AUTOSAVE_DELAY = 1000;
 
-const worthSaving = (p: Project, edited: boolean) => edited || p.tables.size > 0;
+/** Something in it, an edit made, or a file of it: a blank new project is not kept. */
+function worthSaving(s: AppState): boolean {
+  const p = project(s);
+  return (
+    p.tables.size > 0 ||
+    s.history.past.length > 0 ||
+    s.history.future.length > 0 ||
+    s.downloaded !== null
+  );
+}
 
 export class Autosaver {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private saved: Project | null = null;
   private pending: Project | null = null;
+  /** The write under way; the next waits for it, so writes land in order. */
+  private writing: Promise<void> = Promise.resolve();
   private readonly unsubscribe: () => void;
 
   constructor(
@@ -35,6 +46,8 @@ export class Autosaver {
       results: new Map(),
       engine: null,
     }),
+    /** After each successful write. */
+    private readonly onSaved: () => void = () => undefined,
   ) {
     this.saved = project(store.getState());
     this.unsubscribe = store.subscribe(() => {
@@ -51,7 +64,8 @@ export class Autosaver {
   resultsChanged(): void {
     const s = this.store.getState();
     const p = project(s);
-    if (!worthSaving(p, true) || this.pending === p) return;
+    // Results of a blank project (e.g. cleared on closing one) are no reason to keep it.
+    if (!worthSaving(s) || this.pending === p) return;
     this.pending = p;
     this.schedule();
   }
@@ -66,14 +80,7 @@ export class Autosaver {
   private changed(): void {
     const s = this.store.getState();
     const p = project(s);
-    if (p === this.saved || p === this.pending) return;
-    if (
-      !worthSaving(
-        p,
-        s.history.past.length > 0 || s.history.future.length > 0 || s.downloaded !== null,
-      )
-    )
-      return;
+    if (p === this.saved || p === this.pending || !worthSaving(s)) return;
     this.pending = p;
     this.schedule();
   }
@@ -83,12 +90,32 @@ export class Autosaver {
     if (this.timer !== undefined) clearTimeout(this.timer);
     this.timer = undefined;
     const p = this.pending;
-    if (!p) return;
     this.pending = null;
+    if (p) this.writing = this.writing.then(() => this.write(p));
+    await this.writing;
+  }
+
+  /**
+   * Drops a pending change without writing it, and waits for a write under
+   * way: the project is about to be deleted, and nothing may bring it back.
+   */
+  async discard(): Promise<void> {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.pending = null;
+    await this.writing;
+  }
+
+  private async write(p: Project): Promise<void> {
     try {
       const { results, engine } = this.extras();
-      await this.storage.save(p, this.app, Date.now(), results, engine);
+      await this.storage.save(p, this.app, {
+        results,
+        engine,
+        downloaded: this.store.getState().downloaded === p,
+      });
       this.saved = p;
+      this.onSaved();
     } catch (e: unknown) {
       this.onError(e);
     }

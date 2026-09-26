@@ -54,7 +54,7 @@ describe('AppStore', () => {
   it('starts a fresh history when a project is loaded, remembering a file as downloaded', () => {
     const { s } = withTable();
     const p = createProject('Opened');
-    s.load(p, { fromFile: true });
+    s.load(p, { hasFile: true });
     expect(s.undoLabel()).toBeNull();
     expect(s.getState().downloaded).toBe(p);
     s.edit({ op: 'renameProject', name: 'Changed' });

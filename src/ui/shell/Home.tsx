@@ -3,8 +3,8 @@ import type { TableType } from '@/model/table';
 
 import { Icon } from '../Icon';
 import { TABLE_TYPES } from '../formats';
-import { getSession } from '../state/session';
-import { useRecentProjects, whenSaved } from './recent';
+import { ProjectList } from './ProjectList';
+import { useProjects } from './recent';
 
 interface Props {
   readonly onNewTable: (type: TableType) => void;
@@ -13,9 +13,9 @@ interface Props {
   readonly current: Id;
 }
 
-/** The empty project: start a table, or look at an example first. */
+/** The start screen: start a project with a table, or open one kept in this browser (item 09). */
 export function Home({ onNewTable, onExample, current }: Props) {
-  const recent = useRecentProjects(current, current);
+  const projects = useProjects(current);
   return (
     <div className="home">
       <h1>Start with a table</h1>
@@ -44,30 +44,7 @@ export function Home({ onNewTable, onExample, current }: Props) {
         </button>{' '}
         with made-up numbers.
       </p>
-      {recent.length > 0 && (
-        <section className="home-recent" aria-labelledby="recent-title">
-          <h2 id="recent-title">Projects in this browser</h2>
-          <ul>
-            {recent.map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  className="recent-open"
-                  onClick={() => {
-                    void getSession().openStored(r.id);
-                  }}
-                >
-                  <span className="recent-name">{r.name}</span>
-                  <span className="recent-when">
-                    {r.tables === 1 ? '1 table' : `${String(r.tables)} tables`}, saved{' '}
-                    {whenSaved(r.updatedAt)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {projects !== null && projects.length > 0 && <ProjectList projects={projects} />}
     </div>
   );
 }
