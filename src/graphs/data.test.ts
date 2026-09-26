@@ -402,6 +402,24 @@ describe('SuperPlot graphs of a Nested table (item 13)', () => {
     expect(treated?.replicateMeans).toEqual([30, 40]);
   });
 
+  it('numbers replicates by subcolumn, so an empty one keeps the others’ colours', () => {
+    const { p, graph, treated } = nested();
+    const t = [...p.tables.values()][0] as NestedTable;
+    const row = t.rows[0]?.id;
+    if (!row) throw new Error('unreachable');
+    const q = applyEdit(p, {
+      op: 'setCells',
+      table: t.id,
+      cells: [{ dataSet: treated.id, subcolumn: 0, row, value: null }],
+    });
+    const r = graphInput(q, graph, () => undefined);
+    if (!r.ok) throw new Error(r.reason);
+    const t2 = r.input.groups[1];
+    expect(t2?.values).toEqual([40]);
+    expect(t2?.replicateOf).toEqual([1]);
+    expect(t2?.replicateMeans).toEqual([null, 40]);
+  });
+
   it('summarises each group over its replicate means (n = replicates), not the individual values', () => {
     const { p, graph } = nested();
     const a = summaryAnalysis(p, graph);

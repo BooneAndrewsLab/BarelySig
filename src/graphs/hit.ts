@@ -24,7 +24,16 @@ export interface Region extends Box {
   readonly element: ElementId;
 }
 
-const SERIES_ROLES = new Set(['bar', 'point', 'centre', 'box', 'median', 'whisker', 'violin']);
+const SERIES_ROLES = new Set([
+  'bar',
+  'point',
+  'replicate-mean',
+  'centre',
+  'box',
+  'median',
+  'whisker',
+  'violin',
+]);
 
 /** The element a mark belongs to, or null for marks that aren't formatted on their own. */
 export function elementOf(m: Mark): ElementId | null {

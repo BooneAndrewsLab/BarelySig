@@ -4,7 +4,14 @@
  * measured with the bundled font's metrics, so the result is the same
  * everywhere. D3 is used for scales and nice ticks only (`axis.ts`).
  */
-import type { ColumnPlot, ErrorBar, GraphPlot, PointSymbol, Whiskers } from '@/model/project';
+import {
+  type ColumnPlot,
+  type ErrorBar,
+  type GraphPlot,
+  POINT_SYMBOLS,
+  type PointSymbol,
+  type Whiskers,
+} from '@/model/project';
 
 import { type AxisOptions, valueAxis } from './axis';
 import { beeswarm } from './beeswarm';
@@ -51,8 +58,8 @@ export interface GroupInput {
   readonly values: readonly number[];
   /** A Nested table's SuperPlot: which biological replicate each of `values` belongs to (parallel array). */
   readonly replicateOf?: readonly number[] | undefined;
-  /** A Nested table's SuperPlot: each replicate's own mean, in replicate order, for the overlaid markers. */
-  readonly replicateMeans?: readonly number[] | undefined;
+  /** A Nested table's SuperPlot: each replicate's own mean, by replicate (null: no values), for the overlaid markers. */
+  readonly replicateMeans?: readonly (number | null)[] | undefined;
   /** null while the summary isn't available (then no bar, line or error bar is drawn). */
   readonly summary: GroupSummary | null;
 }
@@ -227,10 +234,18 @@ export function describePlot(graphPlot: GraphPlot): string {
   const first = plot.kind === 'bars' ? `Bars: ${shown}` : `Lines: ${shown}`;
   if (plot.kind === 'bars' && !plot.points) return first;
   if (plot.kind === 'dots' && plot.colorByReplicate) {
-    return `${first}; points: individual values, coloured by biological replicate; larger points: each replicate's own mean`;
+    return `${first} of the replicate means (n = replicates); points: individual values, coloured and shaped by biological replicate; larger points: each replicate's own mean`;
   }
   return `${first}; points: individual values`;
 }
+
+/** A SuperPlot's individual values and replicate means, × the theme's point size. */
+const SUPERPLOT_POINT = 0.75;
+const SUPERPLOT_MEAN = 2;
+
+/** A SuperPlot's replicate `r` has a shape as well as a colour, so it reads in grey too. */
+const replicateSymbol = (r: number): PointSymbol =>
+  POINT_SYMBOLS[r % POINT_SYMBOLS.length] ?? 'circle';
 
 /** A point of `symbol` centred on (cx, cy), about as heavy as a circle of `d`. */
 function pointMark(
@@ -736,6 +751,9 @@ export function layoutColumn(input: LayoutInput): Scene {
     });
     /** A beeswarm of `values` within `halfWidth` of x. A SuperPlot (item 13) colours each
      * point by its biological replicate instead, and overlays each replicate's own mean. */
+    // A SuperPlot's replicate means go on top of the mean line and error bar, as in
+    // Lord et al. 2020, Fig. 1 ("Even better").
+    const onTop: Mark[] = [];
     const drawPoints = (g: GroupInput, x: number, list: readonly number[], halfWidth: number) => {
       const superplot =
         plot.kind === 'dots' &&
@@ -747,48 +765,58 @@ export function layoutColumn(input: LayoutInput): Scene {
       const indexed = list.map((v, i) => [v, i] as const);
       const kept = log ? indexed.filter(([v]) => v > 0) : indexed;
       if (kept.length === 0) return;
-      const d = theme.pointSize + 0.4;
+      // A SuperPlot's individual values are small and pale, so its replicate means read.
+      const size = superplot ? theme.pointSize * SUPERPLOT_POINT : theme.pointSize;
       const ys = kept.map(([v]) => yOf(v));
-      const swarm = beeswarm(ys, d, Math.max(0, halfWidth));
+      const swarm = beeswarm(ys, size + 0.4, Math.max(0, halfWidth));
       swarmState.squeezed ||= swarm.squeezed;
       const fill = theme.pointColor ?? g.color;
       const line = { stroke: darken(fill, theme.pointDarken), width: theme.lines.pointEdge };
       kept.forEach(([, original], k) => {
         const replicate = superplot ? (superplot[original] ?? 0) : null;
-        const pointFill = replicate !== null ? paletteColor(replicate) : fill;
-        marks.push(
-          pointMark(
-            g.symbol ?? 'circle',
-            x + (swarm.offsets[k] ?? 0),
-            ys[k] ?? 0,
-            theme.pointSize,
-            {
+        const cx = x + (swarm.offsets[k] ?? 0);
+        const cy = ys[k] ?? 0;
+        if (replicate === null) {
+          marks.push(
+            pointMark(g.symbol ?? 'circle', cx, cy, size, {
               role: 'point',
               ref: g.series ?? g.id,
-              fill: pointFill,
+              fill,
               opacity: theme.pointOpacity,
-              line:
-                replicate !== null
-                  ? { stroke: darken(pointFill, theme.pointDarken), width: theme.lines.pointEdge }
-                  : line,
-            },
-          ),
+              line,
+            }),
+          );
+          return;
+        }
+        const color = paletteColor(replicate);
+        marks.push(
+          pointMark(replicateSymbol(replicate), cx, cy, size, {
+            role: 'point',
+            ref: g.series ?? g.id,
+            fill: lighten(color, 0.6),
+            opacity: theme.pointOpacity,
+            line: { stroke: color, width: theme.lines.pointEdge },
+          }),
         );
       });
       if (superplot && g.replicateMeans) {
-        g.replicateMeans.forEach((mean, ri) => {
-          const meanFill = paletteColor(ri);
-          marks.push({
-            kind: 'circle',
-            role: 'replicate-mean',
-            ref: g.series ?? g.id,
-            cx: x,
-            cy: yOf(mean),
-            r: theme.pointSize * 0.9,
-            fill: meanFill,
-            opacity: 1,
-            line: { stroke: ink, width: theme.lines.pointEdge * 1.5 },
-          });
+        // Spread sideways where they would overlap, as the points are.
+        const meanSize = theme.pointSize * SUPERPLOT_MEAN;
+        const shown = g.replicateMeans.flatMap((mean, ri) =>
+          mean !== null && !(log && !(mean > 0)) ? [{ mean, ri }] : [],
+        );
+        const ys = shown.map(({ mean }) => yOf(mean));
+        const swarm = beeswarm(ys, meanSize + 0.6, Math.max(0, halfWidth));
+        shown.forEach(({ ri }, k) => {
+          onTop.push(
+            pointMark(replicateSymbol(ri), x + (swarm.offsets[k] ?? 0), ys[k] ?? 0, meanSize, {
+              role: 'replicate-mean',
+              ref: g.series ?? g.id,
+              fill: paletteColor(ri),
+              opacity: 1,
+              line: { stroke: ink, width: theme.lines.pointEdge * 2 },
+            }),
+          );
         });
       }
     };
@@ -970,6 +998,7 @@ export function layoutColumn(input: LayoutInput): Scene {
         }
       }
     });
+    marks.push(...onTop);
     const list = (names: readonly string[]) =>
       names.length === 1
         ? (names[0] ?? '')

@@ -139,7 +139,7 @@ function makeGraphInput(
     readonly data: GroupData;
     /** A Nested table's SuperPlot: parallel to `data.values`, and each replicate's own mean. */
     readonly replicateOf?: readonly number[];
-    readonly replicateMeans?: readonly number[];
+    readonly replicateMeans?: readonly (number | null)[];
   }[] = [];
   const clusters: { title: string; size: number }[] = [];
   if (table.type === 'grouped' && grouped) {
@@ -178,16 +178,14 @@ function makeGraphInput(
       if (!g) return;
       const values: number[] = [];
       const replicateOf: number[] = [];
-      const replicateMeans: number[] = [];
-      for (const r of g.replicates) {
-        if (r.values.length === 0) continue;
-        replicateMeans.push(r.values.reduce((a, b) => a + b, 0) / r.values.length);
-        const replicate = replicateMeans.length - 1;
+      // By subcolumn, so replicate 3 keeps its colour and shape when replicate 2 is empty.
+      const replicateMeans = g.replicates.map((r, replicate) => {
         for (const v of r.values) {
           values.push(v);
           replicateOf.push(replicate);
         }
-      }
+        return r.values.length ? r.values.reduce((a, b) => a + b, 0) / r.values.length : null;
+      });
       cells.push({
         id: x.ds.id,
         title: x.ds.title,

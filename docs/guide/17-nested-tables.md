@@ -76,12 +76,25 @@ analogous to "assume the groups have different SDs" to turn on.
 ## The SuperPlot graph
 
 Click **New graph** on a Nested table and you get a SuperPlot by
-default: every individual value as a point, coloured by which
-biological replicate it belongs to (the same colour for "replicate 1"
-in every group), with each replicate's own mean overlaid as a larger
-matching-coloured point. The usual mean line and error bar, and any
-significance brackets from the nested t test or nested one-way ANOVA,
-draw on top exactly as they do on any other graph.
+default, drawn as in Lord et al. (2020), Figure 1: every individual
+value as a small, pale point, coloured _and_ shaped by which
+biological replicate it belongs to (replicate 1 is the same colour and
+shape in every group, so the graph still reads in black and white).
+Each replicate's own mean sits on top as a large point of the same
+colour and shape, spread sideways if two would overlap. The line and
+error bar are the mean ± SEM _of the replicate means_ (n = number of
+replicates, not number of values) — the paper's recommendation, since
+that shows how repeatable the experiment was. Pick SD or a 95% CI in
+the format panel instead if you prefer. Significance brackets from the
+nested t test or nested one-way ANOVA draw as on any other graph.
+
+Is replicate 1 in Control the _same_ experiment as replicate 1 in
+Treated (same day, same batch of cells)? Then the replicate means pair
+up, and a trend that holds within every experiment shows as the same
+colour moving the same way in every group — even when the days differ
+a lot from each other. (The nested tests don't use that pairing yet:
+they treat the experiments in each group as separate ones, so a
+consistent trend over very different days can still come out "ns".)
 
 Turn the colouring off (or on for an existing graph) in the format
 panel's **Plot** section, "Colour points by biological replicate

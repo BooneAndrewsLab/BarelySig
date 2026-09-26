@@ -369,7 +369,17 @@ export function Inspector({ project, graph, element, onDone }: Props) {
       const current = ds?.color ?? paletteColor(Math.max(0, index));
       body = (
         <>
-          {table && ds && (
+          {table && ds && plot.kind === 'dots' && plot.colorByReplicate && (
+            <fieldset>
+              <legend>This data set</legend>
+              <p className="hint flush">
+                In a SuperPlot, colours and shapes mark the biological replicate, the same in every
+                group. Turn “Colour points by biological replicate” off in Plot for a colour and
+                symbol per data set.
+              </p>
+            </fieldset>
+          )}
+          {table && ds && !(plot.kind === 'dots' && plot.colorByReplicate) && (
             <fieldset>
               <legend>This data set</legend>
               <div className="swatches" role="radiogroup" aria-label="Colour">

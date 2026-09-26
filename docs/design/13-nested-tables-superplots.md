@@ -274,3 +274,33 @@ instead of falling back to the plain-text `PACKAGES` file webr:fetch
 actually generates) — invisible before this milestone because every
 prior analysis loaded zero R packages. Both fixed; see the commit
 history for #66/#67/#68.
+
+## Revised against the paper's Figure 1 (2026-09-26)
+
+The first SuperPlot coloured the points by replicate but otherwise
+drew them as an ordinary dot plot, which is not what Lord et al.
+(2020), Fig. 1 "Even better" shows. Now, as there:
+
+- Each replicate has a **shape as well as a colour** (circle, square,
+  triangle, diamond, then round again; colours cycle through the
+  palette), for its points and its mean alike — readable in greyscale.
+  A data set's own colour and symbol don't apply to a SuperPlot, and
+  the inspector says so rather than offering controls that do nothing.
+- The individual values are **small and pale** (0.75 × the point
+  size, a light fill with an edge of the replicate's colour), so the
+  replicate means stand out; the means are **large** (2 × the point
+  size) with an ink edge.
+- The means are drawn **on top of** the mean line and error bar, and
+  **beeswarmed** so equal means sit side by side instead of hiding
+  each other (Prism's scatter does the same in the paper's figure).
+- A new Nested graph shows **mean ± SEM** of the replicate means (was
+  SD): the paper's choice, the inferential bar with n = replicates.
+- Replicates are numbered by subcolumn, not by the ones with values: an
+  empty "Day 2" in one group used to shift "Day 3" onto Day 2's colour.
+
+Still different: the paper's P values come from a **paired** t test on
+the replicate means (the same three experiments under both
+conditions); ours are the unpaired nested mixed model. Where days
+differ a lot but the trend is consistent (its panel C) the paired test
+finds the difference and the unpaired one can’t: #70.
+

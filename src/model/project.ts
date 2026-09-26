@@ -236,11 +236,14 @@ export const GROUPED_DEFAULT: GroupedPlot = {
   points: true,
 };
 
-/** A new Nested table's graph: a SuperPlot (item 13) — points coloured by replicate, its mean overlaid. */
+/**
+ * A new Nested table's graph: a SuperPlot (item 13) — points coloured by replicate, its mean
+ * overlaid, and the mean ± SEM of the replicate means, as Lord et al. 2020 draw it.
+ */
 export const NESTED_DEFAULT: ColumnPlot = {
   kind: 'dots',
   center: 'mean',
-  error: 'sd',
+  error: 'sem',
   colorByReplicate: true,
 };
 

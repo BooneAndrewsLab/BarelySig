@@ -307,9 +307,57 @@ describe('layoutColumn', () => {
     expect(fills[0]).not.toBe(fills[2]);
     const means = of(s, 'replicate-mean');
     expect(means).toHaveLength(2);
-    expect(means.every((m) => m.kind === 'circle')).toBe(true);
     const pointR = points[0]?.kind === 'circle' ? points[0].r : 0;
-    expect(means.every((m) => m.kind === 'circle' && m.r > pointR)).toBe(true);
+    const mean0 = means[0];
+    expect(mean0?.kind === 'circle' && mean0.r > pointR).toBe(true);
+  });
+
+  it('draws a SuperPlot as Lord et al. 2020, Fig. 1: shapes by replicate, means on top and apart', () => {
+    const g: GroupInput = {
+      ...group(0, [10, 11, 10.4, 10.6, 10.5, 10.5]),
+      replicateOf: [0, 0, 1, 1, 2, 2],
+      replicateMeans: [10.5, 10.5, 10.5],
+    };
+    const s = layoutColumn(
+      base({
+        plot: { kind: 'dots', center: 'mean', error: 'sem', colorByReplicate: true },
+        groups: [g],
+      }),
+    );
+    // Each replicate a shape as well as a colour, the same for its points and its mean.
+    const shape = (m: Mark | undefined) =>
+      m?.kind === 'path' ? m.d.split(/[\d.\s-]+/).join('') : m?.kind;
+    const points = of(s, 'point');
+    const means = of(s, 'replicate-mean');
+    expect(new Set(points.map(shape)).size).toBe(3);
+    expect(means.map(shape)).toEqual([shape(points[0]), shape(points[2]), shape(points[4])]);
+    // On top of the mean line and error bar.
+    const index = (m: Mark | undefined) => (m ? s.marks.indexOf(m) : -1);
+    const lastLine = Math.max(...of(s, 'centre').map(index), ...of(s, 'error').map(index));
+    expect(Math.min(...means.map(index))).toBeGreaterThan(lastLine);
+    // Equal means are spread sideways, not stacked.
+    const xs = means.map((m) => Math.round(markBox(m).x0 * 10));
+    expect(new Set(xs).size).toBe(3);
+  });
+
+  it('keeps a SuperPlot replicate’s colour and shape when an earlier replicate has no values', () => {
+    const g: GroupInput = {
+      ...group(0, [10, 11, 20]),
+      replicateOf: [0, 0, 2],
+      replicateMeans: [10.5, null, 20],
+    };
+    const s = layoutColumn(
+      base({
+        plot: { kind: 'dots', center: 'mean', error: 'sem', colorByReplicate: true },
+        groups: [g],
+      }),
+    );
+    const means = of(s, 'replicate-mean');
+    expect(means).toHaveLength(2);
+    const fill = (m: Mark | undefined) =>
+      m?.kind === 'circle' || m?.kind === 'path' ? m.fill : '';
+    expect(fill(means[1])).toBe(COLORBLIND[2]);
+    expect(means[1]?.kind).toBe('path');
   });
 
   it('does not colour by replicate for an ordinary dot plot, even with replicateOf set', () => {
