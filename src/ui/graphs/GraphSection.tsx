@@ -8,9 +8,9 @@
 import { type ReactNode, useRef, useState, useSyncExternalStore } from 'react';
 
 import { graphInput, summaryId } from '@/graphs/data';
-import { type ElementId, elementBoxes, elementsOf, hitRegions, pick } from '@/graphs/hit';
-import { describePlot, layoutColumn } from '@/graphs/layout';
-import { sceneToSvg } from '@/graphs/svg';
+import { elementsIn, regionsOf, sceneOf, svgOf } from '@/graphs/cache';
+import { type ElementId, elementBoxes, pick } from '@/graphs/hit';
+import { describePlot } from '@/graphs/layout';
 import type { Json } from '@/model/json';
 import type { Graph, Project } from '@/model/project';
 
@@ -57,15 +57,15 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
   const lastRecipe = useRef<string | null>(null);
   const history = project.exports.filter((x) => x.graph === graph.id).reverse();
 
-  const scene = input.ok ? layoutColumn(input.input) : null;
-  const svg = scene ? sceneToSvg(scene) : '';
-  const elements = scene ? elementsOf(scene) : [];
+  const scene = input.ok ? sceneOf(input.input) : null;
+  const svg = scene ? svgOf(scene) : '';
+  const elements = scene ? elementsIn(scene) : [];
   const notice = engineNotice(getSession().baseline, project, saved, bridge.info, (id) =>
     bridge.recompute.result(id),
   );
   // A selection whose element went away (a bracket hidden, the title turned off) lapses.
   const selected = picked !== null && elements.includes(picked) ? picked : null;
-  const regions = scene ? hitRegions(scene, 5) : [];
+  const regions = scene ? regionsOf(scene) : [];
   const scaleOf = () => {
     const w = figure.current?.getBoundingClientRect().width ?? 0;
     return scene && w > 0 ? scene.width / w : 1;

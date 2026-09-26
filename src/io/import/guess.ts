@@ -456,7 +456,11 @@ function buildColumns(b: Block, choice: ImportChoice): Built {
       leftOut.push(columnName(b, j, header));
       return;
     }
-    if (numbers === 0 && (!header || isBlank(rawAt(b, 0, j)))) return;
+    if (numbers === 0) {
+      // A titled column with nothing under it is named in the notes, not made a group.
+      if (header && !isBlank(rawAt(b, 0, j))) leftOut.push(columnName(b, j, header));
+      return;
+    }
     kept.push(j);
   });
   if (kept.length === 0) return null;
@@ -917,7 +921,8 @@ function longColumns(b: Block): { group: number; factor: number | null; value: n
       if (t !== '') vals.push(t);
     }
     const levels = new Set(vals).size;
-    return levels >= 1 && levels < vals.length && levels <= 100;
+    // A group column names each group at least twice on average.
+    return levels >= 1 && levels * 2 <= vals.length && levels <= 100;
   });
   const values = b.cols
     .map((_, j) => j)
@@ -997,5 +1002,12 @@ function looksGrouped(b: Block, header: boolean): boolean {
   const titles = fillForward(b, headerRows).filter((t) => t !== '');
   const repeated = new Set(titles).size < titles.length || headerRows === 2;
   if (repeated) return true;
+  // Labels nearly all different down a long table are IDs (strains,
+  // samples; a few listed twice), not the levels of a factor.
+  const levels = new Set(labels).size;
+  if (levels > MAX_ROW_LEVELS && levels >= 0.9 * labels.length) return false;
   return !labels.every((l) => REPLICATE_LABEL.test(l));
 }
+
+/** More distinct row labels than this, nearly all different, read as IDs rather than a factor. */
+const MAX_ROW_LEVELS = 24;

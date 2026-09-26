@@ -1,8 +1,7 @@
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import { graphInput } from '@/graphs/data';
-import { layoutColumn } from '@/graphs/layout';
-import { sceneToSvg } from '@/graphs/svg';
+import { imageOf, sceneOf } from '@/graphs/cache';
 import type { Id } from '@/model/ids';
 import type { Project } from '@/model/project';
 import { duplicateTable } from '@/model/table';
@@ -32,12 +31,10 @@ function Thumbnail({ project, table }: { readonly project: Project; readonly tab
     );
   }
   return (
-    <span
-      className="thumb"
-      aria-hidden="true"
-      // The figure's own SVG, scaled down (note 05).
-      dangerouslySetInnerHTML={{ __html: sceneToSvg(layoutColumn(input.input)) }}
-    />
+    <span className="thumb" aria-hidden="true">
+      {/* The figure's own SVG, scaled down (note 05), as a picture. */}
+      <img src={imageOf(sceneOf(input.input))} alt="" />
+    </span>
   );
 }
 

@@ -88,8 +88,37 @@ export type GraphInput =
   | { readonly ok: true; readonly input: LayoutInput; readonly summaryReady: boolean }
   | { readonly ok: false; readonly reason: string };
 
-/** Everything the layout needs, from the project and the current results. */
+/** The last input made for each graph, with what it was made from. */
+const inputs = new WeakMap<
+  Graph,
+  { readonly from: readonly unknown[]; readonly input: GraphInput }
+>();
+
+/**
+ * Everything the layout needs, from the project and the current results.
+ * The same object comes back while nothing it is made from has changed,
+ * so what is drawn from it can be kept (`cache.ts`).
+ */
 export function graphInput(
+  project: Project,
+  graph: Graph,
+  result: (id: Id) => ResultEntry | undefined,
+): GraphInput {
+  const from = [
+    graphTable(project, graph),
+    result(summaryId(graph.id)),
+    ...graph.analyses.flatMap((id) => [project.analyses.get(id), result(id)]),
+  ];
+  const last = inputs.get(graph);
+  if (last?.from.length === from.length && last.from.every((x, i) => x === from[i])) {
+    return last.input;
+  }
+  const input = makeGraphInput(project, graph, result);
+  inputs.set(graph, { from, input });
+  return input;
+}
+
+function makeGraphInput(
   project: Project,
   graph: Graph,
   result: (id: Id) => ResultEntry | undefined,

@@ -128,6 +128,36 @@ document; the spreadsheet is `.ods`).
     columns, and the notes say when more were cut. An empty file or sheet
     says so.
 
+## Big files (found with the first real one)
+
+A screening export (3,656 rows × 4 numeric columns, beside ID, gene and
+empty columns) froze the page on New graph, and showed two guesses to fix.
+
+- **The beeswarm was cubic** (every point checked against every placed
+  point, each candidate against every interval): 3,650 close values took
+  about 20 s per group, on every render. It now looks only at the points
+  near in value (a run at the end, since points are placed in order), keeps
+  their blocked intervals sorted from one point to the next (an insertion
+  sort, as they barely move), and picks the free position from the
+  blocked stretch around the centre. A property test holds it to the first
+  implementation's placements exactly; 3,650 points take about 0.1–0.2 s.
+- **Nothing drawn was kept.** Every store change (a notice, a click) made
+  the results bridge rehash every analysis input and re-render; every
+  render laid the graph out, serialised it and made hit regions again, for
+  the page and for the sidebar thumbnail. Now: the bridge ignores store
+  changes that leave the project as it was; input hashes are kept per
+  table object (same values, checked against the original formula); a
+  graph's layout input is the same object while what it is made from is
+  unchanged, so the scene, SVG and hit regions are made once
+  (`src/graphs/cache.ts`); swarm placements are kept by their values; and
+  thumbnails are images, not thousands of live shapes. A re-render went
+  from about 1 s to 70 ms on that file.
+- **Guesses.** A titled column with nothing in it is left out (named in
+  the notes), not made an empty group. A first column of labels nearly all
+  different (≥ 90%) over more than 24 rows is IDs, not a row factor, so
+  the guess is "each column a group". A long-data group column must name
+  each group at least twice on average.
+
 ## Words
 
 "Open a data file", never "import" or "upload" in the interface (nothing

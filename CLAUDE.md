@@ -417,6 +417,11 @@ the target).
   parser reads both; the guide's lists are flat (no nesting).
 - **Brute-force oracle references can be too slow for WebR:** write them
   with `parity = FALSE`; the analysis's own test still runs them there.
+- **Test with a real-sized file:** a 3,656-row screen froze the page: the
+  beeswarm was cubic and nothing drawn was cached, so every render (and
+  every store change, via the results bridge) redid it all. Graphs are now
+  cached per input object (`src/graphs/cache.ts`); keep derived objects
+  identity-stable, and time new per-point code at a few thousand points.
 - **Text a user reads about statistics is part of correctness:** P shown
   as Prism does and never contradicting its asterisks, "in either
   direction" for two-tailed, the one-tailed caveat, "no evidence of a

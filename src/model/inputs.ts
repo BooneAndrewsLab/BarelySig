@@ -11,7 +11,7 @@
  * results label groups by those names.
  */
 import type { Id } from './ids';
-import { type Json, hashJson } from './json';
+import { type Json, canonicalJson, hashString } from './json';
 import type { Analysis, Project } from './project';
 import type { Table } from './table';
 
@@ -49,6 +49,47 @@ function tableInput(table: Table, dataSets: readonly Id[]): Json | null {
 }
 
 /**
+ * Hashes of an analysis's input, kept per table object: tables are
+ * immutable, so a table that didn't change keeps its hashes, and an edit
+ * elsewhere (a graph's format, a notice) doesn't rehash thousands of cells.
+ */
+const byTable = new WeakMap<Table, Map<string, string | null>>();
+
+/**
+ * `hashJson({ kind, options, source, engine })`, written out: the keys in
+ * canonical (sorted) order, with the source's JSON made once per table.
+ */
+function hashWith(rest: string, source: string): string {
+  return hashString(`{${rest},"source":${source}}`);
+}
+
+function restOf(a: Analysis, engine: EngineInfo): string {
+  const e = canonicalJson({
+    webr: engine.webr,
+    r: engine.r,
+    packages: { ...engine.packages },
+    code: { ...(engine.code ?? {}) },
+  });
+  return `"engine":${e},"kind":${canonicalJson(a.kind)},"options":${canonicalJson({ ...a.options })}`;
+}
+
+function tableHash(table: Table, a: Analysis, dataSets: readonly Id[], engine: EngineInfo) {
+  const rest = restOf(a, engine);
+  const key = `${dataSets.join('\u0000')}\u0001${rest}`;
+  let known = byTable.get(table);
+  if (!known) {
+    known = new Map();
+    byTable.set(table, known);
+  }
+  const hit = known.get(key);
+  if (hit !== undefined) return hit;
+  const source = tableInput(table, dataSets);
+  const hash = source === null ? null : hashWith(rest, canonicalJson(source));
+  known.set(key, hash);
+  return hash;
+}
+
+/**
  * The input hashes of every analysis in the project, or null for one
  * whose input is missing (a deleted table, a broken chain). Chained
  * analyses hash their upstream's input hash, not its result, so the hash
@@ -62,29 +103,16 @@ export function inputHashes(project: Project, engine: EngineInfo): Map<Id, strin
     if (known !== undefined) return known;
     if (visiting.has(a.id)) return null;
     visiting.add(a.id);
-    let source: Json | null;
+    let hash: string | null;
     if (a.input.kind === 'table') {
       const t = project.tables.get(a.input.table);
-      source = t ? tableInput(t, a.input.dataSets) : null;
+      hash = t ? tableHash(t, a, a.input.dataSets, engine) : null;
     } else {
       const up = project.analyses.get(a.input.analysis);
       const h = up ? hashOf(up) : null;
-      source = h === null ? null : { analysis: h };
+      const source: Json | null = h === null ? null : { analysis: h };
+      hash = source === null ? null : hashWith(restOf(a, engine), canonicalJson(source));
     }
-    const hash =
-      source === null
-        ? null
-        : hashJson({
-            kind: a.kind,
-            options: { ...a.options },
-            source,
-            engine: {
-              webr: engine.webr,
-              r: engine.r,
-              packages: { ...engine.packages },
-              code: { ...(engine.code ?? {}) },
-            },
-          });
     visiting.delete(a.id);
     out.set(a.id, hash);
     return hash;

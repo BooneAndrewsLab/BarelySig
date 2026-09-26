@@ -118,6 +118,24 @@ describe('each column a group', () => {
     expect(r.notes.leftOut).toEqual(['Rep', 'Notes']);
   });
 
+  it('leaves out a titled column with nothing in it, and says so', () => {
+    const r = build(csv('WT,Allele,KO\n1,,2\n3,,4'));
+    expect(r.table.dataSets.map((d) => d.title)).toEqual(['WT', 'KO']);
+    expect(r.notes.leftOut).toEqual(['Allele']);
+  });
+
+  it('reads a long column of IDs (one repeated) beside the data as IDs, not a factor', () => {
+    const rows = Array.from(
+      { length: 30 },
+      (_, i) => `dma${String(100 + Math.min(i, 28))},${String(i)},${String(i * 2)}`,
+    );
+    const s = csv(`Strain,Day 3,Day 5\n${rows.join('\n')}`);
+    const g = guessLayout(s, '.');
+    expect(g.choice.layout).toBe('columns');
+    expect(g.possible).toContain('grouped');
+    expect(build(s).notes.leftOut).toEqual(['Strain']);
+  });
+
   it('moves a unit every title shares to the table', () => {
     const r = build(csv('WT (mg),KO (mg)\n1,2'));
     expect(r.table.dataSets.map((d) => d.title)).toEqual(['WT', 'KO']);

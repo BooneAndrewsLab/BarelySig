@@ -55,10 +55,16 @@ export class ResultsBridge {
         }),
       );
     }
-    this.recompute.setProject(withGraphSummaries(project(appStore.getState())));
+    let seen = project(appStore.getState());
+    this.recompute.setProject(withGraphSummaries(seen));
     this.unsubscribe.push(
       appStore.subscribe(() => {
-        this.recompute.setProject(withGraphSummaries(project(appStore.getState())));
+        // Most store changes (a notice, the page shown) leave the project
+        // as it was; a new summary-added copy of it would rehash every input.
+        const now = project(appStore.getState());
+        if (now === seen) return;
+        seen = now;
+        this.recompute.setProject(withGraphSummaries(now));
       }),
     );
   }
