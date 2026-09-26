@@ -43,6 +43,44 @@ cell where its top-left corner should go, and press `Ctrl+V`.
 `Ctrl+C` copies the selection as tab-separated text that spreadsheets
 and R read back, with every digit kept.
 
+## Opening a data file
+
+Data already saved in a file can come in without copying: **Open…**
+(`Ctrl+O`), **Open a data file** on the start screen or in the New
+experiment dialog, or drop the file on the window. BarelySig reads `.csv`,
+`.tsv`, `.txt`, `.xlsx`, `.xls`, `.xlsm`, `.xlsb` and `.ods` files (Apple
+`.numbers` too, less reliably). Nothing is uploaded: the file is read on
+your computer.
+
+BarelySig works out how the file is laid out and shows you the table it
+will make before making anything:
+
+- **Each column is a group:** group names across the top, values under
+  them (columns of different lengths are fine).
+- **Rows and columns are two factors:** row names down the left, groups
+  across the top. Repeated group names (`WT WT WT KO KO KO`), or one name
+  over several columns (merged, or followed by blank titles), are
+  replicates.
+- **Summary data:** means with SD, SEM or %CV and n, as columns named
+  `Mean`, `SD`, `N` with one row per group, or as `WT mean`, `WT SD`, ….
+- **One row per measurement:** a column naming the group of each value
+  (and perhaps a second factor, such as treatment) and a column of
+  values. BarelySig rearranges it into a table and says so.
+
+Its best guess is marked; pick another layout if it guessed wrong. You
+can also choose the sheet of a workbook, skip rows above the table (an
+instrument's header lines), say whether the first row holds titles, swap
+rows and groups, and for text files set the separator and the decimal
+mark. The preview follows each change.
+
+Cells are read as a paste reads them: `NA`, `#DIV/0!` and blanks become
+empty cells, never 0. A cell of other text is left empty too, and shown
+struck through in the preview, so you can see what didn't come in.
+Columns that hold no numbers (sample IDs, notes) are left out, and the
+list under the preview says which. **Create** adds the table as a new
+experiment (from the start screen, a new project named after the file);
+one undo takes it back.
+
 ## Selecting and editing many cells
 
 - Drag, or hold `Shift` with the arrow keys, to select a range; `Ctrl+A`

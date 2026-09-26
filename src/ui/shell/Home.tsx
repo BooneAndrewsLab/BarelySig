@@ -9,12 +9,14 @@ import { useProjects } from './recent';
 interface Props {
   readonly onNewTable: (type: TableType) => void;
   readonly onExample: () => void;
+  /** Open… for a data file (item 10). */
+  readonly onOpenFile: () => void;
   /** The open (empty) project, left out of the list. */
   readonly current: Id;
 }
 
 /** The start screen: start a project with a table, or open one kept in this browser (item 09). */
-export function Home({ onNewTable, onExample, current }: Props) {
+export function Home({ onNewTable, onExample, onOpenFile, current }: Props) {
   const projects = useProjects(current);
   return (
     <div className="home">
@@ -38,6 +40,14 @@ export function Home({ onNewTable, onExample, current }: Props) {
           </button>
         ))}
       </div>
+      <p className="home-more">
+        Data already in a file?{' '}
+        <button type="button" className="link" onClick={onOpenFile}>
+          Open a data file
+        </button>{' '}
+        (.csv, .xlsx, .xls, .ods, .txt) or drop it on the window: BarelySig works out how it is laid
+        out and shows you before making anything.
+      </p>
       <p className="home-more">
         <button type="button" className="link" onClick={onExample}>
           Try an example

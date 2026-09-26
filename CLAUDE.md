@@ -324,8 +324,16 @@ the target).
   Delete…; deleting asks, and warns when there is no downloaded copy
   (a `downloaded` flag per row). The start screen warns when the
   browser's storage is best-effort and asks it to persist from a click
-  (`src/ui/state/storageSafety.ts`). Filed next: #60 (open a CSV / TSV /
-  xls / xlsx / ods data file, detect its layout).
+  (`src/ui/state/storageSafety.ts`).
+- Open a data file (#60, note 10): Open…, drop, the start screen and New
+  experiment take `.csv/.tsv/.txt/.xlsx/.xls/.xlsm/.xlsb/.ods/.numbers`;
+  a dialog guesses the layout (columns, two factors, summary, long →
+  reshaped), previews the table with non-numbers struck through, and
+  Create adds one experiment (one undo). `src/io/import/`: our delimited
+  parser (the paste parser, any separator), SheetJS 0.20.3 vendored in
+  `vendor/` and loaded lazily in a worker, pure `guess.ts`. Workbook
+  fixtures come from `scripts/make-import-fixtures.py` (openpyxl, odfpy,
+  xlwt), never from SheetJS itself.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling

@@ -51,6 +51,9 @@ matter.
   file — or a figure exported from BarelySig with its data, see
   [Exporting figures](14-export.md). An opened file becomes a new project
   in this browser; the file itself is never changed.
+- A **data file** (`.csv`, `.xlsx`, `.ods`, …) opened or dropped the same
+  way becomes a new experiment in the open project, after a preview; see
+  [Entering and pasting data](02-data-entry.md).
 
 A `.bsig` file is plain text (JSON), so it can be read without BarelySig.
 

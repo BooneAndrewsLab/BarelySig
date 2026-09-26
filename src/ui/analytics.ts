@@ -56,7 +56,7 @@ export const EVENTS = {
   history: ['undo', 'redo'],
   table: ['new-column', 'new-grouped'],
   data: ['paste', 'fill-down', 'exclude'],
-  file: ['open', 'download'],
+  file: ['open', 'open-data', 'download'],
   analysis: [
     'new-descriptive',
     'new-t-test',

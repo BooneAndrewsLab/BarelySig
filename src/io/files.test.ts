@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 
-import { download, fileNameFor, projectFile } from './files';
+import { download, fileNameFor, pickFile } from './files';
 
 describe('files', () => {
   it('makes a safe file name', () => {
@@ -39,11 +39,17 @@ describe('files', () => {
     click.mockRestore();
   });
 
-  it('picks the .bsig among dropped files', () => {
+  it('picks the .bsig among dropped files, else a figure, else a data file', () => {
     const a = new File(['x'], 'notes.txt');
     const b = new File(['y'], 'Project.BSIG');
-    expect(projectFile([a, b])).toBe(b);
-    expect(projectFile([a])).toBe(a);
-    expect(projectFile([])).toBeNull();
+    const c = new File(['z'], 'figure.svg');
+    const d = new File(['w'], 'table.docx');
+    const e = new File(['v'], 'mystery.bin');
+    expect(pickFile([a, b])).toEqual({ kind: 'project', file: b });
+    expect(pickFile([a, c])).toEqual({ kind: 'project', file: c });
+    expect(pickFile([e, a])).toEqual({ kind: 'data', file: a });
+    expect(pickFile([e, d])).toEqual({ kind: 'data', file: d });
+    expect(pickFile([e])).toEqual({ kind: 'project', file: e });
+    expect(pickFile([])).toBeNull();
   });
 });

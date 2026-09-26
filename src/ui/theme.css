@@ -352,6 +352,189 @@ select {
   margin-top: 20px;
 }
 
+/* Open data file (item 10): controls beside a preview of the table. */
+.dialog.wide {
+  width: min(1040px, calc(100vw - 32px));
+}
+
+.import {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 8px 28px;
+}
+
+.import .actions {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.import-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0 0 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.import-file .field {
+  font-weight: 400;
+}
+
+.layout-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.layout-option input {
+  grid-row: span 2;
+  margin-top: 3px;
+}
+
+.layout-option.unfit {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.layout-name {
+  font-weight: 500;
+}
+
+.layout-blurb {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.layout-option.unfit .layout-blurb {
+  color: var(--ink-3);
+}
+
+.best-guess {
+  margin-left: 8px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  background: var(--tint);
+  border-radius: 999px;
+}
+
+.import-columns,
+.import-options {
+  display: grid;
+  gap: 6px;
+}
+
+.import-columns .field,
+.import-options .field {
+  justify-content: space-between;
+}
+
+.import-columns select,
+.import-options select,
+.import-options input[type='number'] {
+  flex: 0 1 12em;
+  width: 12em;
+}
+
+.import-preview {
+  min-width: 0;
+}
+
+.import-made {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.import-scroll {
+  max-height: 380px;
+  overflow: auto;
+  border: 1px solid var(--rule);
+}
+
+.import-table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  background: var(--sheet);
+}
+
+.import-table th,
+.import-table td {
+  padding: 3px 10px;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+.import-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--header);
+  font-weight: 600;
+  text-align: center;
+}
+
+.import-table thead th.sub {
+  top: 1.9em;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.import-table tbody th {
+  text-align: left;
+  font-weight: 500;
+  background: var(--header);
+}
+
+.import-table td {
+  min-width: 4em;
+  text-align: right;
+}
+
+.import-table td.not-number {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 8%, var(--sheet));
+}
+
+.import-more {
+  margin: 0;
+  padding: 4px 10px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.import-notes {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.import-notes.warn {
+  padding: 6px 10px 6px 26px;
+  border-left: 3px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 6%, var(--sheet));
+}
+
+.import-empty,
+.import-status {
+  color: var(--ink-2);
+}
+
+@media (max-width: 760px) {
+  .import {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --- sheet ------------------------------------------------------------ */
 
 .chip {

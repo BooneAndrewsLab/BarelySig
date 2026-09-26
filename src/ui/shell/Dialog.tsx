@@ -4,10 +4,12 @@ interface Props {
   readonly title: string;
   readonly onClose: () => void;
   readonly children: ReactNode;
+  /** Room for a preview beside the controls. */
+  readonly wide?: boolean;
 }
 
 /** A modal dialog: Escape and the backdrop close it; focus starts inside and returns after. */
-export function Dialog({ title, onClose, children }: Props) {
+export function Dialog({ title, onClose, children, wide = false }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const before = document.activeElement;
@@ -26,7 +28,7 @@ export function Dialog({ title, onClose, children }: Props) {
     >
       <div
         ref={ref}
-        className="dialog"
+        className={wide ? 'dialog wide' : 'dialog'}
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"

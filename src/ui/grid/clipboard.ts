@@ -6,6 +6,7 @@
  * Excel, Google Sheets and LibreOffice all put TSV on `text/plain`, with
  * Excel's quoting; `text/html` is read only when there is no plain text.
  */
+import { parseDelimited } from '@/io/import/delimited';
 import type { Edit } from '@/model/edits';
 import type { Cell } from '@/model/missing';
 import { type Table, subcolumnCount } from '@/model/table';
@@ -25,66 +26,7 @@ export type ClipboardContents = Readonly<Record<string, string>>;
  * Rows come back padded to the same length.
  */
 export function parseTsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let i = 0;
-  let atCellStart = true;
-  const endCell = () => {
-    row.push(cell);
-    cell = '';
-    atCellStart = true;
-  };
-  const endRow = () => {
-    endCell();
-    rows.push(row);
-    row = [];
-  };
-  while (i < text.length) {
-    const ch = text[i] ?? '';
-    if (atCellStart && ch === '"') {
-      // Quoted cell: runs to a quote followed by a separator or the end.
-      let j = i + 1;
-      let value = '';
-      let closed = false;
-      while (j < text.length) {
-        const c = text[j];
-        if (c === '"') {
-          if (text[j + 1] === '"') {
-            value += '"';
-            j += 2;
-            continue;
-          }
-          const after = text[j + 1];
-          if (after === undefined || after === '\t' || after === '\n' || after === '\r') {
-            closed = true;
-            j += 1;
-            break;
-          }
-        }
-        value += c ?? '';
-        j += 1;
-      }
-      if (closed) {
-        cell = value;
-        i = j;
-        atCellStart = false;
-        continue;
-      }
-      // Not a well-formed quoted cell: read the quote as text.
-    }
-    atCellStart = false;
-    if (ch === '\t') endCell();
-    else if (ch === '\r' || ch === '\n') {
-      endRow();
-      if (ch === '\r' && text[i + 1] === '\n') i += 1;
-      atCellStart = true;
-    } else cell += ch;
-    i += 1;
-  }
-  if (cell !== '' || row.length > 0) endRow();
-  const width = Math.max(0, ...rows.map((r) => r.length));
-  return rows.map((r) => [...r, ...Array<string>(width - r.length).fill('')]);
+  return parseDelimited(text, '\t');
 }
 
 /** Cells of the first `<table>` in HTML, or null. Needs a DOM parser (browser, jsdom). */

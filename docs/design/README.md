@@ -15,3 +15,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 07 | [Formatting and first release: inspector, box/violin, grouped bars, guide, release](07-formatting-and-release.md) | #30–#36, #44–#46, #48, #49 |
 | 08 | [Notebook layout: one page per experiment, with margin notes](08-notebook.md) | #55, #56 |
 | 09 | [Project manager: the list, close, delete](09-project-manager.md) | #59 |
+| 10 | [Opening a data file and guessing its layout](10-open-data-file.md) | #60 |

@@ -1,7 +1,8 @@
 import { HelpButton } from './help/HelpButton';
 import { useEffect, useRef, useState } from 'react';
 
-import type { TableType } from '@/model/table';
+import type { Edit } from '@/model/edits';
+import type { Table, TableType } from '@/model/table';
 
 import { analytics } from './analytics';
 import { DataGrid } from './grid/DataGrid';
@@ -10,6 +11,8 @@ import { ProjectMenu } from './shell/ProjectMenu';
 import { contentsLine, useProjects } from './shell/recent';
 import { SaveState } from './shell/SaveState';
 import { NewTableDialog } from './shell/NewTableDialog';
+import { OpenDataDialog } from './shell/OpenDataDialog';
+import { stem } from './shell/openData';
 import { StatusLine } from './shell/StatusLine';
 import { ExperimentPage } from './notebook/ExperimentPage';
 import { experimentOf } from './notebook/experiments';
@@ -17,12 +20,22 @@ import { NotesSwitch } from './notebook/NotesSwitch';
 import { Sidebar } from './notebook/Sidebar';
 import { TopBar } from './shell/TopBar';
 import { commandFor } from './shortcuts';
-import { projectFile } from '@/io/files';
+import { pickFile } from '@/io/files';
+import type { ImportResult } from '@/io/import/guess';
+import { DATA_EXTENSIONS, formatLabel } from '@/io/import/sheets';
 
 import { getSession } from './state/session';
 import { checkStorage } from './state/storageSafety';
 import { project, store } from './state/store';
 import { useAppState } from './state/useAppState';
+
+/** Opens a project or figure at once; a data file goes to the Open data file dialog. */
+function routeFiles(files: Iterable<File>, onData: (file: File) => void): void {
+  const pick = pickFile(files);
+  if (!pick) return;
+  if (pick.kind === 'project') void getSession().openFile(pick.file);
+  else onData(pick.file);
+}
 
 export function App() {
   const state = useAppState();
@@ -31,6 +44,7 @@ export function App() {
   const [summary, setSummary] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const [dropping, setDropping] = useState(false);
+  const [dataFile, setDataFile] = useState<File | null>(null);
 
   useEffect(() => {
     void checkStorage();
@@ -56,7 +70,7 @@ export function App() {
     };
   }, []);
 
-  // A .bsig dropped anywhere on the window opens it.
+  // A .bsig or a data file dropped anywhere on the window opens it.
   useEffect(() => {
     const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') === true;
     const over = (e: DragEvent) => {
@@ -71,8 +85,7 @@ export function App() {
       if (!hasFiles(e)) return;
       e.preventDefault();
       setDropping(false);
-      const file = projectFile(e.dataTransfer?.files ?? []);
-      if (file) void getSession().openFile(file);
+      routeFiles(e.dataTransfer?.files ?? [], setDataFile);
     };
     globalThis.addEventListener('dragover', over);
     globalThis.addEventListener('dragleave', leave);
@@ -93,6 +106,27 @@ export function App() {
     p.graphs.size === 0 &&
     store.undoLabel() === null;
   const experiment = experimentOf(p, state.sheet);
+
+  /** A data file becomes a new experiment; a blank project takes the file's name (item 10). */
+  const openData = (file: File, t: Table, result: ImportResult) => {
+    const fresh = p.tables.size === 0 && p.analyses.size === 0 && p.name === 'Untitled project';
+    const edits: Edit[] = [
+      ...(fresh ? [{ op: 'renameProject' as const, name: stem(file.name) }] : []),
+      { op: 'addTable', table: t },
+    ];
+    if (
+      !store.edit(
+        { op: 'batch', label: 'Open data file', edits },
+        { show: { kind: 'table', id: t.id } },
+      )
+    )
+      return;
+    const values = result.notes.values;
+    store.notify(
+      `Opened “${file.name}” as a new experiment: ${String(values)} ${values === 1 ? 'value' : 'values'}.`,
+    );
+    analytics.trackOnce('file', 'open-data', formatLabel(file.name));
+  };
   const table = experiment === null ? undefined : p.tables.get(experiment);
 
   return (
@@ -117,7 +151,7 @@ export function App() {
         />
         <button
           type="button"
-          title="Open a .bsig project or a figure exported from BarelySig (Ctrl+O), or drop one on the window"
+          title="Open a .bsig project, a figure exported from BarelySig, or a data file such as .csv or .xlsx (Ctrl+O); or drop one on the window"
           onClick={() => fileInput.current?.click()}
         >
           Open…
@@ -135,13 +169,13 @@ export function App() {
         <input
           ref={fileInput}
           type="file"
-          accept=".bsig,application/json,.svg,image/svg+xml,.png,image/png"
+          accept={`.bsig,application/json,.svg,image/svg+xml,.png,image/png,${DATA_EXTENSIONS.join(',')}`}
           hidden
-          aria-label="Open a project file"
+          aria-label="Open a project or data file"
           onChange={(e) => {
-            const file = projectFile(e.currentTarget.files ?? []);
+            const files = [...(e.currentTarget.files ?? [])];
             e.currentTarget.value = '';
-            if (file) void getSession().openFile(file);
+            routeFiles(files, setDataFile);
           }}
         />
       </Sidebar>
@@ -180,6 +214,7 @@ export function App() {
           <Home
             current={p.id}
             onNewTable={setNewTable}
+            onOpenFile={() => fileInput.current?.click()}
             onExample={() => {
               void getSession().openExample();
             }}
@@ -189,7 +224,7 @@ export function App() {
       <StatusLine notice={state.notice}>{table ? summary : null}</StatusLine>
       {dropping && (
         <div className="drop-hint" aria-hidden="true">
-          Drop a .bsig project or an exported figure to open it
+          Drop a data file (.csv, .xlsx, …), a .bsig project or an exported figure to open it
         </div>
       )}
       {newTable && (
@@ -199,10 +234,26 @@ export function App() {
           onClose={() => {
             setNewTable(null);
           }}
+          onOpenFile={() => {
+            setNewTable(null);
+            fileInput.current?.click();
+          }}
           onCreate={(t) => {
             setNewTable(null);
             store.edit({ op: 'addTable', table: t }, { show: { kind: 'table', id: t.id } });
             analytics.trackOnce('table', t.type === 'column' ? 'new-column' : 'new-grouped');
+          }}
+        />
+      )}
+      {dataFile && (
+        <OpenDataDialog
+          file={dataFile}
+          onClose={() => {
+            setDataFile(null);
+          }}
+          onCreate={(t, result) => {
+            setDataFile(null);
+            openData(dataFile, t, result);
           }}
         />
       )}

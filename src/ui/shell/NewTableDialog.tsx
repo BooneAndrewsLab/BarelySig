@@ -13,9 +13,17 @@ interface Props {
   readonly defaultTitle: string;
   readonly onCreate: (table: Table) => void;
   readonly onClose: () => void;
+  /** Opens a data file instead (item 10). */
+  readonly onOpenFile?: () => void;
 }
 
-export function NewTableDialog({ initialType = 'column', defaultTitle, onCreate, onClose }: Props) {
+export function NewTableDialog({
+  initialType = 'column',
+  defaultTitle,
+  onCreate,
+  onClose,
+  onOpenFile,
+}: Props) {
   const [type, setType] = useState<TableType>(initialType);
   const [title, setTitle] = useState(defaultTitle);
   const [entry, setEntry] = useState<Entry>('raw');
@@ -70,6 +78,15 @@ export function NewTableDialog({ initialType = 'column', defaultTitle, onCreate,
             }}
           />
         </label>
+
+        {onOpenFile && (
+          <p className="hint flush">
+            Data already in a file?{' '}
+            <button type="button" className="link" onClick={onOpenFile}>
+              Open a data file…
+            </button>
+          </p>
+        )}
 
         <div className="actions">
           <button type="button" onClick={onClose}>

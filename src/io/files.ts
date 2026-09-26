@@ -5,6 +5,7 @@
  * elsewhere an `<a download>`. Opening reads a `File`.
  */
 import { EXTENSION } from './bsig';
+import { dataFileKind, isDocument } from './import/sheets';
 
 /** A file-system-safe name, with the extension (a project's by default). */
 export function fileNameFor(
@@ -88,9 +89,22 @@ export async function download(
   return true;
 }
 
-/** The first `.bsig` among dropped or picked files, else a figure, else any file. */
-export function projectFile(files: Iterable<File>): File | null {
+/**
+ * What to open from dropped or picked files: the first `.bsig`, else a
+ * figure, else a data file (item 10) or a document (whose message asks for the
+ * spreadsheet), else any file, which the project reader explains it can't
+ * open.
+ */
+export function pickFile(
+  files: Iterable<File>,
+): { readonly kind: 'project' | 'data'; readonly file: File } | null {
   const all = [...files];
   const named = (ext: string) => all.find((f) => f.name.toLowerCase().endsWith(ext));
-  return named(EXTENSION) ?? named('.svg') ?? named('.png') ?? all[0] ?? null;
+  const project = named(EXTENSION) ?? named('.svg') ?? named('.png');
+  if (project) return { kind: 'project', file: project };
+  const data =
+    all.find((f) => dataFileKind(f.name) !== null) ?? all.find((f) => isDocument(f.name));
+  if (data) return { kind: 'data', file: data };
+  const first = all[0];
+  return first ? { kind: 'project', file: first } : null;
 }
