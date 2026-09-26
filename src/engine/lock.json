@@ -5,7 +5,9 @@
   "packages": {
     "emmeans": "2.0.3",
     "estimability": "1.5.1",
+    "lattice": "0.22-9",
     "mvtnorm": "1.2-4",
+    "nlme": "3.1-169",
     "numDeriv": "2016.8-1.1",
     "rlang": "1.2.0"
   }

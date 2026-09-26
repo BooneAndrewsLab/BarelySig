@@ -3,5 +3,5 @@
   "webr": "0.6.0",
   "rVersion": "4.6",
   "repo": "https://repo.r-wasm.org",
-  "packages": ["mvtnorm", "emmeans"]
+  "packages": ["mvtnorm", "emmeans", "nlme"]
 }
