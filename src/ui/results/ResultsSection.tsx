@@ -11,6 +11,8 @@ import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
+import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
+import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult, TestOutcome } from '@/analyses/normality/types';
 import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
@@ -28,6 +30,10 @@ import {
   COMPARISON_TEST,
   kruskalMethod,
   kruskalReading,
+  nestedOneWayMethod,
+  nestedOneWayReading,
+  nestedTTestMethod,
+  nestedTTestReading,
   normalityReading,
   oneWayMethod,
   oneWayReading,
@@ -171,6 +177,70 @@ function TTestView({ r }: { readonly r: TTestResult }) {
     <>
       <p className="reading">{tTestReading(r)}</p>
       <p className="method">{tTestMethod(r)}</p>
+      <Sections sections={sections} />
+      <p className="legend">Asterisks: {STAR_SCHEME}.</p>
+    </>
+  );
+}
+
+/** ", 1 replicate with no usable value left out" beside a replicate count. */
+function nestedDroppedText(dropped: number): string {
+  return dropped
+    ? `, ${String(dropped)} ${dropped === 1 ? 'replicate' : 'replicates'} with no usable value left out`
+    : '';
+}
+
+function NestedTTestView({ r }: { readonly r: NestedTTestResult }) {
+  const tails = r.tails === 'two' ? 'Two-tailed' : 'One-tailed';
+  const test: Section = [
+    'Nested t test',
+    [
+      ['P value', pValue(r.p)],
+      ['P value summary', stars(r.p)],
+      ['Significantly different (P < 0.05)?', yesNo(r.p)],
+      ['One- or two-tailed P value?', tails],
+      ['t, df', `t = ${sig(Math.abs(r.t))}, df = ${dfText(r.df)}`],
+    ],
+  ];
+  const sections: Section[] = [
+    test,
+    [
+      'How big is the difference?',
+      [
+        [`Mean of ${r.a.title}`, sig(r.a.mean)],
+        [`Mean of ${r.b.title}`, sig(r.b.mean)],
+        [
+          `Difference between means (${r.b.title} − ${r.a.title}) ± SE`,
+          `${sig(r.difference)} ± ${sig(r.seDifference)}`,
+        ],
+        ['95% confidence interval', interval(r.ciLower, r.ciUpper)],
+      ],
+    ],
+    [
+      'How much comes from replicate to replicate, versus within one?',
+      [
+        ['Between-replicate SD', sig(r.betweenReplicateSd)],
+        ['Within-replicate SD', sig(r.withinReplicateSd)],
+      ],
+    ],
+    [
+      'Data analyzed',
+      [
+        [
+          `Replicates, ${r.a.title}`,
+          `${String(r.a.nReplicates)} (${String(r.a.nValues)} values${nestedDroppedText(r.droppedReplicates.a)})`,
+        ],
+        [
+          `Replicates, ${r.b.title}`,
+          `${String(r.b.nReplicates)} (${String(r.b.nValues)} values${nestedDroppedText(r.droppedReplicates.b)})`,
+        ],
+      ],
+    ],
+  ];
+  return (
+    <>
+      <p className="reading">{nestedTTestReading(r)}</p>
+      <p className="method">{nestedTTestMethod(r)}</p>
       <Sections sections={sections} />
       <p className="legend">Asterisks: {STAR_SCHEME}.</p>
     </>
@@ -787,6 +857,72 @@ function OneWayView({ r }: { readonly r: OneWayResult }) {
   );
 }
 
+function NestedOneWayView({ r }: { readonly r: NestedOneWayResult }) {
+  const a = r.anova;
+  const c = r.comparisons;
+  const name = c.kind === 'none' ? '' : (COMPARISON_TEST[c.test] ?? c.test);
+  const sections: Section[] = [
+    [
+      'ANOVA summary',
+      [
+        ['F (DFn, DFd)', `F (${dfText(a.dfn)}, ${dfText(a.dfd)}) = ${sig(a.f)}`],
+        ['P value', pValue(a.p)],
+        ['P value summary', stars(a.p)],
+        ['Significant difference among means (P < 0.05)?', yesNo(a.p)],
+      ],
+    ],
+    [
+      'How much comes from replicate to replicate, versus within one?',
+      [
+        ['Between-replicate SD', sig(r.betweenReplicateSd)],
+        ['Within-replicate SD', sig(r.withinReplicateSd)],
+      ],
+    ],
+  ];
+  return (
+    <>
+      <p className="reading">{nestedOneWayReading(r)}</p>
+      <p className="method">{nestedOneWayMethod(r)}</p>
+      <Sections sections={sections} />
+      <Grid
+        label="Data summary"
+        head={['Data summary', 'Replicates', 'Values', 'Mean']}
+        rows={r.groups.map((g) => [
+          `${g.title}${nestedDroppedText(g.dropped)}`,
+          String(g.nReplicates),
+          String(g.nValues),
+          sig(g.mean),
+        ])}
+      />
+      {r.pairs.length > 0 && (
+        <Grid
+          label="Multiple comparisons"
+          head={[
+            `${name} multiple comparisons test`,
+            'Mean diff.',
+            '95% CI of diff.',
+            'Significant?',
+            'Summary',
+            'Adjusted P value',
+          ]}
+          rows={r.pairs.map((x) => [
+            `${x.a.title} vs. ${x.b.title}`,
+            sig(x.diff),
+            interval(x.ciLower, x.ciUpper),
+            x.p < 0.05 ? 'Yes' : 'No',
+            stars(x.p),
+            pValue(x.p),
+          ])}
+        />
+      )}
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
+        reports it.
+      </p>
+    </>
+  );
+}
+
 const DESCRIPTIVE_ROWS: readonly (readonly [
   string,
   (g: DescriptiveResult['groups'][number]) => string,
@@ -995,6 +1131,12 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         <Status analysis={analysis} over={value !== null} />
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} />
+        )}
+        {value !== null && analysis.kind === 'nested-t-test' && (
+          <NestedTTestView r={value as unknown as NestedTTestResult} />
+        )}
+        {value !== null && analysis.kind === 'nested-one-way-anova' && (
+          <NestedOneWayView r={value as unknown as NestedOneWayResult} />
         )}
         {value !== null && analysis.kind === 'normality' && (
           <NormalityView r={value as unknown as NormalityResult} />

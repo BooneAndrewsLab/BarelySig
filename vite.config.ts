@@ -1,6 +1,9 @@
 /// <reference types="vitest/config" />
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
+import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -14,6 +17,37 @@ import pkg from './package.json' with { type: 'json' };
  */
 const base = process.env['BASE_PATH'] ?? '/';
 
+/**
+ * WebR looks for package index files (PACKAGES.rds, PACKAGES.gz) that
+ * `webr:fetch` doesn't generate (only the plain-text PACKAGES); a real
+ * repository 404s for them, and WebR falls back to the text file. Vite's
+ * dev server instead serves index.html for any missing path (its SPA
+ * fallback), which WebR can't tell apart from a real file: it fails to
+ * parse the index instead of trying the next one, and package installs
+ * fail as if the repo were empty. The PWA's own fallback already
+ * excludes /webr/ in production (`navigateFallbackDenylist` above); this
+ * is the same fix for the dev server, answering with a real 404 instead.
+ */
+function webrStatic404(): Plugin {
+  return {
+    name: 'webr-static-404',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = (req.url ?? '').split('?')[0] ?? '';
+        if (path.startsWith(`${base}webr/`)) {
+          const file = join(process.cwd(), 'public', decodeURIComponent(path.slice(base.length)));
+          if (!existsSync(file)) {
+            res.statusCode = 404;
+            res.end('Not found');
+            return;
+          }
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base,
   define: {
@@ -25,6 +59,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    webrStatic404(),
     VitePWA({
       // Registered by hand in main.tsx, production only.
       injectRegister: null,

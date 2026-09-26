@@ -6,6 +6,8 @@
  * no evidence of a difference, not evidence of none.
  */
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
+import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
+import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult } from '@/analyses/normality/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
@@ -177,6 +179,55 @@ function comparisonsText(
   if (!adjusted)
     text +=
       ' These P values are not adjusted for the number of comparisons, so a “significant” pair is more likely to be chance.';
+  return text;
+}
+
+export function nestedTTestMethod(r: NestedTTestResult): string {
+  const tails = r.tails === 'two' ? 'two-tailed' : 'one-tailed';
+  return `Nested t test: a mixed model with the biological replicate as a random effect nested within group, ${tails}.`;
+}
+
+export function nestedTTestReading(r: NestedTTestResult): string {
+  const A = r.a.title;
+  const B = r.b.title;
+  const higher = r.difference > 0 ? 'higher' : 'lower';
+  const either = r.tails === 'two' ? ' (in either direction)' : ' in that direction';
+  const often = howOften(r.p);
+  const p = pPhrase(r.p);
+  let text: string;
+  if (r.p < 0.05) {
+    text = `The mean of ${B} is ${higher} than the mean of ${A} (${p}). If the two groups truly had the same mean, a difference at least this large${either} would turn up in ${often} like this one.`;
+  } else {
+    text = `There is no evidence that the means of ${A} and ${B} differ (${p}). If they truly had the same mean, a difference at least this large${either} would turn up in ${often}. That doesn’t show the means are the same; the experiment may be too small to see a difference.`;
+  }
+  if (r.tails === 'one') {
+    text += ` A one-tailed P is only valid if you predicted, before collecting the data, that ${B} would be ${higher} than ${A}.`;
+  }
+  return text;
+}
+
+export function nestedOneWayMethod(r: NestedOneWayResult): string {
+  const c = r.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons.`;
+  return `Nested one-way ANOVA: a mixed model with the biological replicate as a random effect nested within group.${comps}`;
+}
+
+export function nestedOneWayReading(r: NestedOneWayResult): string {
+  const { p } = r.anova;
+  const phrase = pPhrase(p);
+  const often = howOften(p);
+  const k = String(r.groups.length);
+  let text =
+    p < 0.05
+      ? `The means of the ${k} groups are not all the same (${phrase}): at least one differs from the others. If all groups truly had the same mean, differences at least this large would turn up in ${often} like this one.`
+      : `There is no evidence that the means of the ${k} groups differ (${phrase}). If they truly had the same mean, differences at least this large would turn up in ${often}. That doesn’t show the means are the same; the experiment may be too small to see a difference.`;
+  if (r.comparisons.kind !== 'none') {
+    const name = COMPARISON_TEST[r.comparisons.test] ?? r.comparisons.test;
+    text += comparisonsText(p, name, r.pairs, true);
+  }
   return text;
 }
 
