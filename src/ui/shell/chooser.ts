@@ -58,6 +58,21 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
       why: 'Choose at least two groups to compare. To summarise one group, use Descriptive statistics.',
     };
   }
+  if (ctx.tableType === 'nested') {
+    return k === 2
+      ? {
+          kind: 'test',
+          spec: { kind: 'nested-t-test', options: DEFAULT_OPTIONS['nested-t-test'] },
+          name: 'Nested t test',
+          why: 'A Nested table has biological replicates within each group: the nested t test weighs each replicate by how many values it has, rather than treating every individual value as its own independent sample.',
+        }
+      : {
+          kind: 'test',
+          spec: { kind: 'nested-one-way-anova', options: DEFAULT_OPTIONS['nested-one-way-anova'] },
+          name: 'Nested one-way ANOVA',
+          why: 'A Nested table has biological replicates within each group: nested one-way ANOVA weighs each replicate by how many values it has, rather than treating every individual value as its own independent sample.',
+        };
+  }
   if (ctx.summary) {
     // Only the tests that work from mean, SD and n.
     return k === 2

@@ -7,6 +7,11 @@ const column = (sizes: readonly number[], summary = false) => ({
   summary,
   sizes,
 });
+const nested = (sizes: readonly number[]) => ({
+  tableType: 'nested' as const,
+  summary: false,
+  sizes,
+});
 const ans = (matched: boolean | null, gaussian: ChooserAnswers['gaussian']): ChooserAnswers => ({
   matched,
   gaussian,
@@ -77,6 +82,18 @@ describe('which test?', () => {
       'One-way ANOVA',
     ]);
     expect(pick(suggest(ans(null, null), column([5])))).toEqual(['none']);
+  });
+
+  it('suggests the nested tests for a Nested table, asking neither matching nor distribution', () => {
+    expect(pick(suggest(ans(null, null), nested([2, 2])))).toEqual([
+      'nested-t-test',
+      'Nested t test',
+    ]);
+    expect(pick(suggest(ans(null, null), nested([2, 2, 2])))).toEqual([
+      'nested-one-way-anova',
+      'Nested one-way ANOVA',
+    ]);
+    expect(pick(suggest(ans(null, null), nested([2])))).toEqual(['none']);
   });
 
   it('knows when a Mann-Whitney test can reach P < 0.05 (never with 7 values or fewer)', () => {

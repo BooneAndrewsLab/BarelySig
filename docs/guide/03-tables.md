@@ -1,4 +1,4 @@
-# Column and Grouped tables
+# Column, Grouped and Nested tables
 
 When you create a table you choose its kind. The kind fixes how the data
 are laid out, which analyses are offered and which graphs can be drawn.
@@ -38,6 +38,17 @@ You choose the number of **Replicates per cell** when you create the
 table.
 
 Use it for [two-way ANOVA](09-two-way-anova.md) and grouped bar graphs.
+
+## Nested tables
+
+Each column is a group, but with a third level underneath: subcolumns
+are separate biological replicates (separate experiments, animals or
+dishes), and each row within a replicate is one individual measurement
+(a cell, a well, a reading). See
+[Nested tables, the nested t test and nested one-way ANOVA](17-nested-tables.md)
+for when to use one, what the nested tests report, and the SuperPlot
+graph. A Nested table always holds individual values; there is no
+summary-data format for it.
 
 ## Summary data
 
