@@ -73,4 +73,17 @@ separates how much replicates vary from each other from how much
 individual values vary within one replicate, so there's nothing
 analogous to "assume the groups have different SDs" to turn on.
 
-The SuperPlot graph itself is coming in a later release.
+## The SuperPlot graph
+
+Click **New graph** on a Nested table and you get a SuperPlot by
+default: every individual value as a point, coloured by which
+biological replicate it belongs to (the same colour for "replicate 1"
+in every group), with each replicate's own mean overlaid as a larger
+matching-coloured point. The usual mean line and error bar, and any
+significance brackets from the nested t test or nested one-way ANOVA,
+draw on top exactly as they do on any other graph.
+
+Turn the colouring off (or on for an existing graph) in the format
+panel's **Plot** section, "Colour points by biological replicate
+(SuperPlot)" — the graph switches back to an ordinary dot plot, one
+colour per group.

@@ -287,6 +287,46 @@ describe('layoutColumn', () => {
     ).toMatch(/e-12|0\.000000000/);
   });
 
+  it('colours points by replicate and overlays each replicate’s mean (SuperPlot, item 13)', () => {
+    const g: GroupInput = {
+      ...group(0, [10, 11, 20, 21, 22]),
+      replicateOf: [0, 0, 1, 1, 1],
+      replicateMeans: [10.5, 21],
+    };
+    const s = layoutColumn(
+      base({
+        plot: { kind: 'dots', center: 'mean', error: 'sd', colorByReplicate: true },
+        groups: [g],
+      }),
+    );
+    const points = of(s, 'point');
+    expect(points).toHaveLength(5);
+    const fills = points.map((m) => (m.kind === 'circle' || m.kind === 'path' ? m.fill : ''));
+    expect(new Set(fills.slice(0, 2)).size).toBe(1);
+    expect(new Set(fills.slice(2)).size).toBe(1);
+    expect(fills[0]).not.toBe(fills[2]);
+    const means = of(s, 'replicate-mean');
+    expect(means).toHaveLength(2);
+    expect(means.every((m) => m.kind === 'circle')).toBe(true);
+    const pointR = points[0]?.kind === 'circle' ? points[0].r : 0;
+    expect(means.every((m) => m.kind === 'circle' && m.r > pointR)).toBe(true);
+  });
+
+  it('does not colour by replicate for an ordinary dot plot, even with replicateOf set', () => {
+    const g: GroupInput = {
+      ...group(0, [1, 2, 3]),
+      replicateOf: [0, 1, 2],
+      replicateMeans: [1, 2, 3],
+    };
+    const s = layoutColumn(
+      base({ plot: { kind: 'dots', center: 'mean', error: 'sd' }, groups: [g] }),
+    );
+    expect(of(s, 'replicate-mean')).toHaveLength(0);
+    const points = of(s, 'point');
+    const fills = new Set(points.map((m) => (m.kind === 'circle' ? m.fill : '')));
+    expect(fills.size).toBe(1);
+  });
+
   it('draws nothing for empty groups but keeps their slot and label', () => {
     const s = layoutColumn(base({ groups: [group(0, [1, 2]), group(1, [])] }));
     expect(of(s, 'bar')).toHaveLength(1);

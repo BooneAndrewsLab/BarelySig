@@ -209,7 +209,12 @@ function plotJson(plot: GraphPlot): Json {
     case 'bars':
       return { kind: 'bars', error: plot.error, points: plot.points };
     case 'dots':
-      return { kind: 'dots', center: plot.center, error: plot.error };
+      return {
+        kind: 'dots',
+        center: plot.center,
+        error: plot.error,
+        ...optional('colorByReplicate', plot.colorByReplicate),
+      };
     case 'box':
       return { kind: 'box', whiskers: plot.whiskers, points: plot.points };
     case 'violin':
@@ -598,6 +603,10 @@ function plot(v: Json | undefined, p: Path): GraphPlot {
         kind,
         error: oneOf(o['error'], p.key('error'), ERROR_BARS),
         center: oneOf(o['center'], p.key('center'), ['mean', 'median'] as const),
+        colorByReplicate:
+          o['colorByReplicate'] === undefined
+            ? undefined
+            : bool(o['colorByReplicate'], p.key('colorByReplicate')),
       };
     case 'box':
       return {

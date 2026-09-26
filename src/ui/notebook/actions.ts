@@ -1,7 +1,7 @@
 /** What the notebook's buttons do (item 08), kept out of the components. */
 import { gives } from '@/analyses/pairwise';
 import { newId } from '@/model/ids';
-import { GRAPH_DEFAULTS, GROUPED_DEFAULT, type Project } from '@/model/project';
+import { GRAPH_DEFAULTS, GROUPED_DEFAULT, NESTED_DEFAULT, type Project } from '@/model/project';
 import type { Table } from '@/model/table';
 
 import { analytics } from '../analytics';
@@ -32,10 +32,21 @@ export function addGraph(project: Project, table: Table): void {
         source: { kind: 'table', table: table.id },
         analyses: tests,
         ...GRAPH_DEFAULTS,
-        ...(table.type === 'grouped' ? { plot: GROUPED_DEFAULT } : {}),
+        ...(table.type === 'grouped'
+          ? { plot: GROUPED_DEFAULT }
+          : table.type === 'nested'
+            ? { plot: NESTED_DEFAULT }
+            : {}),
       },
     },
     { show: { kind: 'graph', id } },
   );
-  analytics.trackOnce('graph', table.type === 'grouped' ? 'new-grouped' : 'new-column');
+  analytics.trackOnce(
+    'graph',
+    table.type === 'grouped'
+      ? 'new-grouped'
+      : table.type === 'nested'
+        ? 'new-nested'
+        : 'new-column',
+  );
 }

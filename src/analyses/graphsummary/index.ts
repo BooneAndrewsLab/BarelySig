@@ -7,8 +7,8 @@
 import type { EngineInput, EngineJob } from '@/engine/engine';
 import type { Plain } from '@/engine/convert';
 import type { Id } from '@/model/ids';
-import { columnGroups, groupedCells } from '@/model/selectors';
-import type { GroupedTable } from '@/model/table';
+import { columnGroups, groupedCells, nestedGroups } from '@/model/selectors';
+import type { GroupedTable, NestedTable } from '@/model/table';
 
 import { cellId } from '../pairwise';
 
@@ -43,6 +43,30 @@ function cellsOf(table: GroupedTable, dataSets: readonly Id[]): GraphSummaryRequ
   );
 }
 
+/**
+ * A Nested table's groups, summarised over each replicate's own mean
+ * (not the individual values): the graph's mean/error bar is an honest
+ * descriptive summary of the replicates (n = replicate count), matching
+ * what the nested t test/ANOVA actually tests, even though the beeswarm
+ * itself (src/graphs/data.ts) plots every individual value.
+ */
+function nestedMeansOf(table: NestedTable, dataSets: readonly Id[]): GraphSummaryRequest['cells'] {
+  return nestedGroups(table, dataSets).map((g) => {
+    const means = g.replicates
+      .filter((r) => r.values.length > 0)
+      .map((r) => r.values.reduce((a, b) => a + b, 0) / r.values.length);
+    return {
+      id: g.id,
+      title: g.title,
+      data: {
+        kind: 'raw' as const,
+        values: means,
+        dropped: { empty: g.replicates.length - means.length, excluded: 0 },
+      },
+    };
+  });
+}
+
 export const graphSummary: AnalysisModule<
   'graph-summary',
   GraphSummaryRequest,
@@ -56,13 +80,12 @@ export const graphSummary: AnalysisModule<
     if (analysis.input.kind !== 'table') return { ok: false, reason: 'A graph plots a table.' };
     const table = project.tables.get(analysis.input.table);
     if (!table) return { ok: false, reason: 'The table this graph plots no longer exists.' };
-    if (table.type === 'nested') {
-      return { ok: false, reason: 'Graphing a Nested table is not supported yet.' };
-    }
     const cells =
       table.type === 'column'
         ? columnGroups(table, analysis.input.dataSets)
-        : cellsOf(table, analysis.input.dataSets);
+        : table.type === 'nested'
+          ? nestedMeansOf(table, analysis.input.dataSets)
+          : cellsOf(table, analysis.input.dataSets);
     const any = cells.some((g) =>
       g.data.kind === 'raw' ? g.data.values.length > 0 : g.data.mean !== null,
     );

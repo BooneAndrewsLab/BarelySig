@@ -4,7 +4,7 @@
  * graph is selected.
  */
 import { openGuide } from '../help/openGuide';
-import { bracketChoices, withBracket, withPair } from '@/graphs/data';
+import { bracketChoices, graphTable, withBracket, withPair } from '@/graphs/data';
 import {
   type ColumnPlot,
   type ErrorBar,
@@ -56,6 +56,7 @@ export function GraphSettings({ project, graph }: Props) {
     set({ plot: next });
   };
   const { plot } = graph;
+  const nested = graphTable(project, graph)?.type === 'nested';
   return (
     <form
       className="graph-controls"
@@ -153,6 +154,18 @@ export function GraphSettings({ project, graph }: Props) {
               <option value="mean">mean</option>
               <option value="median">median</option>
             </select>
+          </label>
+        )}
+        {plot.kind === 'dots' && nested && (
+          <label className="option">
+            <input
+              type="checkbox"
+              checked={plot.colorByReplicate ?? false}
+              onChange={(e) => {
+                setPlot({ ...plot, colorByReplicate: e.currentTarget.checked });
+              }}
+            />
+            Colour points by biological replicate (SuperPlot)
           </label>
         )}
         {plot.kind === 'box' && (

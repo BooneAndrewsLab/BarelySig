@@ -530,6 +530,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
                         kind: 'dots',
                         center: s.v % 5 === 0 ? 'median' : 'mean',
                         error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                        ...(s.v % 2 === 0 ? { colorByReplicate: s.v % 4 === 0 } : {}),
                       }
                     : {
                         kind: 'bars',

@@ -9,7 +9,7 @@ import { cellId, comparisons, gives, pairsOf } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
 import type { Analysis, Graph, GraphSummaryOptions, Project } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
-import { type GroupData, columnGroup, groupedCells } from '@/model/selectors';
+import { type GroupData, columnGroup, groupedCells, nestedGroups } from '@/model/selectors';
 import type { DataSet, Table } from '@/model/table';
 
 import { pPhrase, stars } from '@/ui/results/format';
@@ -137,6 +137,9 @@ function makeGraphInput(
     readonly ds: DataSet;
     readonly index: number;
     readonly data: GroupData;
+    /** A Nested table's SuperPlot: parallel to `data.values`, and each replicate's own mean. */
+    readonly replicateOf?: readonly number[];
+    readonly replicateMeans?: readonly number[];
   }[] = [];
   const clusters: { title: string; size: number }[] = [];
   if (table.type === 'grouped' && grouped) {
@@ -165,37 +168,70 @@ function makeGraphInput(
   } else if (table.type === 'column') {
     for (const x of sets)
       cells.push({ id: x.ds.id, title: x.ds.title, ...x, data: columnGroup(table, x.ds.id) });
+  } else if (table.type === 'nested') {
+    const ng = nestedGroups(
+      table,
+      sets.map((x) => x.ds.id),
+    );
+    sets.forEach((x, i) => {
+      const g = ng[i];
+      if (!g) return;
+      const values: number[] = [];
+      const replicateOf: number[] = [];
+      const replicateMeans: number[] = [];
+      for (const r of g.replicates) {
+        if (r.values.length === 0) continue;
+        replicateMeans.push(r.values.reduce((a, b) => a + b, 0) / r.values.length);
+        const replicate = replicateMeans.length - 1;
+        for (const v of r.values) {
+          values.push(v);
+          replicateOf.push(replicate);
+        }
+      }
+      cells.push({
+        id: x.ds.id,
+        title: x.ds.title,
+        ...x,
+        data: { kind: 'raw', values, dropped: { empty: 0, excluded: 0 } },
+        replicateOf,
+        replicateMeans,
+      });
+    });
   } else {
     return { ok: false, reason: 'This plot is for Column tables; choose grouped bars.' };
   }
-  const groups: GroupInput[] = cells.map(({ id, title, ds, index, data }) => {
-    const s = summary?.cells.find((c) => c.id === id);
-    return {
-      id,
-      series: ds.id,
-      title,
-      color: ds.color ?? paletteColor(index),
-      symbol: graph.format.symbols?.[ds.id],
-      values: data.kind === 'raw' ? data.values : [],
-      summary: s
-        ? {
-            n: s.n,
-            mean: s.mean,
-            median: s.median,
-            sd: s.sd,
-            sem: s.sem,
-            ciLower: s.ciLower,
-            ciUpper: s.ciUpper,
-            min: s.min,
-            max: s.max,
-            q1: s.q1,
-            q3: s.q3,
-            whiskers: s.whiskers,
-            kde: s.kde,
-          }
-        : null,
-    };
-  });
+  const groups: GroupInput[] = cells.map(
+    ({ id, title, ds, index, data, replicateOf, replicateMeans }) => {
+      const s = summary?.cells.find((c) => c.id === id);
+      return {
+        id,
+        series: ds.id,
+        title,
+        color: ds.color ?? paletteColor(index),
+        symbol: graph.format.symbols?.[ds.id],
+        values: data.kind === 'raw' ? data.values : [],
+        replicateOf,
+        replicateMeans,
+        summary: s
+          ? {
+              n: s.n,
+              mean: s.mean,
+              median: s.median,
+              sd: s.sd,
+              sem: s.sem,
+              ciLower: s.ciLower,
+              ciUpper: s.ciUpper,
+              min: s.min,
+              max: s.max,
+              q1: s.q1,
+              q3: s.q3,
+              whiskers: s.whiskers,
+              kde: s.kde,
+            }
+          : null,
+      };
+    },
+  );
   const brackets: BracketInput[] = [];
   for (const id of graph.analyses) {
     const a = project.analyses.get(id);

@@ -68,7 +68,7 @@ export const EVENTS = {
     'new-two-way-anova',
     'new-normality',
   ],
-  graph: ['new-column', 'new-grouped', 'export-svg', 'export-png'],
+  graph: ['new-column', 'new-grouped', 'new-nested', 'export-svg', 'export-png'],
   help: ['page'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 

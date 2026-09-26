@@ -186,7 +186,13 @@ export type ErrorBar = 'sd' | 'sem' | 'ci95' | 'range' | 'none';
 
 export type ColumnPlot =
   | { readonly kind: 'bars'; readonly error: ErrorBar; readonly points: boolean }
-  | { readonly kind: 'dots'; readonly center: 'mean' | 'median'; readonly error: ErrorBar }
+  | {
+      readonly kind: 'dots';
+      readonly center: 'mean' | 'median';
+      readonly error: ErrorBar;
+      /** A SuperPlot (item 13): points coloured by biological replicate, its mean overlaid. Nested tables only. */
+      readonly colorByReplicate?: boolean | undefined;
+    }
   | {
       readonly kind: 'box';
       readonly whiskers: Whiskers;
@@ -228,6 +234,14 @@ export const GROUPED_DEFAULT: GroupedPlot = {
   arrangement: 'interleaved',
   error: 'sd',
   points: true,
+};
+
+/** A new Nested table's graph: a SuperPlot (item 13) — points coloured by replicate, its mean overlaid. */
+export const NESTED_DEFAULT: ColumnPlot = {
+  kind: 'dots',
+  center: 'mean',
+  error: 'sd',
+  colorByReplicate: true,
 };
 
 /**

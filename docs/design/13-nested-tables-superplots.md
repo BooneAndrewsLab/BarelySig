@@ -237,4 +237,40 @@ run on both control and treated") is a per-table concept
 
 ## As built
 
-(filled in once milestone 10 ships)
+Milestone 10 shipped as designed. One correction made along the way,
+recorded here rather than silently fixed: the nested t test's nlme
+formula in this note originally read `random = ~1 | group/replicate`
+(nlme's own nesting operator); that gives *two* random-intercept
+variance components (one for `group`, redundant with the fixed effect
+already there) and produces a degenerate `df = 0` and a NaN P —
+confirmed against synthetic data before any fixture was written, and
+corrected to a single random intercept over `group` and `replicate`
+collapsed into one interaction factor (`unit`), which is what actually
+reproduces `lme4::lmer(value ~ group + (1|group:replicate))` (FAQ
+2105's own reference).
+
+The SuperPlot needed no new graph kind: it is the existing beeswarm/dot
+plot (`src/graphs/layout.ts`) with two additions — `GroupInput` grows
+optional `replicateOf`/`replicateMeans` (parallel arrays, `undefined`
+for every non-nested graph), and `ColumnPlot`'s `'dots'` variant grows
+`colorByReplicate?: boolean`. Brackets, the theme, the palette and the
+click-to-format inspector needed no Nested-specific code at all, since
+they were already generic over `GroupInput`/`ColumnPlot`. A graph's
+mean/error bar is computed from each replicate's own mean (n =
+replicate count), not the pooled individual values — an honest
+descriptive summary consistent with what the nested t test/ANOVA
+actually tests, reusing the existing summary-statistics R code
+unchanged (it only ever sees a list of numbers).
+
+Two real bugs surfaced by testing this in an actual browser, not just
+Node: `ResultsSection.tsx`'s per-kind view components are a plain
+`analysis.kind === X && <View/>` chain rather than an exhaustive
+switch, so the missing `nested-t-test`/`nested-one-way-anova` cases
+compiled cleanly and rendered nothing; and WebR's package index
+resolution breaks under Vite's dev server specifically (its SPA
+fallback serves `index.html` for a missing `PACKAGES.rds`/`.gz`, which
+WebR can't tell apart from a real, malformed index, so it gives up
+instead of falling back to the plain-text `PACKAGES` file webr:fetch
+actually generates) — invisible before this milestone because every
+prior analysis loaded zero R packages. Both fixed; see the commit
+history for #66/#67/#68.

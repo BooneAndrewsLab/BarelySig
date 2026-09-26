@@ -1,18 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
+import { graphSummary } from '@/analyses/graphsummary';
 import { readBsig, writeBsig } from '@/io/bsig';
 import { applyEdit } from '@/model/edits';
-import { asId } from '@/model/ids';
+import { type Id, asId } from '@/model/ids';
 import type { Json } from '@/model/json';
 import {
   GRAPH_DEFAULTS,
   GROUPED_DEFAULT,
+  NESTED_DEFAULT,
   type Graph,
   type Project,
   createProject,
 } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
-import { createColumnTable, createGroupedTable } from '@/model/table';
+import {
+  type NestedTable,
+  createColumnTable,
+  createGroupedTable,
+  createNestedTable,
+  newRows,
+} from '@/model/table';
 
 import {
   type GraphInput,
@@ -329,5 +337,88 @@ describe('grouped bar graphs (note 07)', () => {
     const c = bracketChoices(p, graph)[0];
     expect(c?.pairs).toEqual([]);
     expect(c?.note).toMatch(/no bar shows/);
+  });
+});
+
+describe('SuperPlot graphs of a Nested table (item 13)', () => {
+  function nested() {
+    const t = createNestedTable({
+      title: 'Cell size',
+      groups: ['Control', 'Treated'],
+      replicates: 2,
+    });
+    const [ctrl, treated] = t.dataSets;
+    if (!ctrl || !treated) throw new Error('unreachable');
+    let p: Project = applyEdit(createProject('P'), { op: 'addTable', table: t });
+    p = applyEdit(p, {
+      op: 'insertRows',
+      table: t.id,
+      at: 0,
+      rows: newRows(3),
+    });
+    const rows = (p.tables.get(t.id) as NestedTable).rows;
+    const cells = [
+      { dataSet: ctrl.id, subcolumn: 0, row: rows[0]?.id, value: 10 },
+      { dataSet: ctrl.id, subcolumn: 0, row: rows[1]?.id, value: 12 },
+      { dataSet: ctrl.id, subcolumn: 1, row: rows[0]?.id, value: 20 },
+      { dataSet: treated.id, subcolumn: 0, row: rows[0]?.id, value: 30 },
+      { dataSet: treated.id, subcolumn: 1, row: rows[0]?.id, value: 40 },
+    ].filter(
+      (c): c is { dataSet: Id; subcolumn: number; row: Id; value: number } => c.row !== undefined,
+    );
+    p = applyEdit(p, { op: 'setCells', table: t.id, cells });
+    p = applyEdit(p, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_nt'),
+        title: 'nested t',
+        kind: 'nested-t-test',
+        options: { tails: 'two' },
+        input: { kind: 'table', table: t.id, dataSets: [ctrl.id, treated.id] },
+      },
+    });
+    const graph: Graph = {
+      id: asId('g_1'),
+      title: 'Cell size',
+      source: { kind: 'table', table: t.id },
+      analyses: [asId('a_nt')],
+      ...GRAPH_DEFAULTS,
+      plot: NESTED_DEFAULT,
+    };
+    p = applyEdit(p, { op: 'addGraph', graph });
+    return { p, graph, ctrl, treated };
+  }
+
+  it('gives each group its values, which replicate each belongs to, and each replicate’s mean', () => {
+    const { p, graph } = nested();
+    const r = graphInput(p, graph, () => undefined);
+    if (!r.ok) throw new Error(r.reason);
+    const [control, treated] = r.input.groups;
+    expect(control?.values).toEqual([10, 12, 20]);
+    expect(control?.replicateOf).toEqual([0, 0, 1]);
+    expect(control?.replicateMeans).toEqual([11, 20]);
+    expect(treated?.values).toEqual([30, 40]);
+    expect(treated?.replicateOf).toEqual([0, 1]);
+    expect(treated?.replicateMeans).toEqual([30, 40]);
+  });
+
+  it('summarises each group over its replicate means (n = replicates), not the individual values', () => {
+    const { p, graph } = nested();
+    const a = summaryAnalysis(p, graph);
+    if (a?.kind !== 'graph-summary') throw new Error('unreachable');
+    const prepared = graphSummary.prepare(a, p);
+    if (!prepared.ok) throw new Error(prepared.reason);
+    const ctrl = prepared.request.cells.find((c) => c.title === 'Control');
+    expect(ctrl?.data.kind === 'raw' && ctrl.data.values).toEqual([11, 20]);
+  });
+
+  it('attaches brackets from the nested t test like any other pairwise analysis', () => {
+    const { p, graph, ctrl, treated } = nested();
+    const r = graphInput(p, graph, (id) =>
+      id === asId('a_nt') ? tResult(0.03, ctrl.id, treated.id) : undefined,
+    );
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.input.brackets).toHaveLength(1);
+    expect(r.input.brackets[0]).toMatchObject({ from: 0, to: 1 });
   });
 });
