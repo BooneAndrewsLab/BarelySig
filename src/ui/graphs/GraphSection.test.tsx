@@ -137,6 +137,73 @@ describe('graph sheet', () => {
     ]);
   });
 
+  it('says it is calculating over the figure, moving nothing around it', async () => {
+    render(<App />);
+    newGraph();
+    const canvas = screen.getByRole('img', { name: /Viability/ }).closest('.graph-canvas');
+    expect(within(canvas as HTMLElement).getByRole('status')).toHaveTextContent(
+      'Calculating the means and error bars…',
+    );
+    expect(document.querySelector('.graph-figure > .status-banner')).toBeNull();
+    await waitFor(() => {
+      expect(canvas).toHaveAttribute('aria-busy', 'false');
+    });
+    expect(within(canvas as HTMLElement).queryByRole('status')).toBeNull();
+  });
+
+  it('keeps the complete graph, faded, while a change is recalculated', async () => {
+    let release: (() => void) | undefined;
+    render(<App />);
+    newGraph();
+    await screen.findByRole('img', { name: /Bars: mean ± SD/ });
+    await waitFor(() => {
+      expect(svg()?.querySelectorAll('[data-role="error"]')).toHaveLength(2);
+    });
+    const before = svg()?.outerHTML;
+    setResults(
+      new ResultsBridge(store, {
+        debounceMs: 0,
+        runner: (job) =>
+          new Promise((resolve) => {
+            release = () => {
+              resolve(summaryOf(job) as unknown as Json);
+            };
+          }),
+      }),
+    );
+    const t = [...project(store.getState()).tables.values()][0];
+    const [wt] = t?.dataSets ?? [];
+    const [r0] = t?.rows ?? [];
+    if (!t || !wt || !r0) throw new Error('unreachable');
+    act(() => {
+      store.edit({
+        op: 'setCells',
+        table: t.id,
+        cells: [{ dataSet: wt.id, subcolumn: 0, row: r0.id, value: 7 }],
+      });
+    });
+    const canvas = screen.getByRole('img', { name: /Viability/ }).closest('.graph-canvas');
+    await waitFor(() => {
+      expect(canvas).toHaveAttribute('aria-busy', 'true');
+    });
+    // Not a bare graph drawn in between: the last complete one, error bars and all.
+    expect(svg()?.outerHTML).toBe(before);
+    expect(within(canvas as HTMLElement).getByRole('status')).toHaveTextContent(
+      'Calculating the means and error bars…',
+    );
+    await waitFor(() => {
+      expect(release).toBeDefined();
+    });
+    act(() => {
+      release?.();
+    });
+    await waitFor(() => {
+      expect(canvas).toHaveAttribute('aria-busy', 'false');
+    });
+    expect(svg()?.outerHTML).not.toBe(before);
+    expect(svg()?.querySelectorAll('[data-role="error"]')).toHaveLength(2);
+  });
+
   it('switches to a dot plot, changes the error bars and theme, each one undo step', async () => {
     render(<App />);
     newGraph();
@@ -533,7 +600,7 @@ describe('drawn in a worker (item 11)', () => {
     const canvas = picture.closest('.graph-canvas');
     expect(canvas).toHaveAttribute('aria-busy', 'true');
     expect(within(canvas as HTMLElement).getByRole('status')).toHaveTextContent(
-      'Drawing the graph…',
+      'Calculating the means and error bars…',
     );
     expect(picture.querySelector('img')).toBeNull();
     // Drawn without error bars, then again when they come.

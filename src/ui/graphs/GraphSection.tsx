@@ -5,7 +5,7 @@
  * theme, size) or the inspector beside it; notes say what the marks show. The figure is the same SVG an
  * export writes.
  */
-import { type ReactNode, useRef, useState, useSyncExternalStore } from 'react';
+import { type ReactNode, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { graphInput, summaryId } from '@/graphs/data';
 import { outlinePath, pickIn } from '@/graphs/drawn';
@@ -28,7 +28,7 @@ import { elementLabel, offsetOf, withOffset } from './formatting';
 import { GraphSettings } from './GraphSettings';
 import { engineNotice } from './engineNotice';
 import { Inspector } from './Inspector';
-import { useFigure } from './useFigure';
+import { useComplete, useFigure } from './useFigure';
 import { Section } from '../notebook/Section';
 
 interface Props {
@@ -50,7 +50,11 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
   const [preview, setPreview] = useState<{ key: string; offset: number } | null>(null);
   const drag = useRef<{ key: string; startY: number; base: number; moved: boolean } | null>(null);
   const figure = useRef<HTMLDivElement>(null);
-  const graph = preview ? withOffset(saved, preview.key, preview.offset) : saved;
+  // One object per preview, so what is drawn from it is kept (item 10).
+  const graph = useMemo(
+    () => (preview ? withOffset(saved, preview.key, preview.offset) : saved),
+    [saved, preview],
+  );
   const input = graphInput(project, graph, (id) => bridge.recompute.result(id));
   const summaryStatus = bridge.recompute.status(summaryId(graph.id));
   const engine = bridge.engineState();
@@ -59,7 +63,12 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
   const lastRecipe = useRef<string | null>(null);
   const history = project.exports.filter((x) => x.graph === graph.id).reverse();
 
-  const layoutInput = input.ok ? input.input : null;
+  const calculating =
+    input.ok &&
+    !input.summaryReady &&
+    summaryStatus.state !== 'blocked' &&
+    summaryStatus.state !== 'error';
+  const layoutInput = useComplete(input, calculating) ?? (input.ok ? input.input : null);
   const view = useFigure(saved.id, layoutInput);
   const drawn = view.drawn;
   const elements = drawn?.elements ?? [];
@@ -90,15 +99,19 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
     ...(drawn?.notes ?? []),
   ];
 
+  // A problem stays until fixed, so it gets a banner; work in progress is
+  // shown over the figure, where coming and going moves nothing (item 11).
   let status: string | null = null;
+  let working: string | null = null;
   if (!input.ok) status = input.reason;
   else if (!input.summaryReady) {
     if (summaryStatus.state === 'blocked' || summaryStatus.state === 'error')
       status = summaryStatus.message ?? null;
     else if (engine.kind === 'starting')
-      status = 'Starting the statistics engine for the error bars (the first time only)…';
-    else status = 'Calculating the means and error bars…';
+      working = 'Starting the statistics engine for the error bars (the first time only)…';
+    else working = 'Calculating the means and error bars…';
   }
+  const busy = view.busy || working !== null;
 
   const panel = formatting || selected !== null;
 
@@ -213,8 +226,8 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
           )}
           {layoutInput && (
             <div
-              className={view.busy ? 'graph-canvas busy' : 'graph-canvas'}
-              aria-busy={view.busy}
+              className={busy ? 'graph-canvas busy' : 'graph-canvas'}
+              aria-busy={busy}
               style={{ width: `${String(graph.size.width * PX_PER_MM * 1.5)}px` }}
               tabIndex={0}
               aria-label="Graph: click a part of it to format it"
@@ -297,7 +310,14 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
                 >
                   {/* The scene painted by the worker (item 11); exports are its SVG. */}
                   {drawn?.picture.kind === 'png' && (
-                    <img src={drawn.picture.url} alt="" draggable={false} />
+                    <img
+                      src={drawn.picture.url}
+                      // Its proportions before it has loaded, so nothing moves when it does.
+                      width={drawn.width}
+                      height={drawn.height}
+                      alt=""
+                      draggable={false}
+                    />
                   )}
                 </div>
               )}
@@ -310,10 +330,12 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
                   <path d={outlinePath(drawn.outlines.get(selected) ?? new Float32Array(), 1.5)} />
                 </svg>
               )}
-              {view.busy && (
+              {busy && (
                 <div className={drawn ? 'graph-busy' : 'graph-busy first'} role="status">
-                  <span className="spinner" aria-hidden="true" />
-                  <span>{drawn ? 'Redrawing…' : 'Drawing the graph…'}</span>
+                  <span className="busy-note">
+                    <span className="spinner" aria-hidden="true" />
+                    <span>{working ?? (drawn ? 'Redrawing…' : 'Drawing the graph…')}</span>
+                  </span>
                 </div>
               )}
             </div>

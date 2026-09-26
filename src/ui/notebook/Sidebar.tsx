@@ -1,6 +1,6 @@
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
-import { graphInput } from '@/graphs/data';
+import { type GraphInput, graphInput, summaryId } from '@/graphs/data';
 import { imageOf } from '@/graphs/cache';
 import type { Id } from '@/model/ids';
 import type { Project } from '@/model/project';
@@ -16,14 +16,19 @@ import { type Sheet, store } from '../state/store';
 import { partsOf, sectionsOf, summaryLine } from './experiments';
 import { MoreMenu } from './MoreMenu';
 import { RenameInput } from './RenameInput';
-import { useFigure } from '../graphs/useFigure';
+import { useComplete, useFigure } from '../graphs/useFigure';
+
+const NO_GRAPH: GraphInput = { ok: false, reason: '' };
 
 /** The experiment's first graph, small; its table's icon until it has one. */
 function Thumbnail({ project, table }: { readonly project: Project; readonly table: Id }) {
   const bridge = getResults();
   const graph = partsOf(project, table).graphs[0];
-  const input = graph ? graphInput(project, graph, (id) => bridge.recompute.result(id)) : null;
-  const ready = input?.ok && input.summaryReady ? input.input : null;
+  const input: GraphInput = graph
+    ? graphInput(project, graph, (id) => bridge.recompute.result(id))
+    : NO_GRAPH;
+  const state = graph ? bridge.recompute.status(summaryId(graph.id)).state : null;
+  const ready = useComplete(input, state === 'running' || state === 'stale');
   const { drawn } = useFigure(`thumb:${graph?.id ?? table}`, ready);
   if (!drawn) {
     const t = project.tables.get(table);
@@ -36,7 +41,7 @@ function Thumbnail({ project, table }: { readonly project: Project; readonly tab
   return (
     <span className="thumb" aria-hidden="true">
       {/* The figure's own picture, scaled down (note 05, item 11). */}
-      <img src={imageOf(drawn)} alt="" />
+      <img src={imageOf(drawn)} width={drawn.width} height={drawn.height} alt="" />
     </span>
   );
 }

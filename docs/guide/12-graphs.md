@@ -8,8 +8,8 @@ change a value and the graph redraws.
 
 Graphs are drawn in the background, so the page never freezes: a graph of
 thousands of points can take a second or two, and a spinner shows in its
-place meanwhile. While a change is being drawn, the previous version
-stays in view, faded.
+place meanwhile. While a change is being drawn, or its means and error
+bars recalculated, the previous version stays in view, faded.
 
 **Format**, in the graph's header, opens its settings beside it. Click any
 part of the graph to format that part instead: see

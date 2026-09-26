@@ -119,7 +119,9 @@ more groups). Then it suggests the t test or ANOVA and says why.
 
 While it works the sheet says **Calculating…** (with **Stop**) or
 **Updating…**; the very first analysis says it is starting the
-statistics engine. If a test can’t run on the data, the sheet says why in
+statistics engine. After a change, the previous results stay in place,
+faded under that note, until the new ones replace them: faded numbers are
+out of date. If a test can’t run on the data, the sheet says why in
 words (for example “A t test compares two groups; choose two.”); fix
 the table or click **Change analysis…**. If something failed, **Run
 again** retries.

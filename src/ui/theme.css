@@ -848,7 +848,37 @@ select {
 /* --- results ----------------------------------------------------------- */
 
 .results-body {
+  position: relative;
   min-width: 0;
+}
+
+.results-body > :not(.results-busy) {
+  transition: opacity 0.2s;
+}
+
+/* Recalculating results already shown (item 11): they fade and a note comes
+   over them, after a moment so a quick update doesn't flicker. */
+.results-body.busy > :not(.results-busy) {
+  opacity: 0.45;
+  transition-delay: 0.15s;
+}
+
+.results-busy {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  animation: graph-busy-in 0.2s ease-out 0.15s forwards;
+}
+
+.results-busy .busy-note {
+  margin: 0;
+  pointer-events: auto;
 }
 
 .reading {
@@ -1133,12 +1163,16 @@ select {
 
 .graph-picture img {
   user-select: none;
+}
+
+.graph-canvas [role='img'] > * {
   transition: opacity 0.2s;
 }
 
-/* A newer version being drawn: the old picture fades, a spinner comes (both after a
-   moment, so a quick redraw doesn't flicker). */
-.graph-canvas.busy .graph-picture img {
+/* Work in progress (a newer version being drawn, the error bars being
+   calculated): the picture fades and a note comes over it, both after a
+   moment so a quick redraw doesn't flicker; nothing around it moves. */
+.graph-canvas.busy [role='img'] > * {
   opacity: 0.45;
   transition-delay: 0.15s;
 }
@@ -1149,12 +1183,28 @@ select {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  color: var(--ink-2);
-  font-size: 13px;
+  padding: 16px;
   pointer-events: none;
   opacity: 0;
   animation: graph-busy-in 0.2s ease-out 0.15s forwards;
+}
+
+.busy-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 32ch;
+  padding: 8px 14px;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.35;
+  background: color-mix(in srgb, #ffffff 88%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.busy-note .spinner {
+  flex: none;
 }
 
 .graph-busy.first {

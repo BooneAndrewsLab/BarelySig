@@ -35,6 +35,11 @@ export class ResultStore {
     return this.byAnalysis.get(analysis)?.find((e) => e.inputHash === inputHash);
   }
 
+  /** The newest result, whatever its input. */
+  latest(analysis: Id): ResultEntry | undefined {
+    return this.byAnalysis.get(analysis)?.[0];
+  }
+
   put(analysis: Id, entry: ResultEntry): void {
     const rest = (this.byAnalysis.get(analysis) ?? []).filter(
       (e) => e.inputHash !== entry.inputHash,
@@ -143,6 +148,14 @@ export class Recompute {
   result(id: Id): ResultEntry | undefined {
     const h = this.hashes.get(id);
     return h == null ? undefined : this.results.get(id, h);
+  }
+
+  /**
+   * The last result there was, current or not: shown faded while a new one
+   * is calculated, never as if current (item 11).
+   */
+  previous(id: Id): ResultEntry | undefined {
+    return this.result(id) ?? this.results.latest(id);
   }
 
   /** Every current result, e.g. for saving with the project. */

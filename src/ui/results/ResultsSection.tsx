@@ -846,41 +846,60 @@ function DescriptiveView({ r }: { readonly r: DescriptiveResult }) {
   );
 }
 
-function Status({ analysis }: { readonly analysis: Analysis }): ReactNode {
+/** Whether the analysis is being (re)calculated. */
+function working(analysis: Analysis): boolean {
+  const state = getResults().recompute.status(analysis.id).state;
+  return state === 'running' || state === 'stale';
+}
+
+/**
+ * The analysis's state. Work in progress over results already shown is a
+ * note over them (which fade), so coming and going moves nothing; with
+ * nothing shown yet, and for problems, a banner.
+ */
+function Status({
+  analysis,
+  over,
+}: {
+  readonly analysis: Analysis;
+  readonly over: boolean;
+}): ReactNode {
   const bridge = getResults();
   const status = bridge.recompute.status(analysis.id);
   const engine = bridge.engineState();
   if (status.state === 'fresh') return null;
-  const starting =
-    engine.kind === 'starting' && (status.state === 'running' || status.state === 'stale');
-  if (starting) {
-    return (
+  if (status.state === 'running' || status.state === 'stale') {
+    const text =
+      engine.kind === 'starting'
+        ? 'Starting the statistics engine (the first time only; about 17 MB, then it works offline)…'
+        : status.state === 'running'
+          ? 'Calculating…'
+          : 'Updating…';
+    const stop = status.state === 'running' && engine.kind !== 'starting' && (
+      <button
+        type="button"
+        onClick={() => {
+          bridge.stop(analysis.id);
+        }}
+      >
+        Stop
+      </button>
+    );
+    return over ? (
+      <div className="results-busy">
+        <p className="busy-note" role="status">
+          <span className="spinner" aria-hidden="true" />
+          <span>{text}</span>
+          {stop}
+        </p>
+      </div>
+    ) : (
       <p className="status-banner" role="status">
-        Starting the statistics engine (the first time only; about 17 MB, then it works offline)…
+        {text} {stop}
       </p>
     );
   }
   switch (status.state) {
-    case 'running':
-      return (
-        <p className="status-banner" role="status">
-          Calculating…{' '}
-          <button
-            type="button"
-            onClick={() => {
-              bridge.stop(analysis.id);
-            }}
-          >
-            Stop
-          </button>
-        </p>
-      );
-    case 'stale':
-      return (
-        <p className="status-banner" role="status">
-          Updating…
-        </p>
-      );
     case 'blocked':
       return (
         <p className="status-banner info" role="status">
@@ -915,7 +934,12 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
   const bridge = getResults();
   useSyncExternalStore(bridge.subscribe, bridge.getVersion, bridge.getVersion);
   const [editing, setEditing] = useState(false);
-  const entry = bridge.recompute.result(analysis.id);
+  // While it is recalculated, the last result stays, faded under a note
+  // (never as if current), so the page doesn't collapse and grow back.
+  const busy = working(analysis);
+  const entry = busy
+    ? bridge.recompute.previous(analysis.id)
+    : bridge.recompute.result(analysis.id);
   const source =
     analysis.input.kind === 'table' ? project.tables.get(analysis.input.table) : undefined;
   const value = entry?.ok ? entry.value : null;
@@ -964,8 +988,11 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
       }
       note={note}
     >
-      <div className="results-body">
-        <Status analysis={analysis} />
+      <div
+        className={value !== null && busy ? 'results-body busy' : 'results-body'}
+        aria-busy={busy}
+      >
+        <Status analysis={analysis} over={value !== null} />
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} />
         )}

@@ -68,6 +68,18 @@ worker, or drawing the SVG as an `<img>`, would leave most of the freeze.
    faded, with the spinner over it after 150 ms (so a quick redraw
    doesn't flicker). Respects `prefers-reduced-motion` (a pulse, no
    spin).
+5a. **Work in progress never moves the page** (added after the first
+   version: "briefly showing the 'calculating...' above the graph shifts
+   everything and that makes it look amateurish"). Calculating the error
+   bars or starting the engine is said in the note over the figure, not
+   in a banner above it; while the error bars are recalculated the figure
+   keeps its last complete version (faded) rather than drawing a bare one
+   in between, which also saves a redraw of every point. Results sections
+   do the same: a recalculated result keeps the previous one in place,
+   faded under **Calculating…** / **Updating…** and marked `aria-busy`,
+   instead of collapsing to a banner and growing back. Note 04's rule
+   holds: an outdated result is never shown *as if current*. Problems
+   (blocked, failed) keep their banners: they stay until fixed.
 6. **Exports ask the worker for the scene.** The Export dialog needs the
    scene for the SVG; it comes from the worker (which has the beeswarm
    placements cached) when an export starts.

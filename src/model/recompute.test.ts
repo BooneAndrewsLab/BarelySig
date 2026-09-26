@@ -190,6 +190,29 @@ describe('Recompute', () => {
     rc.dispose();
   });
 
+  it('keeps the last result to show faded while a new one is calculated, never as current', async () => {
+    const { project, set } = setup();
+    const { calls, runner } = controlledRunner();
+    const rc = new Recompute({ runner, engine: ENGINE });
+    expect(rc.previous(A1)).toBeUndefined();
+    rc.setProject(project);
+    await vi.advanceTimersByTimeAsync(300);
+    calls[0]?.resolve({ mean: 1 });
+    await tick();
+    calls[1]?.resolve({ chained: true });
+    await tick();
+    rc.setProject(set(project, 5));
+    expect(rc.status(A1).state).toBe('stale');
+    expect(rc.result(A1)).toBeUndefined();
+    expect(rc.previous(A1)).toMatchObject({ ok: true, value: { mean: 1 } });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(calls[2]?.job.analysis.id).toBe(A1);
+    calls[2]?.resolve({ mean: 5 });
+    await tick();
+    expect(rc.previous(A1)).toMatchObject({ value: { mean: 5 } });
+    rc.dispose();
+  });
+
   it('cancels a superseded run only once it has run for a while', async () => {
     const { project, set } = setup();
     const { calls, runner } = controlledRunner();

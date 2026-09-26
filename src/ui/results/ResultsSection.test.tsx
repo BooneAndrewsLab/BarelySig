@@ -147,7 +147,7 @@ describe('results sheets', () => {
     );
   });
 
-  it('recomputes after the data change, never showing the old result as current', async () => {
+  it('recomputes after the data change, the old result faded under a note, never as current', async () => {
     let release: (() => void) | undefined;
     render(<App />);
     analyze(/t test/);
@@ -169,14 +169,22 @@ describe('results sheets', () => {
       });
     });
     const tTest = region('Unpaired t test of Viability');
-    await tTest.findByText(/Calculating…|Updating…/);
-    expect(screen.queryByText(/P = 0\.0021/)).not.toBeInTheDocument();
+    const note = await tTest.findByText(/Calculating…|Updating…/);
+    // The old result stays in place, faded under the note and marked busy:
+    // nothing moves, and it never reads as current (item 11).
+    expect(note.closest('.results-busy')).not.toBeNull();
+    const old = tTest.getByText(/P = 0\.0021/);
+    expect(old.closest('.results-body')).toHaveClass('busy');
+    expect(old.closest('.results-body')).toHaveAttribute('aria-busy', 'true');
+    expect(tTest.queryByText(/Calculating…|Updating…/, { selector: '.status-banner' })).toBeNull();
     act(() => {
       release?.();
     });
-    await screen.findByText(
+    const fresh = await screen.findByText(
       /There is no evidence that the means of WT and KO differ \(P = 0\.3000\)/,
     );
+    expect(fresh.closest('.results-body')).toHaveAttribute('aria-busy', 'false');
+    expect(tTest.queryByText(/P = 0\.0021/)).toBeNull();
   });
 
   it('says why an analysis can’t run instead of running it', async () => {
