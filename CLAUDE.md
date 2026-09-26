@@ -340,7 +340,11 @@ the target).
   (`drawn.ts`); the latest request per figure wins (`renderer.ts`); a
   spinner while drawing. Without a worker canvas (jsdom, old browsers)
   the figure is the inline SVG, drawn on the main thread. Exports are
-  still the SVG.
+  still the SVG. Work in progress never moves the page (note 11, 5a):
+  "Calculating…"/"Updating…" is a note over the faded figure or result,
+  which keeps its last complete version meanwhile; banners only for
+  problems. Left: the "points were squeezed" caption line appears once a
+  big graph is first drawn (it comes from the worker's layout).
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
