@@ -249,7 +249,7 @@ qPCR, plate readers).
 storage, accounts, mobile-first layouts (tablets must not break; desktop is
 the target).
 
-## Status (2026-09-25)
+## Status (2026-09-26)
 
 - Repo: `BooneAndrewsLab/BarelySig`, private, **not published yet**.
   `deploy.yml` is ready: on a published GitHub Release it runs the check
@@ -310,8 +310,14 @@ the target).
   #53, #54); Playwright e2e in CI (#35). Exact Spearman moved to Phase 2
   (#48). Open in 1.0: #36 (the user's release steps) and #44 (real
   clipboard captures, needs the apps).
-- Milestone 9 "UI revamp" (created 2026-09-25, empty): the user will add
-  ideas as issues; it lands before the public release.
+- Milestone 9 "UI revamp" (created 2026-09-25): four layouts were
+  mocked up (https://claude.ai/artifact/V7PHbi4aa9ZcTFyF8SWGc8); the
+  notebook (C) was picked. Built (note 08): one page per experiment (a
+  table and everything made from it) with numbered sections, a sidebar
+  of experiments with thumbnails (#55), and plain-language margin notes
+  beside each section, hideable (#56). Open: #57 (key numbers first),
+  #58 (UI font). The old navigator and sheets are gone: `Sheet` still
+  names what to show, the page scrolls to its section.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
