@@ -7,6 +7,7 @@ import formatting from '../../../docs/guide/13-formatting.md?raw';
 import gettingStarted from '../../../docs/guide/01-getting-started.md?raw';
 import graphs from '../../../docs/guide/12-graphs.md?raw';
 import kruskal from '../../../docs/guide/08-kruskal-wallis.md?raw';
+import nestedTables from '../../../docs/guide/17-nested-tables.md?raw';
 import normality from '../../../docs/guide/10-normality.md?raw';
 import oneWay from '../../../docs/guide/07-one-way-anova.md?raw';
 import rankTests from '../../../docs/guide/06-rank-tests.md?raw';
@@ -52,6 +53,7 @@ export const GUIDE: readonly GuidePage[] = [
   page('14-export', exporting),
   page('15-files', files),
   page('16-shortcuts', shortcuts),
+  page('17-nested-tables', nestedTables),
 ];
 
 export function guidePage(id: string): GuidePage | undefined {
@@ -62,6 +64,7 @@ export function guidePage(id: string): GuidePage | undefined {
 export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   descriptive: '11-descriptive',
   't-test': '05-t-tests',
+  'nested-t-test': '17-nested-tables',
   'rank-test': '06-rank-tests',
   'one-way-anova': '07-one-way-anova',
   'kruskal-wallis': '08-kruskal-wallis',

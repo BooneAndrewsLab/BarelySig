@@ -74,13 +74,15 @@ function usable(table: Table, ds: DataSet, subcolumn: number, r: number): Cell {
   return ds.excluded.has(cellKey(subcolumn, row.id)) ? null : v;
 }
 
+export type RawGroupData = Extract<GroupData, { readonly kind: 'raw' }>;
+
 /** Values of some cells, with what was dropped. `ragged`: blanks after the last value don't count. */
 function collect(
   table: Table,
   ds: DataSet,
   cells: readonly (readonly [number, number])[],
   ragged: boolean,
-): GroupData {
+): RawGroupData {
   const values: number[] = [];
   let empty = 0;
   let excluded = 0;
@@ -224,7 +226,7 @@ export interface NestedGroup {
   readonly id: Id;
   readonly title: string;
   /** One per biological replicate; a replicate with no usable value is kept (and counted) as empty. */
-  readonly replicates: readonly GroupData[];
+  readonly replicates: readonly RawGroupData[];
 }
 
 /** A Nested table's groups, each with its biological replicates' raw values. */

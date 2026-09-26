@@ -34,6 +34,7 @@ import {
   WELCH_ALL,
   WELCH_CONTROL,
   type ExportRecord,
+  type NestedTTestOptions,
   type GraphPlot,
   type Graph,
   type GraphFormat,
@@ -141,6 +142,8 @@ function optionsJson(a: AnalysisSpec): Json {
       return { whiskers: a.options.whiskers, kde: a.options.kde && { ...a.options.kde } };
     case 't-test':
       return { paired: a.options.paired, welch: a.options.welch, tails: a.options.tails };
+    case 'nested-t-test':
+      return { tails: a.options.tails };
     case 'rank-test':
       return { paired: a.options.paired, tails: a.options.tails, zeros: a.options.zeros };
     case 'one-way-anova':
@@ -428,6 +431,13 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
         welch: bool(opts['welch'], q.key('welch')),
         tails,
       };
+      return { kind, options };
+    }
+    case 'nested-t-test': {
+      const tailsPath: Path = q.key('tails');
+      const tails = str(opts['tails'], tailsPath);
+      if (tails !== 'one' && tails !== 'two') tailsPath.fail('should be "one" or "two"');
+      const options: NestedTTestOptions = { tails };
       return { kind, options };
     }
     case 'one-way-anova': {

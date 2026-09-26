@@ -6,6 +6,7 @@ import type { IconName } from './Icon';
 export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   descriptive: 'descriptive-stats',
   't-test': 't-test',
+  'nested-t-test': 't-test',
   'rank-test': 't-test',
   'one-way-anova': 'anova',
   'kruskal-wallis': 'anova',
@@ -25,6 +26,8 @@ export function testName(spec: AnalysisSpec): string {
         : spec.options.welch
           ? 'Welch’s t test'
           : 'Unpaired t test';
+    case 'nested-t-test':
+      return 'Nested t test';
     case 'rank-test':
       return spec.options.paired ? 'Wilcoxon test' : 'Mann-Whitney test';
     case 'one-way-anova':

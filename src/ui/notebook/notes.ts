@@ -117,6 +117,21 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ];
       return [{ kicker, title, text: [...text, ...(o.tails === 'one' ? [ONE_TAILED] : []), NS] }];
     }
+    case 'nested-t-test': {
+      const o = analysis.options;
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Fits a model where each biological replicate contributes its own mean, then asks whether the two groups differ more than the replicates within each group would explain by chance.',
+            'A replicate run more times counts for more, but not simply by averaging it in equally: replicates with fewer values still count, just less.',
+            ...(o.tails === 'one' ? [ONE_TAILED] : []),
+            NS,
+          ],
+        },
+      ];
+    }
     case 'rank-test': {
       const o = analysis.options;
       const text = o.paired

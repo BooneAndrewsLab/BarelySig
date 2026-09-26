@@ -3,6 +3,7 @@ import { descriptive } from './descriptive';
 import { graphSummary } from './graphsummary';
 import { kruskal } from './kruskal';
 import type { Registry } from './module';
+import { nestedTTest } from './nested-ttest';
 import { normality } from './normality';
 import { oneway } from './oneway';
 import { ranktest } from './ranktest';
@@ -12,6 +13,7 @@ import { twoway } from './twoway';
 export const REGISTRY: Registry = {
   descriptive,
   't-test': ttest,
+  'nested-t-test': nestedTTest,
   'rank-test': ranktest,
   'one-way-anova': oneway,
   'kruskal-wallis': kruskal,

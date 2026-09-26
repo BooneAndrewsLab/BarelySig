@@ -77,6 +77,13 @@ const KINDS: readonly KindInfo[] = [
     groups: 2,
   },
   {
+    kind: 'nested-t-test',
+    name: 'Nested t test',
+    blurb: 'Compare two groups, weighing each biological replicate by how many values it has.',
+    tables: ['nested'],
+    groups: 2,
+  },
+  {
     kind: 'rank-test',
     name: 'Mann-Whitney / Wilcoxon',
     blurb: 'Compare two groups by ranks, without assuming a bell-shaped distribution.',
@@ -784,6 +791,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           kind,
           options: summary ? { ...options['t-test'], paired: false } : options['t-test'],
         };
+      case 'nested-t-test':
+        return { kind, options: options['nested-t-test'] };
       case 'rank-test':
         return { kind, options: options['rank-test'] };
       case 'two-way-anova': {
@@ -960,6 +969,14 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             summary={summary}
             set={(o) => {
               set('t-test', o);
+            }}
+          />
+        )}
+        {!choosing && kind === 'nested-t-test' && (
+          <TailsChoice
+            tails={options['nested-t-test'].tails}
+            onChange={(tails) => {
+              set('nested-t-test', { tails });
             }}
           />
         )}

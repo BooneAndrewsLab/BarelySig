@@ -9,6 +9,7 @@ import type { Json } from '@/model/json';
 import type { Analysis, AnalysisKind, Project } from '@/model/project';
 
 import type { KruskalWallisResult } from './kruskal/types';
+import type { NestedTTestResult } from './nested-ttest/types';
 import type { OneWayResult } from './oneway/types';
 import type { RankTestResult } from './ranktest/types';
 import type { TTestResult } from './ttest/types';
@@ -29,6 +30,7 @@ export interface Comparison extends Pair {
 /** Kinds whose results can give brackets. */
 export const BRACKET_KINDS: ReadonlySet<AnalysisKind> = new Set<AnalysisKind>([
   't-test',
+  'nested-t-test',
   'rank-test',
   'one-way-anova',
   'kruskal-wallis',
@@ -69,6 +71,7 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
   const ids = analysis.input.dataSets;
   switch (analysis.kind) {
     case 't-test':
+    case 'nested-t-test':
     case 'rank-test': {
       const [a, b] = ids;
       return a !== undefined && b !== undefined && ids.length === 2
@@ -121,8 +124,9 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
 export function comparisons(analysis: Analysis, value: Json): readonly Comparison[] {
   switch (analysis.kind) {
     case 't-test':
+    case 'nested-t-test':
     case 'rank-test': {
-      const r = value as unknown as TTestResult | RankTestResult;
+      const r = value as unknown as TTestResult | NestedTTestResult | RankTestResult;
       return [{ key: analysis.id, a: r.a.id, b: r.b.id, p: r.p }];
     }
     case 'one-way-anova':

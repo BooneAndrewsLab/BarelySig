@@ -1,0 +1,46 @@
+{
+  "input": {
+    "a_value": [20.100000000000001, 20.399999999999999, 19.800000000000001, 21, 22.5],
+    "a_replicate": [1, 1, 1, 2, 3],
+    "b_value": [
+      25, 25.600000000000001, 24.800000000000001, 26.899999999999999, 27.300000000000001,
+      26.100000000000001
+    ],
+    "b_replicate": [1, 1, 1, 2, 3, 3]
+  },
+  "expected": {
+    "t": 5.5876162334979425,
+    "df": 4,
+    "p_two": 0.0050323144612711423,
+    "difference": 5.0601490659518298,
+    "se_difference": 0.90560068095157831,
+    "ci_lower": 2.5457984880600315,
+    "ci_upper": 7.5744996438436285,
+    "mean_a": 21.149742159027394,
+    "mean_b": 26.209891224979224,
+    "n_rep_a": 3,
+    "n_rep_b": 3,
+    "n_values_a": 5,
+    "n_values_b": 6,
+    "between_replicate_sd": 1.0311380246893966,
+    "within_replicate_sd": 0.49678248492285731
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0",
+      "lme4": "2.0.6"
+    },
+    "setup": "{\n    same <- function(x, y, tol = 1e-06) stopifnot(isTRUE(all.equal(unname(x), unname(y), \n        tolerance = tol)))\n    frame <- function(a_value, a_replicate, b_value, b_replicate) {\n        data.frame(value = c(a_value, b_value), group = factor(c(rep(\"a\", length(a_value)), \n            rep(\"b\", length(b_value))), levels = c(\"a\", \"b\")), unit = factor(c(paste0(\"a\", \n            a_replicate), paste0(\"b\", b_replicate))))\n    }\n    nested <- function(a_value, a_replicate, b_value, b_replicate) {\n        n_rep_a <- length(unique(a_replicate))\n        n_rep_b <- length(unique(b_replicate))\n        d <- frame(a_value, a_replicate, b_value, b_replicate)\n        fit <- lme4::lmer(value ~ group + (1 | unit), data = d, REML = TRUE)\n        fe <- lme4::fixef(fit)\n        se <- sqrt(diag(vcov(fit)))\n        t <- unname(fe[\"groupb\"]/se[\"groupb\"])\n        df <- (n_rep_a + n_rep_b) - 2\n        p_two <- 2 * pt(-abs(t), df)\n        half <- qt(0.975, df) * unname(se[\"groupb\"])\n        vc <- as.data.frame(lme4::VarCorr(fit))\n        list(t = t, df = df, p_two = p_two, difference = unname(fe[\"groupb\"]), se_difference = unname(se[\"groupb\"]), \n            ci_lower = unname(fe[\"groupb\"]) - half, ci_upper = unname(fe[\"groupb\"]) + \n                half, mean_a = unname(fe[\"(Intercept)\"]), mean_b = unname(fe[\"(Intercept)\"] + \n                fe[\"groupb\"]), n_rep_a = n_rep_a, n_rep_b = n_rep_b, n_values_a = length(a_value), \n            n_values_b = length(b_value), between_replicate_sd = vc$sdcor[vc$grp == \n                \"unit\"], within_replicate_sd = vc$sdcor[vc$grp == \"Residual\"])\n    }\n    naive <- function(a_value, a_replicate, b_value, b_replicate) {\n        means_a <- tapply(a_value, a_replicate, mean)\n        means_b <- tapply(b_value, b_replicate, mean)\n        t.test(as.numeric(means_b), as.numeric(means_a), var.equal = TRUE)\n    }\n    check_nlme <- function(a_value, a_replicate, b_value, b_replicate, expected) {\n        d <- frame(a_value, a_replicate, b_value, b_replicate)\n        fit <- nlme::lme(value ~ group, random = ~1 | unit, data = d, method = \"REML\")\n        s <- summary(fit)$tTable\n        same(expected$t, s[\"groupb\", \"t-value\"], tol = 1e-04)\n        same(expected$df, s[\"groupb\", \"DF\"])\n        same(expected$p_two, s[\"groupb\", \"p-value\"], tol = 1e-04)\n        same(expected$difference, s[\"groupb\", \"Value\"], tol = 1e-04)\n        TRUE\n    }\n}",
+    "call": "nested(a_value, a_replicate, b_value, b_replicate)",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0",
+        "nlme": "3.1.169"
+      },
+      "code": "check_nlme(a_value, a_replicate, b_value, b_replicate, expected)"
+    }
+  },
+  "tolerance": 0.0001,
+  "note": "Replicates 2 and 3 of A, and 2 of B, have only one value each; they still count, just with less weight than a replicate with many."
+}

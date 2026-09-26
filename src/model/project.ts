@@ -18,6 +18,7 @@ import type { Table } from './table';
 export type AnalysisSpec =
   | { readonly kind: 'descriptive'; readonly options: DescriptiveOptions }
   | { readonly kind: 't-test'; readonly options: TTestOptions }
+  | { readonly kind: 'nested-t-test'; readonly options: NestedTTestOptions }
   | { readonly kind: 'rank-test'; readonly options: RankTestOptions }
   | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
   | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions }
@@ -53,6 +54,15 @@ export interface TTestOptions {
   readonly paired: boolean;
   /** Welch's correction for unequal SDs. Prism's default: off. */
   readonly welch: boolean;
+  readonly tails: 'two' | 'one';
+}
+
+/**
+ * Nested t test (item 13): a REML mixed model over a Nested table's two
+ * groups and their biological replicates. No paired or Welch variant:
+ * the model already separates between- and within-replicate variance.
+ */
+export interface NestedTTestOptions {
   readonly tails: 'two' | 'one';
 }
 
@@ -125,6 +135,7 @@ export const DEFAULT_OPTIONS: {
 } = {
   descriptive: {},
   't-test': { paired: false, welch: false, tails: 'two' },
+  'nested-t-test': { tails: 'two' },
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },

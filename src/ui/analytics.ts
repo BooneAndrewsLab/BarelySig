@@ -60,6 +60,7 @@ export const EVENTS = {
   analysis: [
     'new-descriptive',
     'new-t-test',
+    'new-nested-t-test',
     'new-rank-test',
     'new-one-way-anova',
     'new-kruskal-wallis',
