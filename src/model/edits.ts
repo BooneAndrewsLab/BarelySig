@@ -578,6 +578,9 @@ function setFormat(table: Table, format: EntryFormat): Table {
   if (table.type === 'column' && format.kind === 'replicates' && format.count !== 1) {
     throw new EditError('A Column table has its replicates down the rows, in one subcolumn.');
   }
+  if (table.type === 'nested' && format.kind === 'summary') {
+    throw new EditError('A Nested table needs individual values, not summary data.');
+  }
   let rows = table.rows;
   if (table.type === 'column' && format.kind === 'summary') {
     rows = rows.length > 0 ? rows.slice(0, 1) : [{ id: newId('r'), title: null }];
@@ -604,6 +607,12 @@ function setFormat(table: Table, format: EntryFormat): Table {
     });
     return { ...d, subcolumns, excluded };
   });
+  if (table.type === 'nested' && table.replicateTitles) {
+    const replicateTitles = source.map((src) =>
+      src === null ? null : (table.replicateTitles?.[src] ?? null),
+    );
+    return { ...table, format, rows, dataSets, replicateTitles };
+  }
   return { ...table, format, rows, dataSets };
 }
 

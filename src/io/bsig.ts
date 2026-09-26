@@ -118,6 +118,7 @@ function tableJson(t: Table): Json {
     ...optional('valueTitle', t.valueTitle),
     ...optional('unit', t.unit),
     ...optional('notes', t.notes),
+    ...(t.type === 'nested' ? optional('replicateTitles', t.replicateTitles) : {}),
   };
 }
 
@@ -387,7 +388,7 @@ function table(v: Json, p: Path): Table {
   const o = obj(v, p);
   const typePath: Path = p.key('type');
   const type = str(o['type'], typePath);
-  if (type !== 'column' && type !== 'grouped') {
+  if (type !== 'column' && type !== 'grouped' && type !== 'nested') {
     typePath.fail(`is a table type this version does not know ("${type}")`);
   }
   const base: Table = {
@@ -402,6 +403,11 @@ function table(v: Json, p: Path): Table {
     valueTitle: optStr(o, 'valueTitle', p),
     unit: optStr(o, 'unit', p),
     notes: optStr(o, 'notes', p),
+    ...(type === 'nested' && o['replicateTitles'] !== undefined
+      ? {
+          replicateTitles: list(o['replicateTitles'], p.key('replicateTitles'), nullableStr),
+        }
+      : {}),
   });
 }
 

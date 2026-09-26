@@ -19,9 +19,11 @@ import {
   type ColumnTable,
   type DataSet,
   type GroupedTable,
+  type NestedTable,
   type SummaryStats,
   type Table,
   cellKey,
+  subcolumnCount,
   summarySubcolumns,
 } from './table';
 
@@ -216,4 +218,34 @@ export function groupedCells(
       ),
     ),
   };
+}
+
+export interface NestedGroup {
+  readonly id: Id;
+  readonly title: string;
+  /** One per biological replicate; a replicate with no usable value is kept (and counted) as empty. */
+  readonly replicates: readonly GroupData[];
+}
+
+/** A Nested table's groups, each with its biological replicates' raw values. */
+export function nestedGroups(
+  table: NestedTable,
+  dataSets: readonly Id[] = table.dataSets.map((d) => d.id),
+): NestedGroup[] {
+  const count = subcolumnCount(table.format);
+  return dataSets.map((id) => {
+    const ds = requireDataSet(table, id);
+    return {
+      id,
+      title: ds.title,
+      replicates: Array.from({ length: count }, (_, s) =>
+        collect(
+          table,
+          ds,
+          table.rows.map((_, r) => [s, r] as const),
+          true,
+        ),
+      ),
+    };
+  });
 }

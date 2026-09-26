@@ -114,7 +114,21 @@ export interface GroupedTable extends TableBase {
   readonly format: EntryFormat;
 }
 
-export type Table = ColumnTable | GroupedTable;
+/**
+ * Data sets are groups, subcolumns are biological replicates, rows are
+ * individual (technical) measurements — ragged per subcolumn, like a
+ * Column table's raw format. For the nested t test / one-way ANOVA and
+ * SuperPlot graphs (item 13).
+ */
+export interface NestedTable extends TableBase {
+  readonly type: 'nested';
+  /** Always `{kind:'replicates',...}` in practice (validate.ts): summary data has no room for a nested factor. */
+  readonly format: EntryFormat;
+  /** Shared across every group's data set, e.g. "Dish 1", "Dish 2"; null = "Replicate n". */
+  readonly replicateTitles?: readonly (string | null)[];
+}
+
+export type Table = ColumnTable | GroupedTable | NestedTable;
 export type TableType = Table['type'];
 
 /** How many subcolumns each data set has under a format. */
@@ -178,6 +192,28 @@ export function createGroupedTable(spec: NewGroupedTable): GroupedTable {
     format: spec.format,
     rows,
     dataSets: spec.groups.map((g) => emptyDataSet(newId('ds'), g, rows.length, spec.format)),
+  };
+}
+
+export interface NewNestedTable {
+  readonly title: string;
+  /** The groups being compared, e.g. "Control", "Treated". */
+  readonly groups: readonly string[];
+  readonly replicates?: number;
+  readonly replicateTitles?: readonly (string | null)[];
+}
+
+export function createNestedTable(spec: NewNestedTable): NestedTable {
+  const format = { kind: 'replicates' as const, count: spec.replicates ?? 3 };
+  const rows = newRows(0);
+  return {
+    id: newId('t'),
+    type: 'nested',
+    title: spec.title,
+    format,
+    rows,
+    dataSets: spec.groups.map((g) => emptyDataSet(newId('ds'), g, rows.length, format)),
+    ...(spec.replicateTitles ? { replicateTitles: spec.replicateTitles } : {}),
   };
 }
 

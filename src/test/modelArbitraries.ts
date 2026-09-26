@@ -22,6 +22,7 @@ import {
   SUMMARY_STATS,
   createColumnTable,
   createGroupedTable,
+  createNestedTable,
   subcolumnCount,
 } from '@/model/table';
 
@@ -50,6 +51,11 @@ export const formatArb: fc.Arbitrary<EntryFormat> = fc.oneof(
   fc.integer({ min: 1, max: 4 }).map((count): EntryFormat => ({ kind: 'replicates', count })),
   fc.constantFrom(...SUMMARY_STATS).map((stats): EntryFormat => ({ kind: 'summary', stats })),
 );
+
+/** A Nested table always has a replicates format: no summary variant (validate.ts). */
+export const nestedFormatArb: fc.Arbitrary<EntryFormat> = fc
+  .integer({ min: 1, max: 4 })
+  .map((count): EntryFormat => ({ kind: 'replicates', count }));
 
 const idx = fc.nat(50);
 const small = fc.integer({ min: 0, max: 5 });
@@ -119,6 +125,12 @@ export type Shape =
       readonly levels: number;
       readonly groups: number;
       readonly format: EntryFormat;
+    }
+  | {
+      readonly k: 'nested';
+      readonly groups: number;
+      readonly format: EntryFormat;
+      readonly replicateTitles: readonly (string | null)[] | null;
     }
   | {
       readonly k: 'cells';
@@ -195,6 +207,15 @@ export const shapeArb: fc.Arbitrary<Shape> = fc.oneof(
       levels: small,
       groups: small,
       format: formatArb,
+    }),
+    weight: 2,
+  },
+  {
+    arbitrary: fc.record({
+      k: fc.constant('nested'),
+      groups: small,
+      format: nestedFormatArb,
+      replicateTitles: fc.option(fc.array(title, { maxLength: 4 })),
     }),
     weight: 2,
   },
@@ -322,6 +343,22 @@ export function resolve(p: Project, s: Shape): Edit | null {
           format: s.format,
         }),
       };
+    case 'nested': {
+      const count = subcolumnCount(s.format);
+      const pool = s.replicateTitles;
+      const replicateTitles = pool?.length
+        ? Array.from({ length: count }, (_, i) => pool[i % pool.length] ?? null)
+        : undefined;
+      return {
+        op: 'addTable',
+        table: createNestedTable({
+          title: 'N',
+          groups: Array.from({ length: s.groups }, (_, i) => `G${String(i)}`),
+          replicates: count,
+          ...(replicateTitles ? { replicateTitles } : {}),
+        }),
+      };
+    }
     case 'cells': {
       if (!table || table.dataSets.length === 0 || table.rows.length === 0) return null;
       const cells = s.writes.map(([d, c, r, value]) => {

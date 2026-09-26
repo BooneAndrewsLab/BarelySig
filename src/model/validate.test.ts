@@ -6,6 +6,7 @@ import {
   cellKey,
   createColumnTable,
   createGroupedTable,
+  createNestedTable,
   duplicateTable,
 } from './table';
 import { validateProject, validateTable } from './validate';
@@ -51,6 +52,30 @@ describe('validateTable', () => {
         }),
       ),
     ).toEqual([]);
+    expect(
+      validateTable(
+        createNestedTable({
+          title: 'N',
+          groups: ['ctrl', 'treated'],
+          replicates: 3,
+          replicateTitles: ['Dish 1', null, 'Dish 3'],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('rejects a Nested table given summary data', () => {
+    const t = createNestedTable({ title: 'N', groups: ['a'] });
+    expect(validateTable({ ...t, format: { kind: 'summary', stats: 'mean-sd-n' } })).toEqual([
+      expect.stringMatching(/needs individual values, not summary data/),
+    ]);
+  });
+
+  it('rejects replicate titles that do not match the replicate count', () => {
+    const t = createNestedTable({ title: 'N', groups: ['a'], replicates: 2 });
+    expect(validateTable({ ...t, replicateTitles: ['only one'] })).toEqual([
+      expect.stringMatching(/1 replicate titles for 2 replicates/),
+    ]);
   });
 
   it.each([

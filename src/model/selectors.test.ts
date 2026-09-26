@@ -2,12 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import { asId } from './ids';
 import type { Cell } from './missing';
-import { DataError, columnGroup, columnGroups, groupedCells, pairedGroups } from './selectors';
+import {
+  DataError,
+  columnGroup,
+  columnGroups,
+  groupedCells,
+  nestedGroups,
+  pairedGroups,
+} from './selectors';
 import {
   type CellKey,
   type ColumnTable,
   type EntryFormat,
   type GroupedTable,
+  type NestedTable,
   type SummaryStats,
   cellKey,
 } from './table';
@@ -60,6 +68,30 @@ function summary(stats: SummaryStats, groups: Readonly<Record<string, readonly T
       dataSet(
         name,
         values.map((v) => [v]),
+      ),
+    ),
+  };
+}
+
+/** Nested table: one data set per group, one subcolumn per biological replicate, ragged. */
+function nested(
+  count: number,
+  groups: Readonly<Record<string, readonly (readonly T[])[]>>,
+): NestedTable {
+  const n = Math.max(0, ...Object.values(groups).flatMap((reps) => reps.map((r) => r.length)));
+  return {
+    id: asId('t_1'),
+    type: 'nested',
+    title: 'T',
+    format: { kind: 'replicates', count },
+    rows: Array.from({ length: n }, (_, r) => ({ id: rowId(r), title: null })),
+    dataSets: Object.entries(groups).map(([name, reps]) =>
+      dataSet(
+        name,
+        Array.from({ length: count }, (_, s) => {
+          const rep = reps[s] ?? [];
+          return [...rep, ...Array<null>(n - rep.length).fill(null)];
+        }),
       ),
     ),
   };
@@ -298,5 +330,44 @@ describe('groupedCells', () => {
       [{ kind: 'summary', mean: 5, sd: 2, n: 4, interval: null, entered: 'mean-sem-n' }],
       [{ kind: 'summary', mean: 6, sd: 3, n: 9, interval: null, entered: 'mean-sem-n' }],
     ]);
+  });
+});
+
+describe('nestedGroups', () => {
+  it('collects each replicate subcolumn separately, ragged', () => {
+    const t = nested(3, {
+      a: [[1, 2, 3], [4, 5], [6]],
+    });
+    expect(nestedGroups(t, [ds('a')])).toEqual([
+      {
+        id: ds('a'),
+        title: 'a',
+        replicates: [
+          { kind: 'raw', values: [1, 2, 3], dropped: { empty: 0, excluded: 0 } },
+          { kind: 'raw', values: [4, 5], dropped: { empty: 0, excluded: 0 } },
+          { kind: 'raw', values: [6], dropped: { empty: 0, excluded: 0 } },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps an empty replicate, counted, instead of dropping it', () => {
+    const t = nested(2, { a: [[1, 2], []] });
+    expect(nestedGroups(t, [ds('a')])[0]?.replicates).toEqual([
+      { kind: 'raw', values: [1, 2], dropped: { empty: 0, excluded: 0 } },
+      { kind: 'raw', values: [], dropped: { empty: 0, excluded: 0 } },
+    ]);
+  });
+
+  it('leaves out excluded values within a replicate and counts them', () => {
+    const t = nested(1, { a: [[1, { x: 2 }, 3]] });
+    expect(nestedGroups(t, [ds('a')])[0]?.replicates).toEqual([
+      { kind: 'raw', values: [1, 3], dropped: { empty: 0, excluded: 1 } },
+    ]);
+  });
+
+  it('defaults to every data set in table order', () => {
+    const t = nested(1, { a: [[1]], b: [[2]] });
+    expect(nestedGroups(t).map((g) => g.title)).toEqual(['a', 'b']);
   });
 });

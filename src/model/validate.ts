@@ -31,6 +31,16 @@ export function validateTable(table: Table): string[] {
     problems.push(
       `${where}: a Column table of summary data has one row, not ${String(table.rows.length)}`,
     );
+  } else if (table.type === 'nested') {
+    problems.push(`${where}: a Nested table needs individual values, not summary data`);
+  }
+
+  if (table.type === 'nested' && table.replicateTitles !== undefined) {
+    if (table.replicateTitles.length !== subcolumnCount(format)) {
+      problems.push(
+        `${where}: ${String(table.replicateTitles.length)} replicate titles for ${String(subcolumnCount(format))} replicates`,
+      );
+    }
   }
 
   const rowIds = new Set<Id>();
