@@ -174,6 +174,23 @@ describe('app shell', () => {
   });
 });
 
+describe('margin notes (#56)', () => {
+  it('shows a note beside each section, and hides them all, remembered in this browser', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Try an example' }));
+    await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' });
+    expect(screen.getByText('Replicates, not means')).toBeInTheDocument();
+    expect(screen.getByText(/^Tukey’s test compares every pair of groups/)).toBeInTheDocument();
+    expect(screen.getByText(/^Error bars show the SD/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide notes' }));
+    expect(screen.queryByText('Replicates, not means')).not.toBeInTheDocument();
+    expect(localStorage.getItem('barelysig.notes')).toBe('hidden');
+    fireEvent.click(screen.getByRole('button', { name: 'Show notes' }));
+    expect(screen.getByText('Replicates, not means')).toBeInTheDocument();
+    expect(localStorage.getItem('barelysig.notes')).toBeNull();
+  });
+});
+
 describe('closing a project', () => {
   // Closing saves to IndexedDB first; under a full parallel test run that can take over the
   // default second.

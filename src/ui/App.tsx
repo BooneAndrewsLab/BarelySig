@@ -11,6 +11,7 @@ import { NewTableDialog } from './shell/NewTableDialog';
 import { StatusLine } from './shell/StatusLine';
 import { ExperimentPage } from './notebook/ExperimentPage';
 import { experimentOf } from './notebook/experiments';
+import { NotesSwitch } from './notebook/NotesSwitch';
 import { Sidebar } from './notebook/Sidebar';
 import { TopBar } from './shell/TopBar';
 import { commandFor } from './shortcuts';
@@ -138,6 +139,7 @@ export function App() {
         undoLabel={store.undoLabel()}
         redoLabel={store.redoLabel()}
       >
+        <NotesSwitch />
         <HelpButton />
       </TopBar>
       <main className="main">

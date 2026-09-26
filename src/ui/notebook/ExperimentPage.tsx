@@ -8,6 +8,9 @@ import { ResultsSection } from '../results/ResultsSection';
 import { type Sheet, store } from '../state/store';
 import { DataSection, NextSteps } from './DataSection';
 import { partsOf, sectionDomId } from './experiments';
+import { MarginNotes } from './MarginNotes';
+import { analysisNotes, dataNotes, graphNotes } from './notes';
+import { useNotesShown } from './notesShown';
 
 /** The experiment's description (the table's notes): click to write one. */
 function Description({ table }: { readonly table: Table }) {
@@ -66,6 +69,7 @@ interface Props {
 export function ExperimentPage({ project, table, sheet, grid }: Props) {
   const { analyses, graphs } = partsOf(project, table.id);
   const page = useRef<HTMLElement>(null);
+  const notes = useNotesShown();
 
   // A new sheet object is a request to show it (store.show, an edit's `show`, undo).
   useEffect(() => {
@@ -83,15 +87,31 @@ export function ExperimentPage({ project, table, sheet, grid }: Props) {
         <h1 id="page-title">{table.title}</h1>
         <Description table={table} />
       </header>
-      <DataSection table={table} project={project}>
+      <DataSection
+        table={table}
+        project={project}
+        note={notes ? <MarginNotes notes={dataNotes(table)} /> : null}
+      >
         {grid}
       </DataSection>
       <NextSteps project={project} table={table} />
       {analyses.map((a, i) => (
-        <ResultsSection key={a.id} project={project} analysis={a} number={i + 2} />
+        <ResultsSection
+          key={a.id}
+          project={project}
+          analysis={a}
+          number={i + 2}
+          note={notes ? <MarginNotes notes={analysisNotes(project, a)} /> : null}
+        />
       ))}
       {graphs.map((g, i) => (
-        <GraphSection key={g.id} project={project} graph={g} number={analyses.length + i + 2} />
+        <GraphSection
+          key={g.id}
+          project={project}
+          graph={g}
+          number={analyses.length + i + 2}
+          note={notes ? <MarginNotes notes={graphNotes(project, g)} /> : null}
+        />
       ))}
     </article>
   );

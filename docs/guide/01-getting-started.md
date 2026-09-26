@@ -50,8 +50,14 @@ table and everything made from it: the analyses run on it and its graphs.
   then numbered sections: **1 Data** (the table), then each analysis, then
   each graph. **Analyze…** and **New graph** sit under the data. Each
   section's **⋯** menu renames or deletes it, and **▾** folds it away.
-- **The bar** at the top says where you are and holds **Undo**, **Redo**
-  and **?** for this guide.
+- **Notes** beside each section say in plain words what you are looking
+  at: what the numbers in a table are, what a test asks and how its P
+  values are adjusted, what a graph's error bars show. They never repeat
+  a result; the section does that. **Hide notes** in the bar puts them
+  away (this browser remembers); on a narrow screen they sit under their
+  section.
+- **The bar** at the top says where you are and holds **Undo**, **Redo**,
+  **Hide notes** and **?** for this guide.
 - **The status line** at the bottom says what the selection holds, or what
   a paste just did.
 
