@@ -74,6 +74,14 @@ export interface Scene {
   readonly marks: readonly Mark[];
   /** Things the user should know (e.g. a swarm squeezed to fit), for the notes under the graph. */
   readonly notes: readonly string[];
+  /**
+   * The group-label angle actually drawn with, when the graph's own
+   * setting was left automatic (note 12); unset when the graph forced an
+   * angle, or drew level with no escalation needed. Frozen into a figure
+   * recipe so a later change to the overlap heuristic can't turn an old
+   * export's labels.
+   */
+  readonly resolvedXAngle?: 45 | 90;
 }
 
 export const PT_PER_MM = 72 / 25.4;

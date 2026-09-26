@@ -137,6 +137,16 @@ describe('figure recipes', () => {
     expect([...r.results.keys()].sort()).toEqual(['a_t', 'g_1/summary']);
   });
 
+  it('freezes an automatic group-label angle into the recipe (#61, note 12)', () => {
+    const { p, graph, results } = setup();
+    const r = recipeProject(p, graph, results, 45);
+    expect(r.project.graphs.get(graph.id)?.format.xAngle).toBe(45);
+    // An angle the user set explicitly is never overridden by the drawn one.
+    const explicit: Graph = { ...graph, format: { ...graph.format, xAngle: 90 } };
+    const kept = recipeProject(p, explicit, results, 45);
+    expect(kept.project.graphs.get(explicit.id)?.format.xAngle).toBe(90);
+  });
+
   it('reopen from an SVG as the identical figure', async () => {
     const { p, graph, results } = setup();
     const recipe = recipeText(p, graph, results, ENGINE, '0.5.0');

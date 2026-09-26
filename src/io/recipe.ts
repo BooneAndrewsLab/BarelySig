@@ -23,11 +23,17 @@ export const APP_URL: string =
 const NS = 'https://barelysig.org/ns/recipe/1';
 const PNG_KEY = 'barelysig-recipe';
 
-/** The project a figure needs: its graph (theme resolved), table, drawn analyses and their results. */
+/**
+ * The project a figure needs: its graph (theme resolved, and its group-label
+ * angle too if it was left automatic, note 12), table, drawn analyses and
+ * their results.
+ */
 export function recipeProject(
   project: Project,
   graph: Graph,
   results: ReadonlyMap<Id, ResultEntry>,
+  /** The angle `layoutColumn` drew with, when the graph's own setting was automatic. */
+  resolvedXAngle?: 45 | 90,
 ): { readonly project: Project; readonly results: Map<Id, ResultEntry> } {
   const tableId = graph.source.kind === 'table' ? graph.source.table : null;
   const table = tableId ? project.tables.get(tableId) : undefined;
@@ -39,6 +45,10 @@ export function recipeProject(
     ...graph,
     analyses: analyses.map((a) => a.id),
     theme: { kind: 'fixed', theme: themeJson(resolveTheme(graph.theme)) },
+    format:
+      graph.format.xAngle === undefined && resolvedXAngle !== undefined
+        ? { ...graph.format, xAngle: resolvedXAngle }
+        : graph.format,
   };
   const kept = new Map<Id, ResultEntry>();
   for (const id of [...analyses.map((a) => a.id), summaryId(graph.id)]) {
@@ -220,7 +230,8 @@ export function recipeText(
   results: ReadonlyMap<Id, ResultEntry>,
   engine: EngineInfo | null,
   app: string,
+  resolvedXAngle?: 45 | 90,
 ): string {
-  const r = recipeProject(project, graph, results);
+  const r = recipeProject(project, graph, results, resolvedXAngle);
   return writeBsig({ project: r.project, results: r.results, engine, app });
 }

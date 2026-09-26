@@ -294,7 +294,7 @@ export function Inspector({ project, graph, element, onDone }: Props) {
                 set(withFormat(graph, { xAngle: v === 45 || v === 90 ? v : undefined }));
               }}
             >
-              <option value="0">Level (wrapped to fit)</option>
+              <option value="0">Automatic (level, wrapped or turned to fit)</option>
               <option value="45">Turned 45°</option>
               <option value="90">Vertical</option>
             </select>

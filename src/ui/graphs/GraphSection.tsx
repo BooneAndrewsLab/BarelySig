@@ -377,13 +377,14 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
           onClose={() => {
             setExporting(false);
           }}
-          meta={async (format, _dpi, withData) => {
+          meta={async (format, _dpi, withData, drawn) => {
             const recipe = recipeText(
               project,
               graph,
               bridge.current(),
               bridge.info,
               __APP_VERSION__,
+              drawn.resolvedXAngle,
             );
             lastRecipe.current = recipe;
             const origin = {

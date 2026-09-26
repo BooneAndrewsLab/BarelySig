@@ -253,7 +253,11 @@ export interface GraphFormat {
   readonly yStep?: number;
   /** Decimals of the tick labels; unset = what the tick interval needs. */
   readonly yDecimals?: number;
-  /** Group labels turned by this many degrees; unset = level (wrapped). */
+  /**
+   * Group labels turned by this many degrees; unset = automatic (level,
+   * wrapped at spaces or underscores, turned only if that would still
+   * overlap, note 12).
+   */
   readonly xAngle?: 45 | 90;
   /** The graph's title drawn above it; unset = not shown. */
   readonly showTitle?: boolean;

@@ -21,7 +21,12 @@ interface Props {
   readonly scene: () => Promise<Scene>;
   readonly onClose: () => void;
   /** What the file should carry besides the figure (origin, recipe; #43). */
-  readonly meta?: (format: 'svg' | 'png', dpi: number, withData: boolean) => Promise<ExportMeta>;
+  readonly meta?: (
+    format: 'svg' | 'png',
+    dpi: number,
+    withData: boolean,
+    drawn: Scene,
+  ) => Promise<ExportMeta>;
   /** Called after a successful export. */
   readonly onExported?: (format: 'svg' | 'png', dpi: number, fileName: string) => void;
 }
@@ -44,7 +49,7 @@ export function ExportDialog({ graph, scene, onClose, meta, onExported }: Props)
     setError(null);
     try {
       const drawn = await scene();
-      const m = meta ? await meta(format, dpi, withData) : {};
+      const m = meta ? await meta(format, dpi, withData, drawn) : {};
       const file = fileNameFor(name, format === 'svg' ? '.svg' : '.png', 'Figure');
       const ok =
         format === 'svg'

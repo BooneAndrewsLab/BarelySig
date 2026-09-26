@@ -17,3 +17,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 09 | [Project manager: the list, close, delete](09-project-manager.md) | #59 |
 | 10 | [Opening a data file and guessing its layout](10-open-data-file.md) | #60 |
 | 11 | [Drawing graphs off the main thread](11-graph-worker.md) | #62 |
+| 12 | [Group labels that would overlap](12-label-overlap.md) | #61 |

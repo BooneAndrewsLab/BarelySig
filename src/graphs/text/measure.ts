@@ -33,8 +33,20 @@ export const descent = (size: number): number => (-metrics.descender / metrics.u
 export const lineHeight = (size: number): number => size * 1.15;
 
 /**
- * Wraps text at spaces to fit `width`, at most `maxLines` lines; a word
- * longer than the width stays whole on its own line (never cut).
+ * A word split into its breakable pieces: after each underscore (a common
+ * lab naming convention, `plate_condition_day`), the underscore staying
+ * with the piece before it. `first` marks the piece that starts the word,
+ * where a line break needs a space before it; later pieces of the same
+ * word never get one (they're mid-word).
+ */
+function pieces(word: string): { text: string; first: boolean }[] {
+  return word.split(/(?<=_)/).map((text, i) => ({ text, first: i === 0 }));
+}
+
+/**
+ * Wraps text at spaces or underscores to fit `width`, at most `maxLines`
+ * lines; a piece longer than the width stays whole on its own line (never
+ * cut).
  */
 export function wrap(
   text: string,
@@ -43,15 +55,15 @@ export function wrap(
   weight: Weight = 400,
   maxLines = 3,
 ): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [];
+  const ps = text.split(/\s+/).filter(Boolean).flatMap(pieces);
+  if (ps.length === 0) return [];
   const lines: string[] = [];
   let line = '';
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
+  for (const p of ps) {
+    const next = line ? `${line}${p.first ? ' ' : ''}${p.text}` : p.text;
     if (line && textWidth(next, size, weight) > width) {
       lines.push(line);
-      line = word;
+      line = p.text;
     } else line = next;
   }
   lines.push(line);

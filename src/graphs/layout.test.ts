@@ -182,6 +182,67 @@ describe('layoutColumn', () => {
     expect(labels.length).toBeGreaterThan(titles.length);
   });
 
+  it('wraps snake_case group names at their underscores (#61)', () => {
+    const titles = ['CGA_DMSO_3day', 'CGA_DMSO_5day', 'Normalized colony size'];
+    const s = layoutColumn(
+      base({
+        size: { width: 70, height: 60 },
+        groups: titles.map((t, i) => group(i, [1, 2, 3], t)),
+      }),
+    );
+    expect(s.resolvedXAngle).toBeUndefined();
+    const labels = of(s, 'group-label').map(box);
+    for (let i = 0; i < labels.length; i += 1) {
+      for (let j = i + 1; j < labels.length; j += 1)
+        expect(overlaps(at(labels, i), at(labels, j))).toBe(false);
+    }
+  });
+
+  it('turns group labels automatically when level would overlap, and never wraps once turned', () => {
+    const titles = Array.from({ length: 8 }, (_, i) => `Supercalifragilistic${String(i)}`);
+    const s = layoutColumn(
+      base({
+        size: { width: 60, height: 60 },
+        groups: titles.map((t, i) => group(i, [1, 2, 3], t)),
+      }),
+    );
+    const angle = s.resolvedXAngle;
+    if (angle !== 45 && angle !== 90) throw new Error('should have escalated');
+    const marks = of(s, 'group-label');
+    expect(marks.every((m) => m.kind === 'text' && m.rotate === -angle)).toBe(true);
+    const labels = marks.map(box);
+    for (let i = 0; i < labels.length; i += 1) {
+      for (let j = i + 1; j < labels.length; j += 1)
+        expect(overlaps(at(labels, i), at(labels, j))).toBe(false);
+    }
+  });
+
+  it('leaves an explicit angle alone even if it would overlap, and notes it', () => {
+    const titles = Array.from({ length: 60 }, (_, i) => `G${String(i)}`);
+    const s = layoutColumn(
+      base({
+        size: { width: 50, height: 60 },
+        groups: titles.map((t, i) => group(i, [1, 2, 3], t)),
+        xAngle: 90,
+      }),
+    );
+    expect(s.resolvedXAngle).toBeUndefined();
+    expect(of(s, 'group-label').every((m) => m.kind === 'text' && m.rotate === -90)).toBe(true);
+    expect(s.notes.some((n) => n.includes('even turned'))).toBe(true);
+  });
+
+  it('gives up gracefully when even turned labels overlap, with a note', () => {
+    const titles = Array.from({ length: 200 }, (_, i) => `G${String(i)}`);
+    const s = layoutColumn(
+      base({
+        size: { width: 40, height: 60 },
+        groups: titles.map((t, i) => group(i, [1, 2, 3], t)),
+      }),
+    );
+    expect(s.resolvedXAngle).toBe(90);
+    expect(s.notes.some((n) => n.includes('even turned'))).toBe(true);
+  });
+
   it('shows error bars above bars in Modern, both ways in Classic and for dots', () => {
     const up = layoutColumn(base());
     expect(of(up, 'error-cap')).toHaveLength(3);

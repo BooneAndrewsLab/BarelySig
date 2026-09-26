@@ -72,7 +72,10 @@ export interface LayoutInput {
   readonly yMax?: number | undefined;
   /** Log scale, tick interval, decimals (note 07). */
   readonly axis?: Omit<AxisOptions, 'min' | 'max'> | undefined;
-  /** Group labels turned by this many degrees; unset = level, wrapped. */
+  /**
+   * Group labels turned by this many degrees; unset = automatic (level,
+   * wrapped, turned only if that would still overlap, note 12).
+   */
   readonly xAngle?: 45 | 90 | undefined;
   /** The graph's title, drawn above it; unset = none. */
   readonly title?: string | undefined;
@@ -258,7 +261,6 @@ export function layoutColumn(input: LayoutInput): Scene {
   const H = input.size.height * PT_PER_MM;
   const ink = theme.ink;
   const notes: string[] = [];
-  const marks: Mark[] = [];
   const tickOut = theme.ticks === 'out' ? theme.lines.tickLength : 0;
   const log = input.axis?.scale === 'log10';
 
@@ -300,7 +302,6 @@ export function layoutColumn(input: LayoutInput): Scene {
   const tickCount = Math.max(3, Math.floor((H - 40) / (theme.font.tick * 4)));
   const yTitleH = input.yTitle ? lineHeight(theme.font.axisTitle) : 0;
   const n = Math.max(groups.length, 1);
-  const angle = input.xAngle;
   const clusters = input.clusters?.length ? input.clusters : null;
   // Which cluster each group is in, and its place in it.
   const member = groups.map((_, i) => {
@@ -345,607 +346,670 @@ export function layoutColumn(input: LayoutInput): Scene {
   const right = PAD + 2 + legendRight;
   const ceiling = PAD + titleH + legendRows.length * legendLine;
 
-  /** The axis up to `upTo`, and the margins its tick labels and the group labels need. */
-  const measure = (upTo: number) => {
-    const axis = valueAxis(
-      lo,
-      upTo,
-      { ...input.axis, min: input.yMin, max: input.yMax },
-      tickCount,
-    );
-    const tickLabelW = Math.max(0, ...axis.ticks.map((t) => textWidth(t.text, theme.font.tick)));
-    let left = PAD + yTitleH + (input.yTitle ? 4 : 0) + tickLabelW + 3 + tickOut;
-    const place = (from: number) => {
-      const plotW = Math.max(10, W - from - right);
-      const slot = plotW / nSlots;
-      // Bars of a cluster share 80% of its slot.
-      const sub = (i: number) => (clusters ? (slot * 0.8) / (member[i]?.of ?? 1) : slot);
-      const centre = (i: number) => {
-        const mm = member[i] ?? { c: i, k: 0, of: 1 };
-        if (!clusters) return from + slot * (i + 0.5);
-        return from + slot * mm.c + slot * 0.1 + sub(i) * (mm.k + 0.5);
-      };
-      return { plotW, slot, sub, centre };
-    };
-    let geo = place(left);
-    if (angle === 45 && barLabels) {
-      // A turned label runs down to the left of its tick: keep the first one inside the figure.
-      const first = (labelWidths[0] ?? 0) * Math.SQRT1_2;
-      left = Math.max(left, PAD + first - geo.sub(0) / 2);
-      geo = place(left);
-    }
-    const labels = groups.map((g, i) =>
-      !barLabels
-        ? []
-        : angle === undefined
-          ? wrap(g.title, geo.sub(i) - 2, theme.font.tick)
-          : [g.title],
-    );
-    const clusterLabels = (clusters ?? []).map((c) => wrap(c.title, geo.slot - 2, theme.font.tick));
-    const labelLines = Math.max(1, ...labels.map((l) => l.length));
-    const barBlock = !barLabels
-      ? 0
-      : angle === 45
-        ? Math.max(0, ...labelWidths) * Math.SQRT1_2 + tickA
-        : angle === 90
-          ? Math.max(0, ...labelWidths)
-          : labelLines * lineHeight(theme.font.tick);
-    const clusterLines = Math.max(0, ...clusterLabels.map((l) => l.length));
-    const clusterBlock = clusters
-      ? (barLabels ? 3 : 0) + Math.max(1, clusterLines) * lineHeight(theme.font.tick)
-      : 0;
-    return {
-      axis,
-      left,
-      ...geo,
-      labels,
-      clusterLabels,
-      barBlock,
-      bottom: tickOut + 3 + barBlock + clusterBlock + PAD,
-    };
-  };
+  /**
+   * Lays out and draws everything below the value range for one candidate
+   * group-label angle: level (wrapped), or a whole title turned 45° or
+   * 90°. `overlap` says whether a label still ran into its neighbour's
+   * slot at this angle, so the caller can escalate (note 12).
+   */
+  const attempt = (
+    angle: 45 | 90 | undefined,
+  ): { marks: Mark[]; notes: string[]; overlap: boolean } => {
+    const marks: Mark[] = [];
+    const notes: string[] = [];
 
-  // Brackets may need more room above the data: lay out, check, make room.
-  // Inside a boxed frame they must stay under its top, so the axis goes
-  // higher (as Prism does); otherwise the top margin grows. Each pass lays
-  // out at the room it was given, never at room it added afterwards.
-  const boxed = theme.spines === 'box' && input.yMax === undefined;
-  let upTo = hi;
-  let m = measure(upTo);
-  let top = ceiling + 3;
-  let placed: PlacedBracket[] = [];
-  let plotH = 0;
-  let yOf = (v: number) => v;
-  // Inside the frame while raising the axis helps; when it doesn't (the data
-  // sits low), the top margin grows instead.
-  let inside = boxed;
-  let lastNeed = Number.POSITIVE_INFINITY;
-  const PASSES = 12;
-  for (let pass = 0; pass < PASSES; pass += 1) {
-    m = measure(upTo);
-    plotH = Math.max(10, H - top - m.bottom);
-    const scaleTop = top;
-    const ph = plotH;
-    const ax = m.axis;
-    yOf = (v: number) => {
-      const f = ax.frac(v);
-      // A value a log axis can't show sits just below it.
-      return scaleTop + ph * (1 - (f ?? -0.02));
+    /** The axis up to `upTo`, and the margins its tick labels and the group labels need. */
+    const measure = (upTo: number) => {
+      const axis = valueAxis(
+        lo,
+        upTo,
+        { ...input.axis, min: input.yMin, max: input.yMax },
+        tickCount,
+      );
+      const tickLabelW = Math.max(0, ...axis.ticks.map((t) => textWidth(t.text, theme.font.tick)));
+      let left = PAD + yTitleH + (input.yTitle ? 4 : 0) + tickLabelW + 3 + tickOut;
+      const place = (from: number) => {
+        const plotW = Math.max(10, W - from - right);
+        const slot = plotW / nSlots;
+        // Bars of a cluster share 80% of its slot.
+        const sub = (i: number) => (clusters ? (slot * 0.8) / (member[i]?.of ?? 1) : slot);
+        const centre = (i: number) => {
+          const mm = member[i] ?? { c: i, k: 0, of: 1 };
+          if (!clusters) return from + slot * (i + 0.5);
+          return from + slot * mm.c + slot * 0.1 + sub(i) * (mm.k + 0.5);
+        };
+        return { plotW, slot, sub, centre };
+      };
+      let geo = place(left);
+      if (angle === 45 && barLabels) {
+        // A turned label runs down to the left of its tick: keep the first one inside the figure.
+        const first = (labelWidths[0] ?? 0) * Math.SQRT1_2;
+        left = Math.max(left, PAD + first - geo.sub(0) / 2);
+        geo = place(left);
+      }
+      const labels = groups.map((g, i) =>
+        !barLabels
+          ? []
+          : angle === undefined
+            ? wrap(g.title, geo.sub(i) - 2, theme.font.tick)
+            : [g.title],
+      );
+      const clusterLabels = (clusters ?? []).map((c) =>
+        wrap(c.title, geo.slot - 2, theme.font.tick),
+      );
+      const labelLines = Math.max(1, ...labels.map((l) => l.length));
+      const barBlock = !barLabels
+        ? 0
+        : angle === 45
+          ? Math.max(0, ...labelWidths) * Math.SQRT1_2 + tickA
+          : angle === 90
+            ? Math.max(0, ...labelWidths)
+            : labelLines * lineHeight(theme.font.tick);
+      const clusterLines = Math.max(0, ...clusterLabels.map((l) => l.length));
+      const clusterBlock = clusters
+        ? (barLabels ? 3 : 0) + Math.max(1, clusterLines) * lineHeight(theme.font.tick)
+        : 0;
+      // Whether a group's label still runs past its slot at this angle: a
+      // wrapped line with no space or underscore to break at, or a turned
+      // label whose footprint toward its neighbour outgrows the slot.
+      const overlap = !barLabels
+        ? false
+        : groups.some((_, i) => {
+            const room = geo.sub(i) - 2;
+            if (angle === undefined)
+              return (
+                Math.max(0, ...(labels[i] ?? []).map((l) => textWidth(l, theme.font.tick))) > room
+              );
+            const reach =
+              angle === 45 ? (labelWidths[i] ?? 0) * Math.SQRT1_2 : lineHeight(theme.font.tick);
+            return reach > room;
+          });
+      return {
+        axis,
+        left,
+        ...geo,
+        labels,
+        clusterLabels,
+        barBlock,
+        overlap,
+        bottom: tickOut + 3 + barBlock + clusterBlock + PAD,
+      };
     };
-    placed = placeBrackets(input, yOf, m.centre, m.sub, scaleTop + ph);
-    const highest = Math.min(...placed.map((b) => b.top));
-    if (pass === PASSES - 1) break;
-    if (inside) {
-      const need = top + 2 - highest;
-      if (!(need > 0.01)) break;
-      if (need > lastNeed * 0.9) {
-        inside = false;
+
+    // Brackets may need more room above the data: lay out, check, make room.
+    // Inside a boxed frame they must stay under its top, so the axis goes
+    // higher (as Prism does); otherwise the top margin grows. Each pass lays
+    // out at the room it was given, never at room it added afterwards.
+    const boxed = theme.spines === 'box' && input.yMax === undefined;
+    let upTo = hi;
+    let m = measure(upTo);
+    let top = ceiling + 3;
+    let placed: PlacedBracket[] = [];
+    let plotH = 0;
+    let yOf = (v: number) => v;
+    // Inside the frame while raising the axis helps; when it doesn't (the data
+    // sits low), the top margin grows instead.
+    let inside = boxed;
+    let lastNeed = Number.POSITIVE_INFINITY;
+    const PASSES = 12;
+    for (let pass = 0; pass < PASSES; pass += 1) {
+      m = measure(upTo);
+      plotH = Math.max(10, H - top - m.bottom);
+      const scaleTop = top;
+      const ph = plotH;
+      const ax = m.axis;
+      yOf = (v: number) => {
+        const f = ax.frac(v);
+        // A value a log axis can't show sits just below it.
+        return scaleTop + ph * (1 - (f ?? -0.02));
+      };
+      placed = placeBrackets(input, yOf, m.centre, m.sub, scaleTop + ph);
+      const highest = Math.min(...placed.map((b) => b.top));
+      if (pass === PASSES - 1) break;
+      if (inside) {
+        const need = top + 2 - highest;
+        if (!(need > 0.01)) break;
+        if (need > lastNeed * 0.9) {
+          inside = false;
+          continue;
+        }
+        lastNeed = need;
+        // Raise the axis's top by the share of the plot the brackets lack, a little more for rounding.
+        const [d0, d1] = m.axis.domain;
+        const share = (need / plotH) * 1.1;
+        upTo = log ? d1 * (d1 / d0) ** share : d1 + (d1 - d0) * share;
         continue;
       }
-      lastNeed = need;
-      // Raise the axis's top by the share of the plot the brackets lack, a little more for rounding.
-      const [d0, d1] = m.axis.domain;
-      const share = (need / plotH) * 1.1;
-      upTo = log ? d1 * (d1 / d0) ** share : d1 + (d1 - d0) * share;
-      continue;
+      const above = Math.min(top, highest);
+      if (above >= ceiling - 0.01) break;
+      top += ceiling - above;
     }
-    const above = Math.min(top, highest);
-    if (above >= ceiling - 0.01) break;
-    top += ceiling - above;
-  }
-  // Brackets raised so far that no room could be made (over groups whose
-  // data sits low, which extra room doesn't move) stop at the top.
-  const limit = inside ? top + 2 : ceiling;
-  if (Math.min(...placed.map((b) => b.top)) < limit - 0.01)
-    placed = placeBrackets(input, yOf, m.centre, m.sub, top + plotH, limit);
-  const { axis, left, plotW, labels, clusterLabels, barBlock } = m;
-  /** Each group's slot: its share of a cluster, or its own. */
-  const slotOf = m.sub;
-  notes.push(...axis.notes);
+    // Brackets raised so far that no room could be made (over groups whose
+    // data sits low, which extra room doesn't move) stop at the top.
+    const limit = inside ? top + 2 : ceiling;
+    if (Math.min(...placed.map((b) => b.top)) < limit - 0.01)
+      placed = placeBrackets(input, yOf, m.centre, m.sub, top + plotH, limit);
+    const { axis, left, plotW, labels, clusterLabels, barBlock } = m;
+    /** Each group's slot: its share of a cluster, or its own. */
+    const slotOf = m.sub;
+    notes.push(...axis.notes);
 
-  const xOf = m.centre;
-  const baseY = top + plotH;
-  const [d0, d1] = axis.domain;
-  // Bars rise from zero on a linear axis, from the bottom of a log axis.
-  const zeroY = log ? baseY : yOf(Math.min(Math.max(0, d0), d1));
+    const xOf = m.centre;
+    const baseY = top + plotH;
+    const [d0, d1] = axis.domain;
+    // Bars rise from zero on a linear axis, from the bottom of a log axis.
+    const zeroY = log ? baseY : yOf(Math.min(Math.max(0, d0), d1));
 
-  // --- title -----------------------------------------------------------------
-  if (input.title) {
-    marks.push({
-      kind: 'text',
-      role: 'title',
-      x: left + plotW / 2,
-      y: PAD + ascent(theme.font.title),
-      text: input.title,
-      size: theme.font.title,
-      weight: 700,
-      anchor: 'middle',
-      fill: ink,
-    });
-  }
-
-  // --- axes ------------------------------------------------------------------
-  const axisLine = { stroke: ink, width: theme.lines.axis };
-  if (theme.spines === 'box') {
-    marks.push({
-      kind: 'rect',
-      role: 'frame',
-      x: left,
-      y: top,
-      w: plotW,
-      h: plotH,
-      fill: 'none',
-      line: axisLine,
-    });
-  } else {
-    marks.push({
-      kind: 'line',
-      role: 'axis-y',
-      x1: left,
-      y1: top,
-      x2: left,
-      y2: baseY,
-      line: axisLine,
-    });
-    marks.push({
-      kind: 'line',
-      role: 'axis-x',
-      x1: left,
-      y1: baseY,
-      x2: left + plotW,
-      y2: baseY,
-      line: axisLine,
-    });
-  }
-  const tickLine = { stroke: ink, width: theme.lines.tick };
-  const dir = theme.ticks === 'out' ? -1 : 1;
-  for (const t of axis.ticks) {
-    const y = yOf(t.v);
-    marks.push({
-      kind: 'line',
-      role: 'tick-y',
-      x1: left,
-      y1: y,
-      x2: left + dir * theme.lines.tickLength,
-      y2: y,
-      line: tickLine,
-    });
-    marks.push({
-      kind: 'text',
-      role: 'tick-label',
-      x: left - tickOut - 3,
-      y: y + ascent(theme.font.tick) / 2 - 0.3,
-      text: t.text,
-      size: theme.font.tick,
-      weight: 400,
-      anchor: 'end',
-      fill: ink,
-    });
-  }
-  for (const v of axis.minor) {
-    const y = yOf(v);
-    marks.push({
-      kind: 'line',
-      role: 'tick-y-minor',
-      x1: left,
-      y1: y,
-      x2: left + dir * theme.lines.tickLength * 0.6,
-      y2: y,
-      line: tickLine,
-    });
-  }
-  if (input.yTitle) {
-    marks.push({
-      kind: 'text',
-      role: 'axis-title',
-      x: PAD + ascent(theme.font.axisTitle),
-      y: top + plotH / 2,
-      text: input.yTitle,
-      size: theme.font.axisTitle,
-      weight: 400,
-      anchor: 'middle',
-      fill: ink,
-      rotate: -90,
-    });
-  }
-  const tick = (ref: string, x: number) => {
-    marks.push({
-      kind: 'line',
-      role: 'tick-x',
-      ref,
-      x1: x,
-      y1: baseY,
-      x2: x,
-      y2: baseY - dir * theme.lines.tickLength,
-      line: tickLine,
-    });
-  };
-  const y0 = baseY + tickOut + 3;
-  if (barLabels)
-    groups.forEach((g, i) => {
-      const x = xOf(i);
-      tick(g.id, x);
-      if (angle !== undefined) {
-        marks.push({
-          kind: 'text',
-          role: 'group-label',
-          ref: g.series ?? g.id,
-          // Turned about the label's end, which sits under the tick.
-          x: angle === 90 ? x + tickA / 2 - 0.3 : x + tickA * 0.35,
-          y: y0 + (angle === 90 ? 0 : tickA * 0.35),
-          text: g.title,
-          size: theme.font.tick,
-          weight: 400,
-          anchor: 'end',
-          fill: ink,
-          rotate: -angle,
-        });
-        return;
-      }
-      (labels[i] ?? []).forEach((line, k) => {
-        marks.push({
-          kind: 'text',
-          role: 'group-label',
-          ref: g.series ?? g.id,
-          x,
-          y: y0 + tickA + k * lineHeight(theme.font.tick),
-          text: line,
-          size: theme.font.tick,
-          weight: 400,
-          anchor: 'middle',
-          fill: ink,
-        });
+    // --- title -----------------------------------------------------------------
+    if (input.title) {
+      marks.push({
+        kind: 'text',
+        role: 'title',
+        x: left + plotW / 2,
+        y: PAD + ascent(theme.font.title),
+        text: input.title,
+        size: theme.font.title,
+        weight: 700,
+        anchor: 'middle',
+        fill: ink,
       });
-    });
-  if (clusters) {
-    const cy = y0 + (barLabels ? barBlock + 3 : 0);
-    clusters.forEach((_, ci) => {
-      const cx = left + m.slot * (ci + 0.5);
-      if (!barLabels) tick(`cluster-${String(ci)}`, cx);
-      (clusterLabels[ci] ?? []).forEach((line, k) => {
-        marks.push({
-          kind: 'text',
-          role: 'cluster-label',
-          ref: `cluster-${String(ci)}`,
-          x: cx,
-          y: cy + tickA + k * lineHeight(theme.font.tick),
-          text: line,
-          size: theme.font.tick,
-          weight: barLabels ? 700 : 400,
-          anchor: 'middle',
-          fill: ink,
-        });
-      });
-    });
-  }
+    }
 
-  // --- legend ----------------------------------------------------------------
-  const legendEntry = (e: (typeof entries)[number], x: number, y: number) => {
-    marks.push({
-      kind: 'rect',
-      role: 'legend-swatch',
-      ref: e.id,
-      x,
-      y: y - swatch * 0.85,
-      w: swatch,
-      h: swatch,
-      fill: lighten(e.color, theme.barLighten),
-      line: { stroke: theme.barEdge ?? e.color, width: theme.lines.barEdge },
-    });
-    marks.push({
-      kind: 'text',
-      role: 'legend-label',
-      ref: e.id,
-      x: x + swatch + 3,
-      y,
-      text: e.title,
-      size: legendSize,
-      weight: 400,
-      anchor: 'start',
-      fill: ink,
-    });
-  };
-  if (legend?.at === 'right') {
-    entries.forEach((e, k) => {
-      legendEntry(e, left + plotW + 8, top + ascent(legendSize) + k * legendLine);
-    });
-  } else if (legend) {
-    legendRows.forEach((row, r) => {
-      const width = row.reduce((a, e) => a + entryW(e.title), 0) - 8;
-      let x = left + plotW / 2 - width / 2;
-      for (const e of row) {
-        legendEntry(e, Math.max(PAD, x), PAD + titleH + ascent(legendSize) + r * legendLine);
-        x += entryW(e.title);
-      }
-    });
-  }
-
-  // --- data ------------------------------------------------------------------
-  // Bars of a cluster nearly touch; a group's own bar keeps the theme's width.
-  const barWOf = (i: number) =>
-    slotOf(i) * (clusters ? Math.min(0.95, theme.barWidth + 0.3) : theme.barWidth);
-  const errLine = { stroke: ink, width: theme.lines.error };
-  const swarmState = { squeezed: false };
-  const noDistribution: string[] = [];
-  const noViolin: string[] = [];
-  // One density scale for every violin, so their widths compare.
-  const maxDensity = Math.max(0, ...groups.flatMap((g) => g.summary?.kde?.density ?? []));
-  const edgeOf = (g: GroupInput) => ({
-    stroke: theme.barEdge ?? g.color,
-    width: theme.lines.barEdge,
-  });
-  /** A beeswarm of `values` within `halfWidth` of x. */
-  const drawPoints = (g: GroupInput, x: number, list: readonly number[], halfWidth: number) => {
-    const values = log ? list.filter((v) => v > 0) : list;
-    if (values.length === 0) return;
-    const d = theme.pointSize + 0.4;
-    const ys = values.map(yOf);
-    const swarm = beeswarm(ys, d, Math.max(0, halfWidth));
-    swarmState.squeezed ||= swarm.squeezed;
-    const fill = theme.pointColor ?? g.color;
-    const line = { stroke: darken(fill, theme.pointDarken), width: theme.lines.pointEdge };
-    values.forEach((_, k) => {
-      marks.push(
-        pointMark(g.symbol ?? 'circle', x + (swarm.offsets[k] ?? 0), ys[k] ?? 0, theme.pointSize, {
-          role: 'point',
-          ref: g.series ?? g.id,
-          fill,
-          opacity: theme.pointOpacity,
-          line,
-        }),
-      );
-    });
-  };
-  const hline = (role: string, ref: string, x1: number, x2: number, y: number, line: Stroke) => {
-    marks.push({ kind: 'line', role, ref, x1, y1: y, x2, y2: y, line });
-  };
-  const vline = (role: string, ref: string, x: number, y1: number, y2: number, line: Stroke) => {
-    marks.push({ kind: 'line', role, ref, x1: x, y1, x2: x, y2, line });
-  };
-
-  groups.forEach((g, i) => {
-    const x = xOf(i);
-    const s = g.summary;
-    const slot = slotOf(i);
-    const barW = barWOf(i);
-    if (plot.kind === 'box') {
-      if (!s) return;
-      const w = s.whiskers;
-      if (!w || s.q1 == null || s.q3 == null || s.median === null) {
-        if (s.n !== null && s.n > 0) noDistribution.push(g.title);
-        return;
-      }
-      const boxW = slot * theme.barWidth * 0.8;
-      const yq1 = yOf(s.q1);
-      const yq3 = yOf(s.q3);
+    // --- axes ------------------------------------------------------------------
+    const axisLine = { stroke: ink, width: theme.lines.axis };
+    if (theme.spines === 'box') {
       marks.push({
         kind: 'rect',
-        role: 'box',
-        ref: g.series ?? g.id,
-        x: x - boxW / 2,
-        y: Math.min(yq1, yq3),
-        w: boxW,
-        h: Math.abs(yq1 - yq3),
-        fill: lighten(g.color, theme.barLighten),
-        line: edgeOf(g),
+        role: 'frame',
+        x: left,
+        y: top,
+        w: plotW,
+        h: plotH,
+        fill: 'none',
+        line: axisLine,
       });
-      const cap = (boxW / 2) * theme.capWidth;
-      for (const [from, to] of [
-        [s.q3, w.high],
-        [s.q1, w.low],
-      ] as const) {
-        if (from === to) continue;
-        vline('whisker', g.series ?? g.id, x, yOf(from), yOf(to), errLine);
-        hline('whisker', g.series ?? g.id, x - cap, x + cap, yOf(to), errLine);
-      }
-      hline('median', g.series ?? g.id, x - boxW / 2, x + boxW / 2, yOf(s.median), {
-        stroke: ink,
-        width: theme.lines.error * 1.6,
-      });
-      if (plot.points === 'all') drawPoints(g, x, g.values, boxW / 2 - theme.pointSize / 2);
-      else if (plot.points === 'outliers')
-        drawPoints(g, x, w.beyond, boxW / 2 - theme.pointSize / 2);
-      return;
-    }
-    if (plot.kind === 'violin') {
-      if (!s) return;
-      const kde = s.kde;
-      if (!kde || kde.y.length < 2 || maxDensity <= 0) {
-        if (s.n !== null && s.n > 0) (s.q1 == null ? noDistribution : noViolin).push(g.title);
-        return;
-      }
-      const half = slot * 0.4;
-      const wAt = (k: number) => ((kde.density[k] ?? 0) / maxDensity) * half;
-      const pts = kde.y.map((y, k) => [x + wAt(k), yOf(y)] as const);
-      const back = kde.y.map((y, k) => [x - wAt(k), yOf(y)] as const).reverse();
-      const f = fmt;
-      const d = [...pts, ...back]
-        .map(([px, py], k) => `${k === 0 ? 'M' : 'L'}${f(px)} ${f(py)}`)
-        .join('');
+    } else {
       marks.push({
-        kind: 'path',
-        role: 'violin',
-        ref: g.series ?? g.id,
-        d: `${d}Z`,
-        fill: lighten(g.color, theme.barLighten),
-        line: edgeOf(g),
+        kind: 'line',
+        role: 'axis-y',
+        x1: left,
+        y1: top,
+        x2: left,
+        y2: baseY,
+        line: axisLine,
       });
-      // The violin's half-width at a value, for lines across it.
-      const widthAt = (v: number) => {
-        const ys = kde.y;
-        for (let k = 1; k < ys.length; k += 1) {
-          const a = ys[k - 1] ?? 0;
-          const b = ys[k] ?? 0;
-          if (v >= a && v <= b) {
-            const t = b === a ? 0 : (v - a) / (b - a);
-            return wAt(k - 1) + (wAt(k) - wAt(k - 1)) * t;
-          }
-        }
-        return 0;
-      };
-      if (plot.inner === 'quartiles' && s.q1 != null && s.q3 != null && s.median !== null) {
-        for (const q of [s.q1, s.q3]) {
-          const hw = widthAt(q);
-          hline('median', g.series ?? g.id, x - hw, x + hw, yOf(q), {
-            stroke: ink,
-            width: theme.lines.error,
-            dash: '2 1.5',
+      marks.push({
+        kind: 'line',
+        role: 'axis-x',
+        x1: left,
+        y1: baseY,
+        x2: left + plotW,
+        y2: baseY,
+        line: axisLine,
+      });
+    }
+    const tickLine = { stroke: ink, width: theme.lines.tick };
+    const dir = theme.ticks === 'out' ? -1 : 1;
+    for (const t of axis.ticks) {
+      const y = yOf(t.v);
+      marks.push({
+        kind: 'line',
+        role: 'tick-y',
+        x1: left,
+        y1: y,
+        x2: left + dir * theme.lines.tickLength,
+        y2: y,
+        line: tickLine,
+      });
+      marks.push({
+        kind: 'text',
+        role: 'tick-label',
+        x: left - tickOut - 3,
+        y: y + ascent(theme.font.tick) / 2 - 0.3,
+        text: t.text,
+        size: theme.font.tick,
+        weight: 400,
+        anchor: 'end',
+        fill: ink,
+      });
+    }
+    for (const v of axis.minor) {
+      const y = yOf(v);
+      marks.push({
+        kind: 'line',
+        role: 'tick-y-minor',
+        x1: left,
+        y1: y,
+        x2: left + dir * theme.lines.tickLength * 0.6,
+        y2: y,
+        line: tickLine,
+      });
+    }
+    if (input.yTitle) {
+      marks.push({
+        kind: 'text',
+        role: 'axis-title',
+        x: PAD + ascent(theme.font.axisTitle),
+        y: top + plotH / 2,
+        text: input.yTitle,
+        size: theme.font.axisTitle,
+        weight: 400,
+        anchor: 'middle',
+        fill: ink,
+        rotate: -90,
+      });
+    }
+    const tick = (ref: string, x: number) => {
+      marks.push({
+        kind: 'line',
+        role: 'tick-x',
+        ref,
+        x1: x,
+        y1: baseY,
+        x2: x,
+        y2: baseY - dir * theme.lines.tickLength,
+        line: tickLine,
+      });
+    };
+    const y0 = baseY + tickOut + 3;
+    if (barLabels)
+      groups.forEach((g, i) => {
+        const x = xOf(i);
+        tick(g.id, x);
+        if (angle !== undefined) {
+          marks.push({
+            kind: 'text',
+            role: 'group-label',
+            ref: g.series ?? g.id,
+            // Turned about the label's end, which sits under the tick.
+            x: angle === 90 ? x + tickA / 2 - 0.3 : x + tickA * 0.35,
+            y: y0 + (angle === 90 ? 0 : tickA * 0.35),
+            text: g.title,
+            size: theme.font.tick,
+            weight: 400,
+            anchor: 'end',
+            fill: ink,
+            rotate: -angle,
           });
+          return;
         }
-        const hw = widthAt(s.median);
-        hline('median', g.series ?? g.id, x - hw, x + hw, yOf(s.median), {
-          stroke: ink,
-          width: theme.lines.error * 1.4,
+        (labels[i] ?? []).forEach((line, k) => {
+          marks.push({
+            kind: 'text',
+            role: 'group-label',
+            ref: g.series ?? g.id,
+            x,
+            y: y0 + tickA + k * lineHeight(theme.font.tick),
+            text: line,
+            size: theme.font.tick,
+            weight: 400,
+            anchor: 'middle',
+            fill: ink,
+          });
         });
-      } else if (plot.inner === 'box' && s.q1 != null && s.q3 != null && s.median !== null) {
-        const bw = Math.max(2, slot * 0.05);
-        if (s.min !== null && s.max !== null)
-          vline('whisker', g.series ?? g.id, x, yOf(s.min), yOf(s.max), {
-            stroke: ink,
-            width: theme.lines.error,
+      });
+    if (clusters) {
+      const cy = y0 + (barLabels ? barBlock + 3 : 0);
+      clusters.forEach((_, ci) => {
+        const cx = left + m.slot * (ci + 0.5);
+        if (!barLabels) tick(`cluster-${String(ci)}`, cx);
+        (clusterLabels[ci] ?? []).forEach((line, k) => {
+          marks.push({
+            kind: 'text',
+            role: 'cluster-label',
+            ref: `cluster-${String(ci)}`,
+            x: cx,
+            y: cy + tickA + k * lineHeight(theme.font.tick),
+            text: line,
+            size: theme.font.tick,
+            weight: barLabels ? 700 : 400,
+            anchor: 'middle',
+            fill: ink,
           });
+        });
+      });
+    }
+
+    // --- legend ----------------------------------------------------------------
+    const legendEntry = (e: (typeof entries)[number], x: number, y: number) => {
+      marks.push({
+        kind: 'rect',
+        role: 'legend-swatch',
+        ref: e.id,
+        x,
+        y: y - swatch * 0.85,
+        w: swatch,
+        h: swatch,
+        fill: lighten(e.color, theme.barLighten),
+        line: { stroke: theme.barEdge ?? e.color, width: theme.lines.barEdge },
+      });
+      marks.push({
+        kind: 'text',
+        role: 'legend-label',
+        ref: e.id,
+        x: x + swatch + 3,
+        y,
+        text: e.title,
+        size: legendSize,
+        weight: 400,
+        anchor: 'start',
+        fill: ink,
+      });
+    };
+    if (legend?.at === 'right') {
+      entries.forEach((e, k) => {
+        legendEntry(e, left + plotW + 8, top + ascent(legendSize) + k * legendLine);
+      });
+    } else if (legend) {
+      legendRows.forEach((row, r) => {
+        const width = row.reduce((a, e) => a + entryW(e.title), 0) - 8;
+        let x = left + plotW / 2 - width / 2;
+        for (const e of row) {
+          legendEntry(e, Math.max(PAD, x), PAD + titleH + ascent(legendSize) + r * legendLine);
+          x += entryW(e.title);
+        }
+      });
+    }
+
+    // --- data ------------------------------------------------------------------
+    // Bars of a cluster nearly touch; a group's own bar keeps the theme's width.
+    const barWOf = (i: number) =>
+      slotOf(i) * (clusters ? Math.min(0.95, theme.barWidth + 0.3) : theme.barWidth);
+    const errLine = { stroke: ink, width: theme.lines.error };
+    const swarmState = { squeezed: false };
+    const noDistribution: string[] = [];
+    const noViolin: string[] = [];
+    // One density scale for every violin, so their widths compare.
+    const maxDensity = Math.max(0, ...groups.flatMap((g) => g.summary?.kde?.density ?? []));
+    const edgeOf = (g: GroupInput) => ({
+      stroke: theme.barEdge ?? g.color,
+      width: theme.lines.barEdge,
+    });
+    /** A beeswarm of `values` within `halfWidth` of x. */
+    const drawPoints = (g: GroupInput, x: number, list: readonly number[], halfWidth: number) => {
+      const values = log ? list.filter((v) => v > 0) : list;
+      if (values.length === 0) return;
+      const d = theme.pointSize + 0.4;
+      const ys = values.map(yOf);
+      const swarm = beeswarm(ys, d, Math.max(0, halfWidth));
+      swarmState.squeezed ||= swarm.squeezed;
+      const fill = theme.pointColor ?? g.color;
+      const line = { stroke: darken(fill, theme.pointDarken), width: theme.lines.pointEdge };
+      values.forEach((_, k) => {
+        marks.push(
+          pointMark(
+            g.symbol ?? 'circle',
+            x + (swarm.offsets[k] ?? 0),
+            ys[k] ?? 0,
+            theme.pointSize,
+            {
+              role: 'point',
+              ref: g.series ?? g.id,
+              fill,
+              opacity: theme.pointOpacity,
+              line,
+            },
+          ),
+        );
+      });
+    };
+    const hline = (role: string, ref: string, x1: number, x2: number, y: number, line: Stroke) => {
+      marks.push({ kind: 'line', role, ref, x1, y1: y, x2, y2: y, line });
+    };
+    const vline = (role: string, ref: string, x: number, y1: number, y2: number, line: Stroke) => {
+      marks.push({ kind: 'line', role, ref, x1: x, y1, x2: x, y2, line });
+    };
+
+    groups.forEach((g, i) => {
+      const x = xOf(i);
+      const s = g.summary;
+      const slot = slotOf(i);
+      const barW = barWOf(i);
+      if (plot.kind === 'box') {
+        if (!s) return;
+        const w = s.whiskers;
+        if (!w || s.q1 == null || s.q3 == null || s.median === null) {
+          if (s.n !== null && s.n > 0) noDistribution.push(g.title);
+          return;
+        }
+        const boxW = slot * theme.barWidth * 0.8;
+        const yq1 = yOf(s.q1);
+        const yq3 = yOf(s.q3);
         marks.push({
           kind: 'rect',
           role: 'box',
           ref: g.series ?? g.id,
-          x: x - bw / 2,
-          y: Math.min(yOf(s.q1), yOf(s.q3)),
-          w: bw,
-          h: Math.abs(yOf(s.q1) - yOf(s.q3)),
-          fill: ink,
+          x: x - boxW / 2,
+          y: Math.min(yq1, yq3),
+          w: boxW,
+          h: Math.abs(yq1 - yq3),
+          fill: lighten(g.color, theme.barLighten),
+          line: edgeOf(g),
         });
-        marks.push({
-          kind: 'circle',
-          role: 'median',
-          ref: g.series ?? g.id,
-          cx: x,
-          cy: yOf(s.median),
-          r: Math.min(bw / 2, 1.4),
-          fill: '#ffffff',
-          opacity: 1,
-        });
-      } else if (plot.inner === 'points') {
-        drawPoints(g, x, g.values, half * 0.6);
-      }
-      return;
-    }
-    const c = s ? centre(plot, s) : null;
-    if (plot.kind === 'bars' && s && c !== null && !(log && !(c > 0))) {
-      const yc = yOf(c);
-      marks.push({
-        kind: 'rect',
-        role: 'bar',
-        ref: g.series ?? g.id,
-        x: x - barW / 2,
-        y: Math.min(yc, zeroY),
-        w: barW,
-        h: Math.abs(zeroY - yc),
-        fill: lighten(g.color, theme.barLighten),
-        line: edgeOf(g),
-      });
-    }
-    // Points: a beeswarm within the bar, or within most of the slot.
-    if (plot.kind === 'dots' || plot.points) {
-      const d = theme.pointSize + 0.4;
-      drawPoints(g, x, g.values, plot.kind === 'bars' ? barW / 2 - d / 2 : slot * 0.38);
-    }
-    if (s && c !== null && !(log && !(c > 0))) {
-      const e = errorExtent(plot.error, s, c);
-      const half = slot * 0.24;
-      const cap = (plot.kind === 'bars' ? barW / 2 : half) * theme.capWidth;
-      if (e) {
-        // Modern bars show the error above the bar only; everything else both ways.
-        const onlyUp = plot.kind === 'bars' && theme.spines !== 'box';
-        const from = onlyUp ? (c >= 0 ? c : e[0]) : e[0];
-        const to = onlyUp ? (c >= 0 ? e[1] : c) : e[1];
-        // On a log axis an end at or below zero is cut at the axis.
-        const yEnd = (v: number) => (log && !(v > 0) ? baseY : yOf(v));
-        vline('error', g.series ?? g.id, x, yEnd(from), yEnd(to), errLine);
-        for (const v of onlyUp ? [c >= 0 ? e[1] : e[0]] : [e[0], e[1]]) {
-          if (log && !(v > 0)) continue;
-          hline('error-cap', g.series ?? g.id, x - cap, x + cap, yOf(v), errLine);
+        const cap = (boxW / 2) * theme.capWidth;
+        for (const [from, to] of [
+          [s.q3, w.high],
+          [s.q1, w.low],
+        ] as const) {
+          if (from === to) continue;
+          vline('whisker', g.series ?? g.id, x, yOf(from), yOf(to), errLine);
+          hline('whisker', g.series ?? g.id, x - cap, x + cap, yOf(to), errLine);
         }
-      }
-      if (plot.kind === 'dots') {
-        hline('centre', g.series ?? g.id, x - half, x + half, yOf(c), {
+        hline('median', g.series ?? g.id, x - boxW / 2, x + boxW / 2, yOf(s.median), {
           stroke: ink,
           width: theme.lines.error * 1.6,
         });
+        if (plot.points === 'all') drawPoints(g, x, g.values, boxW / 2 - theme.pointSize / 2);
+        else if (plot.points === 'outliers')
+          drawPoints(g, x, w.beyond, boxW / 2 - theme.pointSize / 2);
+        return;
       }
+      if (plot.kind === 'violin') {
+        if (!s) return;
+        const kde = s.kde;
+        if (!kde || kde.y.length < 2 || maxDensity <= 0) {
+          if (s.n !== null && s.n > 0) (s.q1 == null ? noDistribution : noViolin).push(g.title);
+          return;
+        }
+        const half = slot * 0.4;
+        const wAt = (k: number) => ((kde.density[k] ?? 0) / maxDensity) * half;
+        const pts = kde.y.map((y, k) => [x + wAt(k), yOf(y)] as const);
+        const back = kde.y.map((y, k) => [x - wAt(k), yOf(y)] as const).reverse();
+        const f = fmt;
+        const d = [...pts, ...back]
+          .map(([px, py], k) => `${k === 0 ? 'M' : 'L'}${f(px)} ${f(py)}`)
+          .join('');
+        marks.push({
+          kind: 'path',
+          role: 'violin',
+          ref: g.series ?? g.id,
+          d: `${d}Z`,
+          fill: lighten(g.color, theme.barLighten),
+          line: edgeOf(g),
+        });
+        // The violin's half-width at a value, for lines across it.
+        const widthAt = (v: number) => {
+          const ys = kde.y;
+          for (let k = 1; k < ys.length; k += 1) {
+            const a = ys[k - 1] ?? 0;
+            const b = ys[k] ?? 0;
+            if (v >= a && v <= b) {
+              const t = b === a ? 0 : (v - a) / (b - a);
+              return wAt(k - 1) + (wAt(k) - wAt(k - 1)) * t;
+            }
+          }
+          return 0;
+        };
+        if (plot.inner === 'quartiles' && s.q1 != null && s.q3 != null && s.median !== null) {
+          for (const q of [s.q1, s.q3]) {
+            const hw = widthAt(q);
+            hline('median', g.series ?? g.id, x - hw, x + hw, yOf(q), {
+              stroke: ink,
+              width: theme.lines.error,
+              dash: '2 1.5',
+            });
+          }
+          const hw = widthAt(s.median);
+          hline('median', g.series ?? g.id, x - hw, x + hw, yOf(s.median), {
+            stroke: ink,
+            width: theme.lines.error * 1.4,
+          });
+        } else if (plot.inner === 'box' && s.q1 != null && s.q3 != null && s.median !== null) {
+          const bw = Math.max(2, slot * 0.05);
+          if (s.min !== null && s.max !== null)
+            vline('whisker', g.series ?? g.id, x, yOf(s.min), yOf(s.max), {
+              stroke: ink,
+              width: theme.lines.error,
+            });
+          marks.push({
+            kind: 'rect',
+            role: 'box',
+            ref: g.series ?? g.id,
+            x: x - bw / 2,
+            y: Math.min(yOf(s.q1), yOf(s.q3)),
+            w: bw,
+            h: Math.abs(yOf(s.q1) - yOf(s.q3)),
+            fill: ink,
+          });
+          marks.push({
+            kind: 'circle',
+            role: 'median',
+            ref: g.series ?? g.id,
+            cx: x,
+            cy: yOf(s.median),
+            r: Math.min(bw / 2, 1.4),
+            fill: '#ffffff',
+            opacity: 1,
+          });
+        } else if (plot.inner === 'points') {
+          drawPoints(g, x, g.values, half * 0.6);
+        }
+        return;
+      }
+      const c = s ? centre(plot, s) : null;
+      if (plot.kind === 'bars' && s && c !== null && !(log && !(c > 0))) {
+        const yc = yOf(c);
+        marks.push({
+          kind: 'rect',
+          role: 'bar',
+          ref: g.series ?? g.id,
+          x: x - barW / 2,
+          y: Math.min(yc, zeroY),
+          w: barW,
+          h: Math.abs(zeroY - yc),
+          fill: lighten(g.color, theme.barLighten),
+          line: edgeOf(g),
+        });
+      }
+      // Points: a beeswarm within the bar, or within most of the slot.
+      if (plot.kind === 'dots' || plot.points) {
+        const d = theme.pointSize + 0.4;
+        drawPoints(g, x, g.values, plot.kind === 'bars' ? barW / 2 - d / 2 : slot * 0.38);
+      }
+      if (s && c !== null && !(log && !(c > 0))) {
+        const e = errorExtent(plot.error, s, c);
+        const half = slot * 0.24;
+        const cap = (plot.kind === 'bars' ? barW / 2 : half) * theme.capWidth;
+        if (e) {
+          // Modern bars show the error above the bar only; everything else both ways.
+          const onlyUp = plot.kind === 'bars' && theme.spines !== 'box';
+          const from = onlyUp ? (c >= 0 ? c : e[0]) : e[0];
+          const to = onlyUp ? (c >= 0 ? e[1] : c) : e[1];
+          // On a log axis an end at or below zero is cut at the axis.
+          const yEnd = (v: number) => (log && !(v > 0) ? baseY : yOf(v));
+          vline('error', g.series ?? g.id, x, yEnd(from), yEnd(to), errLine);
+          for (const v of onlyUp ? [c >= 0 ? e[1] : e[0]] : [e[0], e[1]]) {
+            if (log && !(v > 0)) continue;
+            hline('error-cap', g.series ?? g.id, x - cap, x + cap, yOf(v), errLine);
+          }
+        }
+        if (plot.kind === 'dots') {
+          hline('centre', g.series ?? g.id, x - half, x + half, yOf(c), {
+            stroke: ink,
+            width: theme.lines.error * 1.6,
+          });
+        }
+      }
+    });
+    const list = (names: readonly string[]) =>
+      names.length === 1
+        ? (names[0] ?? '')
+        : `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`;
+    if (noDistribution.length > 0)
+      notes.push(
+        `${list(noDistribution)} ${noDistribution.length === 1 ? 'has' : 'have'} summary data only (mean, SD, n): box and violin plots need the individual values.`,
+      );
+    if (noViolin.length > 0)
+      notes.push(
+        `${list(noViolin)} ${noViolin.length === 1 ? 'has' : 'have'} fewer than 3 different values, too few for a violin.`,
+      );
+    if (plot.kind === 'violin') {
+      const bws = groups.flatMap((g) =>
+        g.summary?.kde
+          ? [`${g.title} ${sigFigs(g.summary.kde.bw)}${log ? ' (log₁₀ units)' : ''}`]
+          : [],
+      );
+      if (bws.length > 0) notes.push(`Bandwidths: ${bws.join(', ')}.`);
     }
-  });
-  const list = (names: readonly string[]) =>
-    names.length === 1
-      ? (names[0] ?? '')
-      : `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`;
-  if (noDistribution.length > 0)
-    notes.push(
-      `${list(noDistribution)} ${noDistribution.length === 1 ? 'has' : 'have'} summary data only (mean, SD, n): box and violin plots need the individual values.`,
-    );
-  if (noViolin.length > 0)
-    notes.push(
-      `${list(noViolin)} ${noViolin.length === 1 ? 'has' : 'have'} fewer than 3 different values, too few for a violin.`,
-    );
-  if (plot.kind === 'violin') {
-    const bws = groups.flatMap((g) =>
-      g.summary?.kde
-        ? [`${g.title} ${sigFigs(g.summary.kde.bw)}${log ? ' (log₁₀ units)' : ''}`]
-        : [],
-    );
-    if (bws.length > 0) notes.push(`Bandwidths: ${bws.join(', ')}.`);
+    if (swarmState.squeezed)
+      notes.push(
+        'Some points were squeezed together to fit their group’s width; make the graph wider to separate them.',
+      );
+
+    // --- brackets --------------------------------------------------------------
+    const bracketLine = { stroke: ink, width: theme.lines.bracket };
+    for (const b of placed) {
+      const tip = 3;
+      marks.push({
+        kind: 'path',
+        role: 'bracket',
+        ref: b.id,
+        d: `M${fmt(b.x1)} ${fmt(b.y + tip)}V${fmt(b.y)}H${fmt(b.x2)}V${fmt(b.y + tip)}`,
+        line: bracketLine,
+        fill: 'none',
+      });
+      marks.push({
+        kind: 'text',
+        role: 'bracket-label',
+        ref: b.id,
+        x: (b.x1 + b.x2) / 2,
+        y: b.y - 1.5,
+        text: b.label,
+        size: theme.font.bracket,
+        weight: 400,
+        anchor: 'middle',
+        fill: ink,
+      });
+    }
+
+    return { marks, notes, overlap: m.overlap };
+  };
+
+  // Group labels: level and wrapped by default; escalated to a turned
+  // angle only if that would still overlap (note 12). An angle the user
+  // set explicitly is a hard override, tried once, never wrapped.
+  const candidates: (45 | 90 | undefined)[] =
+    input.xAngle !== undefined ? [input.xAngle] : [undefined, 45, 90];
+  let result = attempt(candidates[0]);
+  let resolvedXAngle: 45 | 90 | undefined;
+  for (let k = 1; k < candidates.length && result.overlap; k += 1) {
+    const c = candidates[k];
+    result = attempt(c);
+    resolvedXAngle = c;
   }
-  if (swarmState.squeezed)
+  if (result.overlap)
     notes.push(
-      'Some points were squeezed together to fit their group’s width; make the graph wider to separate them.',
+      'Some group labels are long enough to touch even turned; make the graph wider or shorten the names.',
     );
 
-  // --- brackets --------------------------------------------------------------
-  const bracketLine = { stroke: ink, width: theme.lines.bracket };
-  for (const b of placed) {
-    const tip = 3;
-    marks.push({
-      kind: 'path',
-      role: 'bracket',
-      ref: b.id,
-      d: `M${fmt(b.x1)} ${fmt(b.y + tip)}V${fmt(b.y)}H${fmt(b.x2)}V${fmt(b.y + tip)}`,
-      line: bracketLine,
-      fill: 'none',
-    });
-    marks.push({
-      kind: 'text',
-      role: 'bracket-label',
-      ref: b.id,
-      x: (b.x1 + b.x2) / 2,
-      y: b.y - 1.5,
-      text: b.label,
-      size: theme.font.bracket,
-      weight: 400,
-      anchor: 'middle',
-      fill: ink,
-    });
-  }
-
-  return { width: W, height: H, font: theme.font.family, marks, notes };
+  return {
+    width: W,
+    height: H,
+    font: theme.font.family,
+    marks: result.marks,
+    notes: [...notes, ...result.notes],
+    ...(resolvedXAngle !== undefined ? { resolvedXAngle } : {}),
+  };
 }
 
 interface PlacedBracket {
