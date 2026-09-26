@@ -86,23 +86,38 @@ model <- lmer(Inductive ~ Condition + (1|Room:Condition), data, REML = TRUE)
 ```
 
 The equivalent, and what BarelySig implements, is **`nlme::lme`** with
-nesting written the classical way:
+the nesting written as a single interaction factor:
 
 ```r
-lme(fixed = value ~ group, random = ~1 | group/replicate, method = "REML")
+df$unit <- interaction(df$group, df$replicate, drop = TRUE)
+lme(fixed = value ~ group, random = ~1 | unit, data = df, method = "REML")
 ```
+
+**Not** `random = ~1 | group/replicate` (nlme's own nesting operator):
+that syntax gives *two* random-intercept variance components (one for
+`group`, one for `replicate` within it), which is right when neither
+level is already a fixed effect, but wrong here — `group` is a fixed
+effect already, so a second random intercept over the same two-level
+factor wastes a variance component and (confirmed empirically against
+synthetic unbalanced data before writing any fixture) produces a
+degenerate df = 0 and a NaN p-value. Collapsing group and replicate into
+one interaction factor and giving *that* a single random intercept is
+what actually reproduces `lme4::lmer(value ~ group + (1|group:replicate))`
+(FAQ 2105's own formula) exactly — same estimate, SE, t and df, checked
+directly, not assumed.
 
 `nlme` is a base "recommended" package (ships with every R install, so it
 is very likely already inside webR's base distribution — confirmed
 separately as a precompiled wasm binary at
-`https://repo.r-wasm.org/bin/emscripten/contrib/4.6/PACKAGES` regardless).
-Chosen over `lme4`/`lmerTest` because it needs no extra p-value package
+`https://repo.r-wasm.org/bin/emscripten/contrib/4.6/PACKAGES` regardless,
+and confirmed to load and fit inside the app's own WebR). Chosen over
+`lme4`/`lmerTest` because it needs no extra p-value package
 (`summary(fit)$tTable` already has an exact t, df and two-sided p for the
 t-test case; `anova(fit)` gives the omnibus F for the ANOVA case) and has
-a smaller dependency footprint to pin and fetch. `group/replicate` nests
-replicate inside group via the interaction, exactly like FAQ 2105's
-`Room:Condition` — replicates don't need unique labels across groups
-(numbering 1..n *within* each group is fine).
+a smaller dependency footprint to pin and fetch (one extra dependency,
+`lattice`). Replicates don't need unique labels across groups — numbering
+1..n *within* each group is fine, since `interaction()` makes group A's
+replicate 1 and group B's replicate 1 distinct factor levels.
 
 **Why not just average each replicate down to one number and run an
 ordinary t-test/ANOVA (n = number of replicates)?** Two citable sources
