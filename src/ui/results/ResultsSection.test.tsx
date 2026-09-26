@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
+import type { NormalityResult } from '@/analyses/normality/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { TwoWayResult } from '@/analyses/twoway/types';
@@ -48,6 +49,23 @@ function tResult(job: Job): TTestResult {
 
 let tableId: Table['id'];
 
+const NORMALITY: NormalityResult = {
+  groups: [
+    {
+      id: 'a',
+      title: 'WT',
+      n: 3,
+      dropped: null,
+      shapiroWilk: { ran: false, why: 'few', limit: 3 },
+      dagostino: { ran: false, why: 'few', limit: 8 },
+    },
+  ],
+  warnings: [],
+};
+
+/** One section of the experiment's page, by its title. */
+const region = (name: string) => within(screen.getByRole('region', { name }));
+
 beforeEach(() => {
   runs = [];
   answer = (job) => Promise.resolve(tResult(job) as unknown as Json);
@@ -72,7 +90,11 @@ beforeEach(() => {
       debounceMs: 0,
       runner: (job) => {
         runs.push(job);
-        return answer(job);
+        // Every analysis of the experiment is on its page: the normality tests added
+        // alongside a test get an answer of their own shape.
+        return job.analysis.kind === 'normality'
+          ? Promise.resolve(NORMALITY as unknown as Json)
+          : answer(job);
       },
     }),
   );
@@ -96,13 +118,13 @@ describe('results sheets', () => {
     render(<App />);
     analyze(/t test/);
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Unpaired t test of Viability' }),
+      screen.getByRole('heading', { level: 2, name: 'Unpaired t test of Viability' }),
     ).toBeInTheDocument();
     await screen.findByText(/^The mean of KO is higher than the mean of WT \(P = 0\.0021\)/);
     expect(
       screen.getByText('Unpaired t test, assuming both groups have the same SD, two-tailed.'),
     ).toBeInTheDocument();
-    const table = screen.getByRole('table');
+    const table = region('Unpaired t test of Viability').getByRole('table');
     // The first matching row: the F test has its own "P value" further down.
     const row = (label: string) =>
       within(table).getAllByRole('rowheader', { name: label })[0]?.closest('tr');
@@ -110,16 +132,18 @@ describe('results sheets', () => {
     expect(row('P value summary')).toHaveTextContent('**');
     expect(row('t, df')).toHaveTextContent('t = 3.674, df = 4');
     expect(row('Sample size, KO')).toHaveTextContent('3 (1 empty left out)');
-    expect(screen.getByText(/Asterisks: ns P ≥ 0.05/)).toBeInTheDocument();
+    expect(
+      region('Unpaired t test of Viability').getByText(/Asterisks: ns P ≥ 0.05/),
+    ).toBeInTheDocument();
     // The job read exactly the first two groups.
     expect(runs[0]?.analysis.input).toMatchObject({ kind: 'table', table: tableId });
     expect(
       runs[0]?.analysis.input.kind === 'table' && runs[0].analysis.input.dataSets,
     ).toHaveLength(2);
-    const nav = within(screen.getByRole('navigation', { name: 'Project' }));
-    expect(nav.getByRole('button', { name: 'Unpaired t test of Viability' })).toHaveAttribute(
+    const nav = within(screen.getByRole('navigation', { name: 'On this page' }));
+    expect(nav.getByRole('button', { name: /Unpaired t test of Viability/ })).toHaveAttribute(
       'aria-current',
-      'page',
+      'true',
     );
   });
 
@@ -144,7 +168,8 @@ describe('results sheets', () => {
         cells: [{ dataSet: wt?.id ?? tableId, subcolumn: 0, row: r0?.id ?? tableId, value: 9 }],
       });
     });
-    await screen.findByText(/Calculating…|Updating…/);
+    const tTest = region('Unpaired t test of Viability');
+    await tTest.findByText(/Calculating…|Updating…/);
     expect(screen.queryByText(/P = 0\.0021/)).not.toBeInTheDocument();
     act(() => {
       release?.();
@@ -174,7 +199,9 @@ describe('results sheets', () => {
     );
     answer = () => new Promise(() => undefined);
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Stop' }));
+    fireEvent.click(
+      await region('Unpaired t test of Viability').findByRole('button', { name: 'Stop' }),
+    );
     await screen.findByText(/Stopped. Run it again/);
   });
 
@@ -273,7 +300,7 @@ describe('results sheets', () => {
     render(<App />);
     analyze(/Mann-Whitney/);
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Mann-Whitney test of Viability' }),
+      screen.getByRole('heading', { level: 2, name: 'Mann-Whitney test of Viability' }),
     ).toBeInTheDocument();
     await screen.findByText(
       /^There is no evidence that values in WT and KO differ \(P = 0\.1000\)/,
@@ -327,7 +354,7 @@ describe('results sheets', () => {
     fireEvent.click(within(dialog).getByRole('radio', { name: /Pratt/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Wilcoxon test of Viability' }),
+      screen.getByRole('heading', { level: 2, name: 'Wilcoxon test of Viability' }),
     ).toBeInTheDocument();
     await screen.findByText(
       /^KO tends to be higher than WT within the same subjects \(P = 0\.0313\)/,
@@ -476,7 +503,7 @@ describe('results sheets', () => {
     render(<App />);
     analyze(/Kruskal-Wallis/, ['WT', 'KO']);
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Kruskal-Wallis test of Viability' }),
+      screen.getByRole('heading', { level: 2, name: 'Kruskal-Wallis test of Viability' }),
     ).toBeInTheDocument();
     await screen.findByText(/^The 2 groups don’t all have the same distribution \(P = 0\.0495\)/);
     const mc = screen.getByRole('table', { name: 'Multiple comparisons' });
@@ -494,8 +521,11 @@ describe('results sheets', () => {
     expect(
       project(store.getState()).analyses.get(runs[0]?.analysis.id ?? ('' as never))?.kind,
     ).toBe('t-test');
-    const nav = within(screen.getByRole('navigation', { name: 'Project' }));
-    expect(nav.getByRole('button', { name: 'Normality tests of Viability' })).toBeInTheDocument();
+    const nav = within(screen.getByRole('navigation', { name: 'On this page' }));
+    expect(nav.getByRole('button', { name: /Normality tests of Viability/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Normality tests of Viability' }),
+    ).toBeInTheDocument();
     act(() => {
       store.undo();
     });
@@ -537,25 +567,38 @@ describe('results sheets', () => {
     expect(within(dialog).getByRole('radio', { name: /^Paired/ })).toBeChecked();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Wilcoxon test of Viability' }),
+      screen.getByRole('heading', { level: 2, name: 'Wilcoxon test of Viability' }),
     ).toBeInTheDocument();
   });
 
-  it('keeps the analysis linked: its table shows it, and it opens its table', async () => {
+  it('shows the analysis on its experiment’s page, after the data, and renames it there', async () => {
     render(<App />);
     analyze(/t test/);
     await screen.findByText(/P = 0\.0021/);
-    fireEvent.click(screen.getByRole('button', { name: /Data: Viability/ }));
-    // The table's "Used by" chip, not the navigator entry.
-    const usedBy = (await screen.findByText(/Used by/)).closest('p');
+    expect(screen.getByRole('heading', { level: 1, name: 'Viability' })).toBeInTheDocument();
+    const nav = within(screen.getByRole('navigation', { name: 'On this page' }));
+    expect(nav.getAllByRole('button').map((b) => b.textContent)).toEqual([
+      '1Data',
+      '2Unpaired t test of Viability',
+      '3Normality tests of Viability',
+    ]);
+    expect(
+      within(screen.getByRole('navigation', { name: 'Experiments' })).getByText('2 analyses'),
+    ).toBeInTheDocument();
     fireEvent.click(
-      within(usedBy ?? document.body).getByRole('button', { name: 'Unpaired t test of Viability' }),
+      region('Unpaired t test of Viability').getByRole('button', {
+        name: 'More for Unpaired t test of Viability',
+      }),
     );
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-        'Unpaired t test of Viability',
-      );
-    });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    const input = screen.getByRole('textbox', { name: 'Name' });
+    fireEvent.change(input, { target: { value: 'KO vs WT' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('heading', { level: 2, name: 'KO vs WT' })).toBeInTheDocument();
+    fireEvent.click(region('KO vs WT').getByRole('button', { name: 'More for KO vs WT' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(screen.queryByRole('heading', { level: 2, name: 'KO vs WT' })).not.toBeInTheDocument();
+    expect(screen.getByText(/^Deleted “KO vs WT”\. Undo brings it back/)).toBeInTheDocument();
   });
 });
 

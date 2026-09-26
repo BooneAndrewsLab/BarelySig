@@ -1,55 +1,32 @@
-import { type ReactNode, useState } from 'react';
+import type { ReactNode } from 'react';
 
-import { Logo } from '../Logo';
 import { store } from '../state/store';
 
 interface Props {
-  readonly name: string;
+  readonly project: string;
+  /** The open experiment's title, if any. */
+  readonly experiment: string | null;
   readonly undoLabel: string | null;
   readonly redoLabel: string | null;
-  /** File actions (open, download), filled in by the app. */
+  /** More actions at the end (help), filled in by the app. */
   readonly children?: ReactNode;
 }
 
-export function TopBar({ name, undoLabel, redoLabel, children }: Props) {
-  const [renaming, setRenaming] = useState(false);
-  const commit = (value: string) => {
-    setRenaming(false);
-    const v = value.trim();
-    if (v && v !== name) store.edit({ op: 'renameProject', name: v });
-  };
+/** The bar over the page (item 08): where you are, undo and redo. */
+export function TopBar({ project, experiment, undoLabel, redoLabel, children }: Props) {
   return (
     <header className="bar">
-      <Logo height={22} />
-      {renaming ? (
-        <input
-          className="project-name editing"
-          aria-label="Project name"
-          defaultValue={name}
-          autoFocus
-          onFocus={(e) => {
-            e.currentTarget.select();
-          }}
-          onBlur={(e) => {
-            commit(e.currentTarget.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit(e.currentTarget.value);
-            if (e.key === 'Escape') setRenaming(false);
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className="project-name"
-          title="Rename project"
-          onClick={() => {
-            setRenaming(true);
-          }}
-        >
-          {name}
-        </button>
-      )}
+      <p className="trail">
+        <span className="trail-project">{project}</span>
+        {experiment !== null && (
+          <>
+            <span className="trail-sep" aria-hidden="true">
+              ›
+            </span>
+            <span className="trail-here">{experiment}</span>
+          </>
+        )}
+      </p>
       <div className="bar-actions">
         <button
           type="button"

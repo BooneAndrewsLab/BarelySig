@@ -2,8 +2,9 @@
 
 When you create a table you choose its kind. The kind fixes how the data
 are laid out, which analyses are offered and which graphs can be drawn.
-**New table** in the navigator, or a tile on the start screen, opens the
-choice.
+**New experiment** in the sidebar, or a tile on the start screen, opens
+the choice. Each table is an experiment of its own, with its analyses and
+graphs on its page.
 
 ## Column tables
 

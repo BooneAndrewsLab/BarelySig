@@ -40,8 +40,9 @@
 | `Escape`  | Back to the graph's settings                   |
 | `↑` / `↓` | Move the selected bracket 1 pt (`Shift`: 5 pt) |
 
-## In the navigator
+## In the sidebar and on the page
 
-| Keys                 | Does   |
-| -------------------- | ------ |
-| `F2` or double-click | Rename |
+| Keys                               | Does                         |
+| ---------------------------------- | ---------------------------- |
+| `F2` or double-click an experiment | Rename the experiment        |
+| Double-click a section's title     | Rename the analysis or graph |

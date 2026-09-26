@@ -6,13 +6,12 @@ import type { TableType } from '@/model/table';
 import { analytics } from './analytics';
 import { DataGrid } from './grid/DataGrid';
 import { Home } from './shell/Home';
-import { Navigator } from './shell/Navigator';
 import { ProjectMenu } from './shell/ProjectMenu';
 import { NewTableDialog } from './shell/NewTableDialog';
 import { StatusLine } from './shell/StatusLine';
-import { GraphSheet } from './graphs/GraphSheet';
-import { ResultsSheet } from './results/ResultsSheet';
-import { TableSheet } from './shell/TableSheet';
+import { ExperimentPage } from './notebook/ExperimentPage';
+import { experimentOf } from './notebook/experiments';
+import { Sidebar } from './notebook/Sidebar';
 import { TopBar } from './shell/TopBar';
 import { commandFor } from './shortcuts';
 import { projectFile } from '@/io/files';
@@ -77,19 +76,19 @@ export function App() {
     };
   }, []);
 
-  const table = state.sheet.kind === 'table' ? p.tables.get(state.sheet.id) : undefined;
-  const analysis = state.sheet.kind === 'analysis' ? p.analyses.get(state.sheet.id) : undefined;
-  const graph = state.sheet.kind === 'graph' ? p.graphs.get(state.sheet.id) : undefined;
+  const experiment = experimentOf(p, state.sheet);
+  const table = experiment === null ? undefined : p.tables.get(experiment);
 
   return (
     <div className="app">
-      <TopBar name={p.name} undoLabel={store.undoLabel()} redoLabel={store.redoLabel()}>
-        <span
-          className="save-state"
-          title="Your work is kept in this browser as you go. Download it to keep a file of your own or to share it."
-        >
-          {state.downloaded === p ? 'Downloaded' : 'Saved in this browser'}
-        </span>
+      <Sidebar
+        project={p}
+        sheet={state.sheet}
+        experiment={table ? table.id : null}
+        onNewExperiment={() => {
+          setNewTable('column');
+        }}
+      >
         <ProjectMenu
           canClose={
             p.tables.size > 0 ||
@@ -114,7 +113,12 @@ export function App() {
         >
           Download
         </button>
-        <HelpButton />
+        <span
+          className="save-state"
+          title="Your work is kept in this browser as you go. Download it to keep a file of your own or to share it."
+        >
+          {state.downloaded === p ? 'Downloaded' : 'Saved in this browser'}
+        </span>
         <input
           ref={fileInput}
           type="file"
@@ -127,34 +131,37 @@ export function App() {
             if (file) void getSession().openFile(file);
           }}
         />
+      </Sidebar>
+      <TopBar
+        project={p.name}
+        experiment={table ? table.title : null}
+        undoLabel={store.undoLabel()}
+        redoLabel={store.redoLabel()}
+      >
+        <HelpButton />
       </TopBar>
-      <Navigator
-        project={p}
-        sheet={state.sheet}
-        onNewTable={() => {
-          setNewTable('column');
-        }}
-      />
       <main className="main">
-        {graph ? (
-          <GraphSheet key={graph.id} project={p} graph={graph} />
-        ) : analysis ? (
-          <ResultsSheet key={analysis.id} project={p} analysis={analysis} />
-        ) : table ? (
-          <TableSheet project={p} table={table}>
-            <DataGrid
-              key={table.id}
-              table={table}
-              onEdit={(edit) => {
-                store.clearNotice();
-                return store.edit(edit);
-              }}
-              onNotice={(text, tone) => {
-                store.notify(text, tone);
-              }}
-              onSelection={setSummary}
-            />
-          </TableSheet>
+        {table ? (
+          <ExperimentPage
+            key={table.id}
+            project={p}
+            table={table}
+            sheet={state.sheet}
+            grid={
+              <DataGrid
+                key={table.id}
+                table={table}
+                onEdit={(edit) => {
+                  store.clearNotice();
+                  return store.edit(edit);
+                }}
+                onNotice={(text, tone) => {
+                  store.notify(text, tone);
+                }}
+                onSelection={setSummary}
+              />
+            }
+          />
         ) : (
           <Home
             current={p.id}

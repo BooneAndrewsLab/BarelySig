@@ -15,11 +15,12 @@ your data never leave your computer, and there is no account.
    LibreOffice, click the first cell of the table and press `Ctrl+V`. A
    first row of names becomes the group names. See
    [Entering and pasting data](02-data-entry.md).
-3. **Analyze.** Click **Analyze…** above the table and pick a test, or
+3. **Analyze.** Click **Analyze…** under the table and pick a test, or
    click **Help me choose** and answer a few questions about your
-   experiment. The results open in their own sheet, with a sentence saying
-   what they mean. See [Choosing a test](04-choosing-a-test.md).
-4. **Graph.** Back on the table, click **New graph**. The graph draws the
+   experiment. The results appear further down the same page, with a
+   sentence saying what they mean. See
+   [Choosing a test](04-choosing-a-test.md).
+4. **Graph.** Click **New graph**, next to **Analyze…**. The graph draws the
    mean of each group with its SD and every value as a point; the test you
    ran is offered as significance brackets under **Significance**. See
    [Graphs](12-graphs.md).
@@ -33,15 +34,24 @@ send it to someone. See [Saving, files and privacy](15-files.md).
 
 ## What is on the screen
 
-- **The bar** at the top: the project's name (click it to rename),
-  **Undo** and **Redo**, **Projects** (new, close, and the projects kept
-  in this browser), **Open…**, **Download** and **?** for this guide.
-- **The navigator** on the left lists the project's **Data tables**,
-  **Results** and **Graphs**. Click one to open it; its **⋯** menu renames,
-  duplicates or deletes it. Deleting a table says what goes with it (its
-  analyses and graphs) and can be undone.
-- **The sheet** in the middle is the table, the results or the graph you
-  opened.
+A project is a notebook of **experiments**. An experiment is one data
+table and everything made from it: the analyses run on it and its graphs.
+
+- **The sidebar** on the left: the project's name (click it to rename),
+  then its **Experiments**, each with a small picture of its first graph
+  and what it holds ("One-way ANOVA · 1 graph"). Click one to open it; its
+  **⋯** menu renames, duplicates or deletes it. Deleting says what goes
+  with it and can be undone. **New experiment** starts one. **On this
+  page** lists the open experiment's sections and jumps to them. At the
+  foot: **Projects** (new, close, and the projects kept in this browser),
+  **Open…** and **Download**.
+- **The page** in the middle is the open experiment, top to bottom: its
+  title and a description (click to write one: cell line, assay, date),
+  then numbered sections: **1 Data** (the table), then each analysis, then
+  each graph. **Analyze…** and **New graph** sit under the data. Each
+  section's **⋯** menu renames or deletes it, and **▾** folds it away.
+- **The bar** at the top says where you are and holds **Undo**, **Redo**
+  and **?** for this guide.
 - **The status line** at the bottom says what the selection holds, or what
   a paste just did.
 

@@ -17,10 +17,10 @@ your experiment, **Help me choose** asks about it and suggests one.
 4. Set the options below (each test’s page says what they mean) and click
    **Analyze**.
 
-The results open in their own sheet and are listed under **Results** in
-the navigator, named after the test and the table, for example
-“Unpaired t test of Viability”. **Change analysis…** on the results sheet
-opens the same dialog again to change the groups or the options. **How to
+The results appear as a new section of the experiment's page, named
+after the test and the table, for example “Unpaired t test of
+Viability”, and the page scrolls to them. **Change analysis…** in the
+section's header opens the same dialog again to change the groups or the options. **How to
 read these results** opens that test's page of this guide.
 
 Results are live: edit a value in the table and every analysis of it
@@ -103,7 +103,7 @@ more groups). Then it suggests the t test or ANOVA and says why.
   number of comparisons, so the 5% chance of a false positive applies to
   the whole set, not to each pair.
 
-## Reading a results sheet
+## Reading the results
 
 - **The first sentence** says in plain words what the result means, and
   never contradicts the asterisks.

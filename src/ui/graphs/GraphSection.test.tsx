@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
+import type { TTestResult } from '@/analyses/ttest/types';
 import { applyEdit } from '@/model/edits';
 import type { Json } from '@/model/json';
 import { GRAPH_DEFAULTS, createProject } from '@/model/project';
@@ -48,6 +49,31 @@ function summaryOf(job: Job): GraphSummaryResult {
   };
 }
 
+/** A t test's result: its section is on the same page as the graph (item 08). */
+function tTest(ids: readonly string[], p: number): TTestResult {
+  return {
+    test: 'unpaired',
+    tails: 'two',
+    from: 'values',
+    a: { id: ids[0] ?? 'a', title: 'WT', n: 2, mean: 2, sd: 1 },
+    b: { id: ids[1] ?? 'b', title: 'KO', n: 2, mean: 3, sd: 1 },
+    t: 5,
+    df: 2,
+    pTwo: p,
+    pOne: p / 2,
+    p,
+    difference: 1,
+    seDifference: 1,
+    ciLower: 0.5,
+    ciUpper: 1.5,
+    rSquared: 0.5,
+    fTest: { f: 1, dfn: 1, dfd: 1, p: 1 },
+    pairing: null,
+    dropped: { a: { empty: 0, excluded: 0 }, b: { empty: 0, excluded: 0 }, rows: null },
+    warnings: [],
+  };
+}
+
 beforeEach(() => {
   const t = createColumnTable({ title: 'Viability', groups: ['WT', 'KO'], rows: 2 });
   const [wt, ko] = t.dataSets;
@@ -74,23 +100,37 @@ beforeEach(() => {
 
 const svg = () => screen.getByRole('img', { name: /Viability/ }).querySelector('svg');
 
+/** The figure itself, not the sidebar's thumbnail of it. */
+const figure = () => within(screen.getByRole('img', { name: /Viability/ }));
+
+/** A new graph of the table, with its format panel open (item 08). */
+function newGraph() {
+  fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Format' }));
+}
+
 describe('graph sheet', () => {
   it('makes a graph of a table and draws its bars, points and error bars', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     expect(screen.getByRole('heading', { level: 1, name: 'Viability' })).toBeInTheDocument();
     await screen.findByRole('img', { name: /Bars: mean ± SD/ });
     expect(svg()?.querySelectorAll('[data-role="bar"]')).toHaveLength(2);
     expect(svg()?.querySelectorAll('[data-role="point"]')).toHaveLength(4);
     expect(svg()?.querySelectorAll('[data-role="error"]')).toHaveLength(2);
     expect(screen.getByText(/Bars: mean ± SD; points: individual values\./)).toBeInTheDocument();
-    const nav = within(screen.getByRole('navigation', { name: 'Project' }));
-    expect(nav.getAllByRole('button', { name: 'Viability' })).toHaveLength(2);
+    // A section of the table's page, after the data.
+    expect(screen.getByRole('heading', { level: 2, name: 'Viability' })).toBeInTheDocument();
+    const onPage = within(screen.getByRole('navigation', { name: 'On this page' }));
+    expect(onPage.getAllByRole('button').map((b) => b.textContent)).toEqual([
+      '1Data',
+      '2Viability',
+    ]);
   });
 
   it('switches to a dot plot, changes the error bars and theme, each one undo step', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     fireEvent.click(screen.getByRole('radio', { name: /Dots/ }));
     expect(svg()?.querySelectorAll('[data-role="bar"]')).toHaveLength(0);
@@ -111,7 +151,7 @@ describe('graph sheet', () => {
 
   it('draws box and violin plots, with their own settings and no error bars', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     fireEvent.click(screen.getByRole('radio', { name: 'Box and whiskers' }));
     await screen.findByRole('img', { name: /Boxes: median and quartiles; whiskers: min to max/ });
@@ -142,7 +182,7 @@ describe('graph sheet', () => {
 
   it('resizes the figure in millimetres', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Width in millimetres' }), {
       target: { value: '89' },
@@ -178,7 +218,7 @@ describe('grouped bar graphs', () => {
       );
     });
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars: mean ± SD/ });
     const gsvg = () => screen.getByRole('img', { name: /Growth/ }).querySelector('svg');
     expect(gsvg()?.querySelectorAll('[data-role="bar"]')).toHaveLength(4);
@@ -207,13 +247,13 @@ describe('significance brackets on the graph', () => {
         runner: (job) =>
           Promise.resolve(
             (job.analysis.kind === 't-test'
-              ? { p: 0.0004, a: { id: ids[0] }, b: { id: ids[1] } }
+              ? tTest(ids, 0.0004)
               : summaryOf(job)) as unknown as Json,
           ),
       }),
     );
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     expect(
       screen.getByText('Compare groups of this table (a t test, for example) to add brackets.'),
@@ -233,13 +273,14 @@ describe('significance brackets on the graph', () => {
     const box = await screen.findByRole('checkbox', { name: 'Unpaired t test of Viability' });
     expect(box).not.toBeChecked();
     fireEvent.click(box);
-    await screen.findByText('***', { selector: '[data-role="bracket-label"]' });
-    expect(screen.getByText(/Asterisks: ns P ≥ 0.05/)).toBeInTheDocument();
+    await figure().findByText('***', { selector: '[data-role="bracket-label"]' });
+    const graphSection = within(screen.getByRole('region', { name: 'Viability' }));
+    expect(graphSection.getByText(/Asterisks: ns P ≥ 0.05/)).toBeInTheDocument();
     fireEvent.change(screen.getByRole('combobox', { name: 'Bracket labels' }), {
       target: { value: 'exact' },
     });
     expect(svg()?.querySelector('[data-role="bracket-label"]')?.textContent).toBe('P = 0.0004');
-    expect(screen.queryByText(/Asterisks:/)).not.toBeInTheDocument();
+    expect(graphSection.queryByText(/Asterisks:/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Unpaired t test of Viability' }));
     expect(svg()?.querySelectorAll('[data-role="bracket"]')).toHaveLength(0);
   });
@@ -267,7 +308,7 @@ describe('formatting on the graph (note 07)', () => {
 
   it('selects an element from the list, edits it, and resets it', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Format' }), {
       target: { value: 'y-axis' },
@@ -295,7 +336,7 @@ describe('formatting on the graph (note 07)', () => {
 
   it('selects what is clicked, outlines it, and colours a data set in the table', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     const k = sized();
     const bar = svg()?.querySelectorAll('[data-role="bar"]')[1];
@@ -326,14 +367,12 @@ describe('formatting on the graph (note 07)', () => {
         debounceMs: 0,
         runner: (job) =>
           Promise.resolve(
-            (job.analysis.kind === 't-test'
-              ? { p: 0.03, a: { id: ids[0] }, b: { id: ids[1] } }
-              : summaryOf(job)) as unknown as Json,
+            (job.analysis.kind === 't-test' ? tTest(ids, 0.03) : summaryOf(job)) as unknown as Json,
           ),
       }),
     );
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     act(() => {
       store.edit({
@@ -348,7 +387,7 @@ describe('formatting on the graph (note 07)', () => {
       });
     });
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Unpaired t test of Viability' }));
-    const label = await screen.findByText('*', { selector: '[data-role="bracket-label"]' });
+    const label = await figure().findByText('*', { selector: '[data-role="bracket-label"]' });
     const k = sized();
     const lx = Number(label.getAttribute('x'));
     const ly = Number(label.getAttribute('y')) - 2;
@@ -391,7 +430,7 @@ describe('exporting', () => {
       });
     };
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+    newGraph();
     await screen.findByRole('img', { name: /Bars/ });
     fireEvent.click(screen.getByRole('button', { name: /Export…/ }));
     const dialog = screen.getByRole('dialog', { name: 'Export graph' });

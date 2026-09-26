@@ -1,13 +1,14 @@
 # Graphs
 
-**New graph** above a table draws it: for a Column table, bars of each
+**New graph**, under a table, draws it: for a Column table, bars of each
 group's mean with its SD and every value as a point; for a Grouped table,
-bars of every cell, clustered by row, with a legend. The graph appears
-under **Graphs** in the navigator and follows the table: change a value
-and the graph redraws.
+bars of every cell, clustered by row, with a legend. The graph appears as
+a section at the end of the experiment's page and follows the table:
+change a value and the graph redraws.
 
-The panel beside the graph holds its settings. Click any part of the graph
-to format that part instead: see [Formatting a graph](13-formatting.md).
+**Format**, in the graph's header, opens its settings beside it. Click any
+part of the graph to format that part instead: see
+[Formatting a graph](13-formatting.md).
 
 ## Kinds of plot
 
@@ -76,7 +77,7 @@ draw its brackets; untick a comparison to hide just that one.
   ** P < 0.01, *** P < 0.001, **** P < 0.0001), the **APA** one (up to
   ***), or the **exact P values**. **Show "ns"** hides the brackets of
   differences that aren't significant.
-- Multiple comparisons draw the adjusted P that the results sheet shows.
+- Multiple comparisons draw the adjusted P that the results show.
 - Brackets stack themselves so none overlap. Drag one to raise it: see
   [Formatting a graph](13-formatting.md#brackets).
 - While an analysis reruns (after you changed the data), its brackets are

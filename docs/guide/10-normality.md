@@ -19,7 +19,7 @@ Read this before trusting a “passed”:
   expression levels) are often skewed; counts with a few very large ones
   are not Gaussian.
 
-The results sheet repeats this caution.
+The results repeat this caution.
 
 ## Running them
 

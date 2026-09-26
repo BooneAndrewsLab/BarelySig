@@ -33,7 +33,7 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
   await page.getByRole('button', { name: /Column table/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Title').fill('Viability');
-  await dialog.getByRole('button', { name: 'Create table' }).click();
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
 
   // Paste: the header row names the groups.
   // Paste at the first cell, where a user would click.
@@ -50,15 +50,11 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
     .getByRole('radio', { name: /^t test/ })
     .check();
   await page.getByRole('dialog').getByRole('button', { name: 'Analyze', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /t test of Viability/ })).toBeVisible();
+  // The results are a section of the experiment's page, under the data.
+  await expect(page.getByRole('heading', { level: 2, name: /t test of Viability/ })).toBeVisible();
   await expect(page.getByText('P < 0.0001').first()).toBeVisible({ timeout: 150_000 });
 
   // A bar graph of the table draws the test's bracket.
-  await page
-    .getByRole('navigation', { name: 'Project' })
-    .getByRole('button', { name: 'Viability' })
-    .first()
-    .click();
   await page.getByRole('button', { name: 'New graph' }).click();
   const figure = page.getByRole('img', { name: /Viability: Bars: mean ± SD/ });
   await expect(figure.locator('[data-role="bar"]')).toHaveCount(2);
@@ -98,9 +94,9 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
 
   // Reload: the project comes back from the browser, results and all.
   await page.reload();
-  await expect(page.getByRole('navigation', { name: 'Project' })).toContainText('Viability');
+  await expect(page.getByRole('navigation', { name: 'Experiments' })).toContainText('Viability');
   await page
-    .getByRole('navigation', { name: 'Project' })
+    .getByRole('navigation', { name: 'On this page' })
     .getByRole('button', { name: /t test of Viability/ })
     .click();
   await expect(page.getByText('P < 0.0001').first()).toBeVisible();
@@ -112,11 +108,6 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
     buffer: readFileSync(bsigPath),
   });
   await expect(page.getByText('Opened “Viability.bsig”.')).toBeVisible();
-  await page
-    .getByRole('navigation', { name: 'Project' })
-    .getByRole('button', { name: 'Viability' })
-    .last()
-    .click();
   await expect(
     page.getByRole('img', { name: /Viability/ }).locator('[data-role="bracket-label"]'),
   ).toHaveText('****');

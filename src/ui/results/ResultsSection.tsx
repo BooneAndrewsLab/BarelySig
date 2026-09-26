@@ -1,7 +1,7 @@
 /**
- * An analysis's results sheet (item 04): what it is, where its data come
- * from, its status, and the results as Prism lays them out, with one
- * plain sentence on top for a t test. A result is shown only when it is
+ * An analysis's results (item 04), shown as a section of its experiment's
+ * page (item 08): what it is, its status, and the results as Prism lays
+ * them out, with one plain sentence on top. A result is shown only when it is
  * current: outdated results are never shown as if they were.
  */
 import { explain } from './glossary';
@@ -19,8 +19,7 @@ import type { TTestResult } from '@/analyses/ttest/types';
 import type { Analysis, Project } from '@/model/project';
 import type { Dropped } from '@/model/selectors';
 
-import { KIND_ICON } from '../analysisKinds';
-import { Icon } from '../Icon';
+import { Section as PageSection } from '../notebook/Section';
 import { AnalyzeDialog } from '../shell/AnalyzeDialog';
 import { getResults } from '../state/results';
 import { store } from '../state/store';
@@ -905,7 +904,14 @@ function Status({ analysis }: { readonly analysis: Analysis }): ReactNode {
   }
 }
 
-export function ResultsSheet({ project, analysis }: Props) {
+interface SectionProps extends Props {
+  /** Its place on the experiment's page. */
+  readonly number: number;
+  readonly note?: ReactNode;
+}
+
+/** An analysis as a section of its experiment's page (item 08). */
+export function ResultsSection({ project, analysis, number, note }: SectionProps) {
   const bridge = getResults();
   useSyncExternalStore(bridge.subscribe, bridge.getVersion, bridge.getVersion);
   const [editing, setEditing] = useState(false);
@@ -915,42 +921,49 @@ export function ResultsSheet({ project, analysis }: Props) {
   const value = entry?.ok ? entry.value : null;
 
   return (
-    <section className="sheet results" aria-labelledby="sheet-title">
-      <header className="sheet-head">
-        <h1 id="sheet-title">{analysis.title}</h1>
-        {source && (
+    <PageSection
+      id={analysis.id}
+      number={number}
+      title={analysis.title}
+      className="results"
+      onRename={(title) => {
+        store.edit({ op: 'setAnalysis', analysis: { ...analysis, title } });
+      }}
+      menu={[
+        {
+          label: 'Delete',
+          onSelect: () => {
+            if (store.edit({ op: 'removeAnalysis', analysis: analysis.id })) {
+              store.notify(`Deleted “${analysis.title}”. Undo brings it back (Ctrl+Z).`);
+            }
+          },
+        },
+      ]}
+      actions={
+        <>
+          {analysis.kind !== 'graph-summary' && (
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                openGuide(ANALYSIS_PAGE[analysis.kind]);
+              }}
+            >
+              How to read these results
+            </button>
+          )}
           <button
             type="button"
-            className="chip link-chip"
             onClick={() => {
-              store.show({ kind: 'table', id: source.id });
+              setEditing(true);
             }}
           >
-            <Icon name={KIND_ICON[analysis.kind]} size={16} />
-            Data: {source.title}
+            Change analysis…
           </button>
-        )}
-        {analysis.kind !== 'graph-summary' && (
-          <button
-            type="button"
-            className="head-action link"
-            onClick={() => {
-              openGuide(ANALYSIS_PAGE[analysis.kind]);
-            }}
-          >
-            How to read these results
-          </button>
-        )}
-        <button
-          type="button"
-          className="head-action"
-          onClick={() => {
-            setEditing(true);
-          }}
-        >
-          Change analysis…
-        </button>
-      </header>
+        </>
+      }
+      note={note}
+    >
       <div className="results-body">
         <Status analysis={analysis} />
         {value !== null && analysis.kind === 't-test' && (
@@ -991,6 +1004,6 @@ export function ResultsSheet({ project, analysis }: Props) {
           }}
         />
       )}
-    </section>
+    </PageSection>
   );
 }

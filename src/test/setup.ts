@@ -26,3 +26,9 @@ if (typeof Element !== 'undefined' && typeof Element.prototype.setPointerCapture
   Element.prototype.setPointerCapture = () => undefined;
   Element.prototype.releasePointerCapture = () => undefined;
 }
+
+// Nor scrolling, which the notebook asks for to show a section (item 08).
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => undefined;
+  Element.prototype.scrollTo = () => undefined;
+}

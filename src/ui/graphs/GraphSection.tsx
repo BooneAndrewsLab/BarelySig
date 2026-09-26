@@ -1,10 +1,11 @@
 /**
- * A graph's sheet (note 05): the figure at its real proportions, the
- * settings a first graph needs (what to plot, error bars, theme, size),
- * and notes saying what the marks show. The figure is the same SVG an
+ * A graph as a section of its experiment's page (notes 05, 08): the
+ * figure at its real proportions; Format (or clicking a part of the
+ * figure) opens the settings a graph needs (what to plot, error bars,
+ * theme, size) or the inspector beside it; notes say what the marks show. The figure is the same SVG an
  * export writes.
  */
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { type ReactNode, useRef, useState, useSyncExternalStore } from 'react';
 
 import { graphInput, summaryId } from '@/graphs/data';
 import { type ElementId, elementBoxes, elementsOf, hitRegions, pick } from '@/graphs/hit';
@@ -26,16 +27,20 @@ import { elementLabel, offsetOf, withOffset } from './formatting';
 import { GraphSettings } from './GraphSettings';
 import { engineNotice } from './engineNotice';
 import { Inspector } from './Inspector';
+import { Section } from '../notebook/Section';
 
 interface Props {
   readonly project: Project;
   readonly graph: Graph;
+  /** Its place on the experiment's page. */
+  readonly number: number;
+  readonly note?: ReactNode;
 }
 
 /** Screen pixels per millimetre at 100% (CSS px are 1/96 in). */
 const PX_PER_MM = 96 / 25.4;
 
-export function GraphSheet({ project, graph: saved }: Props) {
+export function GraphSection({ project, graph: saved, number, note }: Props) {
   const bridge = getResults();
   useSyncExternalStore(bridge.subscribe, bridge.getVersion, bridge.getVersion);
   const [picked, setSelected] = useState<ElementId | null>(null);
@@ -45,10 +50,10 @@ export function GraphSheet({ project, graph: saved }: Props) {
   const figure = useRef<HTMLDivElement>(null);
   const graph = preview ? withOffset(saved, preview.key, preview.offset) : saved;
   const input = graphInput(project, graph, (id) => bridge.recompute.result(id));
-  const table = graph.source.kind === 'table' ? project.tables.get(graph.source.table) : undefined;
   const summaryStatus = bridge.recompute.status(summaryId(graph.id));
   const engine = bridge.engineState();
   const [exporting, setExporting] = useState(false);
+  const [formatting, setFormatting] = useState(false);
   const lastRecipe = useRef<string | null>(null);
   const history = project.exports.filter((x) => x.graph === graph.id).reverse();
 
@@ -89,64 +94,94 @@ export function GraphSheet({ project, graph: saved }: Props) {
     else status = 'Calculating the means and error bars…';
   }
 
+  const panel = formatting || selected !== null;
+
   return (
-    <section className="sheet graph-sheet" aria-labelledby="sheet-title">
-      <header className="sheet-head">
-        <h1 id="sheet-title">{graph.title}</h1>
-        {table && (
+    <Section
+      id={saved.id}
+      number={number}
+      title={saved.title}
+      className="graph-section"
+      onRename={(title) => {
+        store.edit({ op: 'setGraph', graph: { ...saved, title } });
+      }}
+      menu={[
+        {
+          label: 'Delete',
+          onSelect: () => {
+            if (store.edit({ op: 'removeGraph', graph: saved.id })) {
+              store.notify(`Deleted “${saved.title}”. Undo brings it back (Ctrl+Z).`);
+            }
+          },
+        },
+      ]}
+      chip={
+        <span className="chip">
+          <Icon name={graph.plot.kind === 'bars' ? 'bar-error' : 'dot-plot'} size={16} />
+          Graph
+        </span>
+      }
+      actions={
+        <>
           <button
             type="button"
-            className="chip link-chip"
+            aria-pressed={panel}
             onClick={() => {
-              store.show({ kind: 'table', id: table.id });
+              if (panel) {
+                setFormatting(false);
+                setSelected(null);
+              } else setFormatting(true);
             }}
           >
-            <Icon name={graph.plot.kind === 'bars' ? 'bar-error' : 'dot-plot'} size={16} />
-            Data: {table.title}
+            <Icon name="format" size={16} /> Format
           </button>
+          <button
+            type="button"
+            className="primary"
+            disabled={!scene}
+            onClick={() => {
+              setExporting(true);
+            }}
+          >
+            <Icon name="export" size={16} /> Export…
+          </button>
+        </>
+      }
+      note={note}
+    >
+      <div className={panel ? 'graph-body' : 'graph-body no-panel'}>
+        {panel && (
+          <div className="graph-side">
+            <label className="field inspector-pick">
+              <span>Format</span>
+              <select
+                value={selected ?? ''}
+                onChange={(e) => {
+                  setSelected(e.currentTarget.value || null);
+                }}
+              >
+                <option value="">The whole graph</option>
+                {elements.map((el) => (
+                  <option key={el} value={el}>
+                    {elementLabel(el, project, graph)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selected ? (
+              <Inspector
+                project={project}
+                graph={graph}
+                element={selected}
+                onDone={() => {
+                  setSelected(null);
+                }}
+              />
+            ) : (
+              <GraphSettings project={project} graph={graph} />
+            )}
+          </div>
         )}
-        <button
-          type="button"
-          className="head-action primary"
-          disabled={!scene}
-          onClick={() => {
-            setExporting(true);
-          }}
-        >
-          <Icon name="export" size={16} /> Export…
-        </button>
-      </header>
-      <div className="graph-body">
-        <div className="graph-side">
-          <label className="field inspector-pick">
-            <span>Format</span>
-            <select
-              value={selected ?? ''}
-              onChange={(e) => {
-                setSelected(e.currentTarget.value || null);
-              }}
-            >
-              <option value="">The whole graph</option>
-              {elements.map((el) => (
-                <option key={el} value={el}>
-                  {elementLabel(el, project, graph)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {selected ? (
-            <Inspector
-              project={project}
-              graph={graph}
-              element={selected}
-              onDone={() => {
-                setSelected(null);
-              }}
-            />
-          ) : (
-            <GraphSettings project={project} graph={graph} />
-          )}
-        </div>
         <figure className="graph-figure">
           {status && (
             <p className="status-banner" role="status">
@@ -329,6 +364,6 @@ export function GraphSheet({ project, graph: saved }: Props) {
           }}
         />
       )}
-    </section>
+    </Section>
   );
 }

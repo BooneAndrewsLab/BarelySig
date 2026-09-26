@@ -23,7 +23,7 @@ export function NewTableDialog({ initialType = 'column', defaultTitle, onCreate,
   const valid = Number.isInteger(replicates) && replicates >= 1 && replicates <= 50;
 
   return (
-    <Dialog title="New table" onClose={onClose}>
+    <Dialog title="New experiment" onClose={onClose}>
       <form
         className="new-table"
         onSubmit={(e) => {
@@ -76,7 +76,7 @@ export function NewTableDialog({ initialType = 'column', defaultTitle, onCreate,
             Cancel
           </button>
           <button type="submit" className="primary" disabled={!valid}>
-            Create table
+            Create
           </button>
         </div>
       </form>
