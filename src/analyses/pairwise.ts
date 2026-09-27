@@ -129,6 +129,8 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     case 'normality':
     case 'paired-normality':
     case 'graph-summary':
+    case 'repeated-two-way-anova':
+      // No comparisons yet (design note 22's follow-up issue).
       return [];
   }
 }
@@ -187,6 +189,7 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     case 'normality':
     case 'paired-normality':
     case 'graph-summary':
+    case 'repeated-two-way-anova':
       return [];
   }
 }

@@ -48,6 +48,7 @@ import {
   type Project,
   type RankTestOptions,
   type RepeatedMeasuresOptions,
+  type RepeatedTwoWayOptions,
   STYLE_NUMBERS,
   type StyleOverrides,
   TWO_WAY_FAMILIES,
@@ -171,6 +172,8 @@ function optionsJson(a: AnalysisSpec): Json {
         comparisons: comparisonsJson(a.options.comparisons),
         assumeSphericity: a.options.assumeSphericity,
       };
+    case 'repeated-two-way-anova':
+      return { repeatedFactor: a.options.repeatedFactor };
   }
 }
 
@@ -528,6 +531,15 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
             ? { kind: ck, control: id(c['control'], cp.key('control')) }
             : { kind: ck },
         corrected: bool(opts['corrected'], q.key('corrected')),
+      };
+      return { kind, options };
+    }
+    case 'repeated-two-way-anova': {
+      const options: RepeatedTwoWayOptions = {
+        repeatedFactor: oneOf(opts['repeatedFactor'], q.key('repeatedFactor'), [
+          'row',
+          'column',
+        ] as const),
       };
       return { kind, options };
     }

@@ -271,6 +271,20 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
         },
       ];
     }
+    case 'repeated-two-way-anova': {
+      const o = analysis.options;
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            `Asks three questions about ${o.repeatedFactor === 'column' ? 'the data sets' : 'the rows'}, ${o.repeatedFactor === 'column' ? 'matched by subcolumn within each row' : 'matched by subcolumn within each data set'}: does the between-subjects factor matter, does the repeated factor matter, and does the effect of one depend on the other (the interaction)?`,
+            'The Geisser-Greenhouse correction widens the repeated factor’s and interaction’s P when subjects don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default. The between-subjects factor needs no such correction.',
+            NS,
+          ],
+        },
+      ];
+    }
     case 'friedman': {
       const o = analysis.options;
       const dunn =

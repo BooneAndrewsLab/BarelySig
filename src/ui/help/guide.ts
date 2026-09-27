@@ -12,6 +12,7 @@ import normality from '../../../docs/guide/10-normality.md?raw';
 import oneWay from '../../../docs/guide/07-one-way-anova.md?raw';
 import rankTests from '../../../docs/guide/06-rank-tests.md?raw';
 import repeatedMeasures from '../../../docs/guide/18-repeated-measures.md?raw';
+import repeatedTwoWay from '../../../docs/guide/19-repeated-two-way.md?raw';
 import shortcuts from '../../../docs/guide/16-shortcuts.md?raw';
 import tables from '../../../docs/guide/03-tables.md?raw';
 import tTests from '../../../docs/guide/05-t-tests.md?raw';
@@ -56,6 +57,7 @@ export const GUIDE: readonly GuidePage[] = [
   page('16-shortcuts', shortcuts),
   page('17-nested-tables', nestedTables),
   page('18-repeated-measures', repeatedMeasures),
+  page('19-repeated-two-way', repeatedTwoWay),
 ];
 
 export function guidePage(id: string): GuidePage | undefined {
@@ -74,6 +76,7 @@ export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   'kruskal-wallis': '08-kruskal-wallis',
   'two-way-anova': '09-two-way-anova',
   'repeated-measures-anova': '18-repeated-measures',
+  'repeated-two-way-anova': '19-repeated-two-way',
   friedman: '18-repeated-measures',
   normality: '10-normality',
   'paired-normality': '10-normality',

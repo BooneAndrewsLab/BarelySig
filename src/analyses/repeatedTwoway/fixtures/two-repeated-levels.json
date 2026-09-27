@@ -1,0 +1,69 @@
+{
+  "input": {
+    "y": [
+      4.0999999999999996, 5, 4.4000000000000004, 5.2999999999999998, 4.7999999999999998,
+      5.5999999999999996, 3.8999999999999999, 4.7000000000000002, 5.2000000000000002, 6,
+      5.5999999999999996, 6.2999999999999998
+    ],
+    "level": [1, 1, 1, 2, 2, 2]
+  },
+  "expected": {
+    "p": 2,
+    "q": 2,
+    "n": 6,
+    "between": {
+      "ss": 0.52083333333333115,
+      "df": 1,
+      "ms": 0.52083333333333115,
+      "f": 0.6044487427466132,
+      "p": 0.48030343156504135
+    },
+    "subjects": {
+      "ss": 3.4466666666666632,
+      "df": 4,
+      "ms": 0.8616666666666658
+    },
+    "repeated": {
+      "ss": 2.0008333333333272,
+      "df": 1,
+      "ms": 2.0008333333333272,
+      "f": 1200.5000000000352,
+      "p": 4.1401780781424024e-6
+    },
+    "interaction": {
+      "ss": 0.0074999999999997456,
+      "df": 1,
+      "ms": 0.0074999999999997456,
+      "f": 4.4999999999999929,
+      "p": 0.1011915072182956
+    },
+    "residual": {
+      "ss": 0.0066666666666664511,
+      "df": 4,
+      "ms": 0.0016666666666666128
+    },
+    "total": {
+      "ss": 5.982499999999999,
+      "df": 11
+    },
+    "gg_epsilon": 1,
+    "hf_epsilon": 1,
+    "repeated_gg_p": 4.1401780781424024e-6,
+    "repeated_hf_p": 4.1401780781424024e-6,
+    "interaction_gg_p": 0.1011915072182956,
+    "interaction_hf_p": 0.1011915072182956
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    repeated_twoway <- function(y, level) {\n        n <- length(level)\n        q <- length(y)/n\n        p <- max(level)\n        Y <- matrix(y, nrow = n, ncol = q, byrow = TRUE)\n        level <- factor(level, levels = seq_len(p))\n        subject <- factor(seq_len(n))\n        long <- data.frame(y = as.vector(t(Y)), subject = rep(subject, each = q), \n            between = rep(level, each = q), repeated = factor(rep(seq_len(q), n)))\n        m <- aov(y ~ between * repeated + Error(subject/repeated), data = long)\n        s <- summary(m)\n        between_tbl <- s[[\"Error: subject\"]][[1]]\n        within_tbl <- s[[\"Error: subject:repeated\"]][[1]]\n        sph <- stats:::sphericity(stats::SSD(lm(Y ~ level)), X = ~1)\n        clamp <- function(e) if (is.nan(e)) \n            1\n        else max(1/(q - 1), min(1, e))\n        gg <- clamp(sph$GG.eps)\n        hf <- clamp(sph$HF.eps)\n        f_repeated <- within_tbl[[\"F value\"]][1]\n        f_interaction <- within_tbl[[\"F value\"]][2]\n        df_repeated <- within_tbl[[\"Df\"]][1]\n        df_interaction <- within_tbl[[\"Df\"]][2]\n        df_residual <- within_tbl[[\"Df\"]][3]\n        list(p = p, q = q, n = n, between = list(ss = between_tbl[[\"Sum Sq\"]][1], \n            df = between_tbl[[\"Df\"]][1], ms = between_tbl[[\"Mean Sq\"]][1], f = between_tbl[[\"F value\"]][1], \n            p = between_tbl[[\"Pr(>F)\"]][1]), subjects = list(ss = between_tbl[[\"Sum Sq\"]][2], \n            df = between_tbl[[\"Df\"]][2], ms = between_tbl[[\"Mean Sq\"]][2]), repeated = list(ss = within_tbl[[\"Sum Sq\"]][1], \n            df = df_repeated, ms = within_tbl[[\"Mean Sq\"]][1], f = f_repeated, p = within_tbl[[\"Pr(>F)\"]][1]), \n            interaction = list(ss = within_tbl[[\"Sum Sq\"]][2], df = df_interaction, \n                ms = within_tbl[[\"Mean Sq\"]][2], f = f_interaction, p = within_tbl[[\"Pr(>F)\"]][2]), \n            residual = list(ss = within_tbl[[\"Sum Sq\"]][3], df = df_residual, ms = within_tbl[[\"Mean Sq\"]][3]), \n            total = list(ss = sum((Y - mean(Y))^2), df = n * q - 1), gg_epsilon = gg, \n            hf_epsilon = hf, repeated_gg_p = pf(f_repeated, df_repeated * gg, df_residual * \n                gg, lower.tail = FALSE), repeated_hf_p = pf(f_repeated, df_repeated * \n                hf, df_residual * hf, lower.tail = FALSE), interaction_gg_p = pf(f_interaction, \n                df_interaction * gg, df_residual * gg, lower.tail = FALSE), interaction_hf_p = pf(f_interaction, \n                df_interaction * hf, df_residual * hf, lower.tail = FALSE))\n    }\n}",
+    "call": "repeated_twoway(y, level)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "q = 2 repeated levels: epsilon is forced to 1 by the clamp, so every P is identical (as the one-way module's own q = 2 case, note 17).",
+  "options": {
+    "repeatedFactor": "column"
+  }
+}

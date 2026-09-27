@@ -14,6 +14,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   'kruskal-wallis': 'anova',
   'two-way-anova': 'grouped',
   'repeated-measures-anova': 'anova',
+  'repeated-two-way-anova': 'grouped',
   friedman: 'anova',
   normality: 'descriptive-stats',
   'paired-normality': 'descriptive-stats',
@@ -47,6 +48,8 @@ export function testName(spec: AnalysisSpec): string {
       return 'Two-way ANOVA';
     case 'repeated-measures-anova':
       return 'Repeated-measures ANOVA';
+    case 'repeated-two-way-anova':
+      return 'Repeated-measures two-way ANOVA';
     case 'friedman':
       return 'Friedman test';
     case 'normality':
