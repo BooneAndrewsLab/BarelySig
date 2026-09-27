@@ -20,6 +20,7 @@ export type AnalysisSpec =
   | { readonly kind: 't-test'; readonly options: TTestOptions }
   | { readonly kind: 'nested-t-test'; readonly options: NestedTTestOptions }
   | { readonly kind: 'nested-one-way-anova'; readonly options: NestedOneWayOptions }
+  | { readonly kind: 'nested-repeated-anova'; readonly options: RepeatedMeasuresOptions }
   | { readonly kind: 'rank-test'; readonly options: RankTestOptions }
   | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
   | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions }
@@ -174,6 +175,14 @@ export interface RepeatedMeasuresOptions {
   readonly comparisons: NestedComparisons;
 }
 
+/**
+ * Matched nested one-way ANOVA (note 21, #71): note 14's matched nested t
+ * test, generalized past two groups. Replicate n is the same experiment in
+ * every group, so it is exactly a repeated-measures ANOVA (above) on each
+ * group's replicate means; same options, same shape of result, nested
+ * wording. No Welch-style variant, as neither nested analysis has one.
+ */
+
 /** The Friedman test with Dunn's comparisons (item 17, #50): the nonparametric matched test. */
 export interface FriedmanOptions {
   readonly comparisons:
@@ -191,6 +200,7 @@ export const DEFAULT_OPTIONS: {
   't-test': { paired: false, welch: false, tails: 'two' },
   'nested-t-test': { tails: 'two', matched: false },
   'nested-one-way-anova': { comparisons: { kind: 'all', test: 'tukey' } },
+  'nested-repeated-anova': { comparisons: { kind: 'all', test: 'tukey' } },
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },
