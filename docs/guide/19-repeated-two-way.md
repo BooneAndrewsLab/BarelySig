@@ -20,7 +20,8 @@ of [two-way ANOVA](09-two-way-anova.md).
 - A subject with a value missing in any repeated level is left out
   entirely, not just the cell it's missing from.
 - **Both factors repeated** (every subject measured under every
-  row-column combination, no between-subjects factor) isn't built yet.
+  row-column combination, no between-subjects factor): its own analysis,
+  [Repeated-measures two-way ANOVA, both factors repeated](20-repeated-two-way-both.md).
 
 ## Running it
 

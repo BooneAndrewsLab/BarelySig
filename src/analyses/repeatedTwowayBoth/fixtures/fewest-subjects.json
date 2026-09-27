@@ -1,0 +1,83 @@
+{
+  "input": {
+    "y": [
+      4, 5.2000000000000002, 4.5999999999999996, 5.9000000000000004, 6.9000000000000004, 5,
+      8.4000000000000004, 9.0999999999999996
+    ],
+    "n": [2],
+    "p": [2],
+    "q": [2]
+  },
+  "expected": {
+    "p": 2,
+    "q": 2,
+    "n": 2,
+    "subjects": {
+      "ss": 11.761249999999997,
+      "df": 1,
+      "ms": 11.761249999999997
+    },
+    "row": {
+      "ss": 5.9512500000000026,
+      "df": 1,
+      "ms": 5.9512500000000026,
+      "f": 2.5749053542455411,
+      "p": 0.35478535670797556
+    },
+    "row_error": {
+      "ss": 2.3112499999999985,
+      "df": 1,
+      "ms": 2.3112499999999985,
+      "gg_epsilon": 1,
+      "hf_epsilon": 1,
+      "gg_p": 0.35478535670797556,
+      "hf_p": 0.35478535670797556
+    },
+    "column": {
+      "ss": 0.2112500000000008,
+      "df": 1,
+      "ms": 0.2112500000000008,
+      "f": 0.12344777209642083,
+      "p": 0.78490006471450313
+    },
+    "column_error": {
+      "ss": 1.7112500000000053,
+      "df": 1,
+      "ms": 1.7112500000000053,
+      "gg_epsilon": 1,
+      "hf_epsilon": 1,
+      "gg_p": 0.78490006471450313,
+      "hf_p": 0.78490006471450313
+    },
+    "interaction": {
+      "ss": 0.91124999999999956,
+      "df": 1,
+      "ms": 0.91124999999999956,
+      "f": 1.1663999999999979,
+      "p": 0.47552668709149121
+    },
+    "interaction_error": {
+      "ss": 0.781250000000001,
+      "df": 1,
+      "ms": 0.781250000000001,
+      "gg_epsilon": 1,
+      "hf_epsilon": 1,
+      "gg_p": 0.47552668709149121,
+      "hf_p": 0.47552668709149121
+    },
+    "total": {
+      "ss": 23.638750000000002,
+      "df": 7
+    }
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    repeated_twoway_both <- function(y, n, p, q) {\n        Ywide <- matrix(y, nrow = n, ncol = p * q, byrow = TRUE)\n        idata <- expand.grid(col = factor(seq_len(q)), row = factor(seq_len(p)))\n        long <- data.frame(y = as.vector(t(Ywide)), subject = rep(factor(seq_len(n)), \n            each = p * q), row = rep(idata$row, n), col = rep(idata$col, n))\n        m <- aov(y ~ row * col + Error(subject/(row * col)), data = long)\n        s <- summary(m)\n        subj_tbl <- s[[\"Error: subject\"]][[1]]\n        row_tbl <- s[[\"Error: subject:row\"]][[1]]\n        col_tbl <- s[[\"Error: subject:col\"]][[1]]\n        int_tbl <- s[[\"Error: subject:row:col\"]][[1]]\n        ssd <- stats::SSD(lm(Ywide ~ 1))\n        clamp <- function(e, pp) if (is.nan(e)) \n            1\n        else max(1/pp, min(1, e))\n        eps <- function(M, X, pp) {\n            sph <- stats:::sphericity(ssd, M = M, X = X, idata = idata)\n            list(gg = clamp(sph$GG.eps, pp), hf = clamp(sph$HF.eps, pp))\n        }\n        df_row <- row_tbl[[\"Df\"]][1]\n        df_col <- col_tbl[[\"Df\"]][1]\n        df_inter <- int_tbl[[\"Df\"]][1]\n        row_eps <- eps(~row, ~1, df_row)\n        col_eps <- eps(~col, ~1, df_col)\n        inter_eps <- eps(~row * col, ~row + col, df_inter)\n        f_row <- row_tbl[[\"F value\"]][1]\n        f_col <- col_tbl[[\"F value\"]][1]\n        f_inter <- int_tbl[[\"F value\"]][1]\n        df_row_err <- row_tbl[[\"Df\"]][2]\n        df_col_err <- col_tbl[[\"Df\"]][2]\n        df_inter_err <- int_tbl[[\"Df\"]][2]\n        list(p = p, q = q, n = n, subjects = list(ss = subj_tbl[[\"Sum Sq\"]][1], df = subj_tbl[[\"Df\"]][1], \n            ms = subj_tbl[[\"Mean Sq\"]][1]), row = list(ss = row_tbl[[\"Sum Sq\"]][1], \n            df = df_row, ms = row_tbl[[\"Mean Sq\"]][1], f = f_row, p = row_tbl[[\"Pr(>F)\"]][1]), \n            row_error = list(ss = row_tbl[[\"Sum Sq\"]][2], df = df_row_err, ms = row_tbl[[\"Mean Sq\"]][2], \n                gg_epsilon = row_eps$gg, hf_epsilon = row_eps$hf, gg_p = pf(f_row, \n                  df_row * row_eps$gg, df_row_err * row_eps$gg, lower.tail = FALSE), \n                hf_p = pf(f_row, df_row * row_eps$hf, df_row_err * row_eps$hf, lower.tail = FALSE)), \n            column = list(ss = col_tbl[[\"Sum Sq\"]][1], df = df_col, ms = col_tbl[[\"Mean Sq\"]][1], \n                f = f_col, p = col_tbl[[\"Pr(>F)\"]][1]), column_error = list(ss = col_tbl[[\"Sum Sq\"]][2], \n                df = df_col_err, ms = col_tbl[[\"Mean Sq\"]][2], gg_epsilon = col_eps$gg, \n                hf_epsilon = col_eps$hf, gg_p = pf(f_col, df_col * col_eps$gg, df_col_err * \n                  col_eps$gg, lower.tail = FALSE), hf_p = pf(f_col, df_col * col_eps$hf, \n                  df_col_err * col_eps$hf, lower.tail = FALSE)), interaction = list(ss = int_tbl[[\"Sum Sq\"]][1], \n                df = df_inter, ms = int_tbl[[\"Mean Sq\"]][1], f = f_inter, p = int_tbl[[\"Pr(>F)\"]][1]), \n            interaction_error = list(ss = int_tbl[[\"Sum Sq\"]][2], df = df_inter_err, \n                ms = int_tbl[[\"Mean Sq\"]][2], gg_epsilon = inter_eps$gg, hf_epsilon = inter_eps$hf, \n                gg_p = pf(f_inter, df_inter * inter_eps$gg, df_inter_err * inter_eps$gg, \n                  lower.tail = FALSE), hf_p = pf(f_inter, df_inter * inter_eps$hf, \n                  df_inter_err * inter_eps$hf, lower.tail = FALSE)), total = list(ss = sum((Ywide - \n                mean(Ywide))^2), df = p * q * n - 1))\n    }\n}",
+    "call": "repeated_twoway_both(y, n, p, q)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "n = 2, the fewest subjects a fully within-subjects design can run on: every stratum's residual df is 1, so Huynh-Feldt epsilon comes back NaN on every term and falls back to 1 through the clamp."
+}

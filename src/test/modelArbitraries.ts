@@ -131,6 +131,10 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
   fc
     .record({ repeatedFactor: fc.constantFrom('row' as const, 'column' as const) })
     .map((o): AnalysisSpec => ({ kind: 'repeated-two-way-anova', options: { ...o } })),
+  fc.constant<AnalysisSpec>({
+    kind: 'repeated-two-way-anova-both',
+    options: DEFAULT_OPTIONS['repeated-two-way-anova-both'],
+  }),
   fc
     .record({ tails, matched: fc.boolean() })
     .map((o): AnalysisSpec => ({ kind: 'nested-t-test', options: { ...o } })),

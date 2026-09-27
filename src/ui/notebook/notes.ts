@@ -285,6 +285,19 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
         },
       ];
     }
+    case 'repeated-two-way-anova-both': {
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Every subject is measured at every row-column combination, so there is no between-subjects factor left: asks three questions, all matched — does the row factor matter, does the column factor matter, and does the effect of one depend on the other (the interaction)?',
+            'The Geisser-Greenhouse correction widens each term’s P when subjects don’t vary together the same way (epsilon below 1); each of the three terms gets its own correction rather than sharing one, since they come from different parts of the same subjects’ data.',
+            NS,
+          ],
+        },
+      ];
+    }
     case 'friedman': {
       const o = analysis.options;
       const dunn =

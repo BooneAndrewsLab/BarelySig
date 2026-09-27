@@ -174,6 +174,8 @@ function optionsJson(a: AnalysisSpec): Json {
       };
     case 'repeated-two-way-anova':
       return { repeatedFactor: a.options.repeatedFactor };
+    case 'repeated-two-way-anova-both':
+      return {};
   }
 }
 
@@ -543,6 +545,8 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       };
       return { kind, options };
     }
+    case 'repeated-two-way-anova-both':
+      return { kind, options: {} };
     default:
       return p.key('kind').fail(`is an analysis this version does not know ("${kind}")`);
   }

@@ -27,6 +27,10 @@ export type AnalysisSpec =
   | { readonly kind: 'two-way-anova'; readonly options: TwoWayOptions }
   | { readonly kind: 'repeated-measures-anova'; readonly options: RepeatedMeasuresOptions }
   | { readonly kind: 'repeated-two-way-anova'; readonly options: RepeatedTwoWayOptions }
+  | {
+      readonly kind: 'repeated-two-way-anova-both';
+      readonly options: RepeatedTwoWayBothOptions;
+    }
   | { readonly kind: 'friedman'; readonly options: FriedmanOptions }
   | { readonly kind: 'normality'; readonly options: NormalityOptions }
   | { readonly kind: 'paired-normality'; readonly options: PairedNormalityOptions }
@@ -195,6 +199,14 @@ export interface RepeatedTwoWayOptions {
 }
 
 /**
+ * Repeated-measures two-way ANOVA, both factors repeated (note 23, #84):
+ * a Grouped table, subcolumn position is the subject, every subject
+ * measured at every row × column cell — no between-subjects factor at
+ * all, so unlike `RepeatedTwoWayOptions` there is nothing to choose.
+ */
+export type RepeatedTwoWayBothOptions = Readonly<Record<string, never>>;
+
+/**
  * Matched nested one-way ANOVA (note 21, #71): note 14's matched nested t
  * test, generalized past two groups. Replicate n is the same experiment in
  * every group, so it is exactly a repeated-measures ANOVA (above) on each
@@ -230,6 +242,7 @@ export const DEFAULT_OPTIONS: {
   },
   friedman: { comparisons: { kind: 'all' }, corrected: true },
   'repeated-two-way-anova': { repeatedFactor: 'column' },
+  'repeated-two-way-anova-both': {},
   normality: {},
   'paired-normality': {},
   'graph-summary': { whiskers: null, kde: null },

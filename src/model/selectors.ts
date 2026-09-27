@@ -323,6 +323,48 @@ export function groupedMatchedSubjects(
   return { rows, dataSets: outSets, subjects, droppedSubjects };
 }
 
+export interface FullyMatchedData {
+  readonly rows: readonly { readonly id: Id; readonly title: string | null }[];
+  readonly dataSets: readonly { readonly id: Id; readonly title: string }[];
+  /** One entry per kept subject: its value at every row × column cell, row-major (row *i*'s `q` values before row *i*+1's). */
+  readonly subjects: readonly { readonly values: readonly number[] }[];
+  /** A subcolumn slot with a value in at least one cell but not every one. */
+  readonly droppedSubjects: number;
+}
+
+/**
+ * A Grouped table's subcolumn-indexed subjects when **both** factors are
+ * repeated (item 23, #84): subcolumn *s* is one subject, measured at
+ * every row × column cell — no between-subjects factor at all. A subject
+ * missing a value at any cell drops out whole (`matchedGroups`'/
+ * `groupedMatchedSubjects`' rule, read across both dimensions).
+ */
+export function groupedFullyMatchedSubjects(
+  table: GroupedTable,
+  dataSets: readonly Id[],
+): FullyMatchedData {
+  if (table.format.kind !== 'replicates') {
+    throw new DataError(
+      'Repeated-measures two-way ANOVA needs the individual values, not summary data (mean, SD, n).',
+    );
+  }
+  const sets = dataSets.map((id) => requireDataSet(table, id));
+  const count = table.format.count;
+  const rows = table.rows.map((r) => ({ id: r.id, title: r.title }));
+  const outSets = sets.map((d) => ({ id: d.id, title: d.title }));
+  const subjects: { values: number[] }[] = [];
+  let droppedSubjects = 0;
+
+  const raw = (ds: DataSet, s: number, r: number): boolean => ds.subcolumns[s]?.[r] != null;
+
+  for (let s = 0; s < count; s++) {
+    const values = table.rows.flatMap((_, r) => sets.map((ds) => usable(table, ds, s, r)));
+    if (values.every((v) => v !== null)) subjects.push({ values });
+    else if (table.rows.some((_, r) => sets.some((ds) => raw(ds, s, r)))) droppedSubjects += 1;
+  }
+  return { rows, dataSets: outSets, subjects, droppedSubjects };
+}
+
 export interface NestedGroup {
   readonly id: Id;
   readonly title: string;

@@ -21,6 +21,11 @@ import type { PairedNormalityResult } from '@/analyses/paired-normality/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
 import type { RepeatedTwoWayResult, RepeatedTwoWayTerm } from '@/analyses/repeatedTwoway/types';
+import type {
+  RepeatedTwoWayBothError,
+  RepeatedTwoWayBothResult,
+  RepeatedTwoWayBothTerm,
+} from '@/analyses/repeatedTwowayBoth/types';
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { Id } from '@/model/ids';
@@ -56,6 +61,8 @@ import {
   repeatedMethod,
   repeatedP,
   repeatedReading,
+  repeatedTwoWayBothMethod,
+  repeatedTwoWayBothReading,
   repeatedTwoWayMethod,
   repeatedTwoWayReading,
   tTestMethod,
@@ -955,6 +962,108 @@ function RepeatedTwoWayView({ r, id }: { readonly r: RepeatedTwoWayResult; reado
                 ['Huynh-Feldt epsilon', sig(r.hfEpsilon)],
                 ['P value (Huynh-Feldt corrected, repeated factor)', pValue(r.repeatedHfP)],
                 ['P value (Huynh-Feldt corrected, interaction)', pValue(r.interactionHfP)],
+                ...(r.droppedSubjects > 0
+                  ? ([['Subjects left out', String(r.droppedSubjects)]] as Row[])
+                  : []),
+              ],
+            ],
+          ]}
+        />
+      </AllNumbers>
+    </>
+  );
+}
+
+function RepeatedTwoWayBothView({
+  r,
+  id,
+}: {
+  readonly r: RepeatedTwoWayBothResult;
+  readonly id: Id;
+}) {
+  const f = (t: RepeatedTwoWayBothTerm) => (t.f !== null && t.df > 0 ? sig(t.f) : '');
+  const errRow = (
+    label: string,
+    t: RepeatedTwoWayBothTerm,
+    e: RepeatedTwoWayBothError,
+  ): readonly [string, string, string, string, string, string] => [
+    label,
+    sig(t.ss),
+    dfText(t.df),
+    sig(t.ms),
+    `F (${dfText(t.df)}, ${dfText(e.df)}) = ${f(t)}`,
+    t.p !== null ? pPhrase(t.p) : '',
+  ];
+  return (
+    <>
+      <Headline
+        reading={repeatedTwoWayBothReading(r)}
+        figures={[
+          pFigure('Row factor (GG corrected)', r.rowError.ggP),
+          pFigure('Column factor (GG corrected)', r.columnError.ggP),
+          pFigure('Interaction (GG corrected)', r.interactionError.ggP),
+        ]}
+      />
+      <p className="method">{repeatedTwoWayBothMethod(r)}</p>
+      {r.droppedSubjects > 0 && (
+        <p className="status-banner info">
+          {String(r.droppedSubjects)} {r.droppedSubjects === 1 ? 'subject' : 'subjects'} missing a
+          value at some but not every row × data-set cell left out.
+        </p>
+      )}
+      <AllNumbers id={id}>
+        <Grid
+          label="ANOVA table"
+          head={['ANOVA table', 'SS', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+          rows={[
+            ['Subjects', sig(r.subjects.ss), dfText(r.subjects.df), sig(r.subjects.ms), '', ''],
+            errRow('Row factor', r.row, r.rowError),
+            [
+              'Row × subject error',
+              sig(r.rowError.ss),
+              dfText(r.rowError.df),
+              sig(r.rowError.ms),
+              '',
+              '',
+            ],
+            errRow('Column factor', r.column, r.columnError),
+            [
+              'Column × subject error',
+              sig(r.columnError.ss),
+              dfText(r.columnError.df),
+              sig(r.columnError.ms),
+              '',
+              '',
+            ],
+            errRow('Interaction', r.interaction, r.interactionError),
+            [
+              'Interaction × subject error',
+              sig(r.interactionError.ss),
+              dfText(r.interactionError.df),
+              sig(r.interactionError.ms),
+              '',
+              '',
+            ],
+            ['Total', sig(r.total.ss), dfText(r.total.df), '', '', ''],
+          ]}
+        />
+        <Sections
+          sections={[
+            [
+              'Data summary',
+              [
+                ['Number of subjects', String(r.n)],
+                ['Number of rows', String(r.rowLevels)],
+                ['Number of data sets', String(r.columnLevels)],
+                ['Geisser-Greenhouse epsilon (row)', sig(r.rowError.ggEpsilon)],
+                ['Huynh-Feldt epsilon (row)', sig(r.rowError.hfEpsilon)],
+                ['P value (Huynh-Feldt corrected, row)', pValue(r.rowError.hfP)],
+                ['Geisser-Greenhouse epsilon (column)', sig(r.columnError.ggEpsilon)],
+                ['Huynh-Feldt epsilon (column)', sig(r.columnError.hfEpsilon)],
+                ['P value (Huynh-Feldt corrected, column)', pValue(r.columnError.hfP)],
+                ['Geisser-Greenhouse epsilon (interaction)', sig(r.interactionError.ggEpsilon)],
+                ['Huynh-Feldt epsilon (interaction)', sig(r.interactionError.hfEpsilon)],
+                ['P value (Huynh-Feldt corrected, interaction)', pValue(r.interactionError.hfP)],
                 ...(r.droppedSubjects > 0
                   ? ([['Subjects left out', String(r.droppedSubjects)]] as Row[])
                   : []),
@@ -1954,6 +2063,12 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'repeated-two-way-anova' && (
           <RepeatedTwoWayView r={value as unknown as RepeatedTwoWayResult} id={analysis.id} />
+        )}
+        {value !== null && analysis.kind === 'repeated-two-way-anova-both' && (
+          <RepeatedTwoWayBothView
+            r={value as unknown as RepeatedTwoWayBothResult}
+            id={analysis.id}
+          />
         )}
         {value !== null && analysis.kind === 'kruskal-wallis' && (
           <KruskalView r={value as unknown as KruskalWallisResult} id={analysis.id} />

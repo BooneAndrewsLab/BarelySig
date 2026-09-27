@@ -27,3 +27,5 @@ implementing anything significant; open work lives in GitHub Issues.
 | 19 | [Normality of a paired t test's differences](19-paired-normality.md) | #53 |
 | 20 | [Two-way ANOVA from unbalanced summary data](20-unweighted-means-twoway.md) | #51 |
 | 21 | [Matched nested one-way ANOVA](21-matched-nested-anova.md) | #71 |
+| 22 | [Repeated-measures two-way ANOVA (one factor repeated)](22-repeated-two-way.md) | #81 |
+| 23 | [Repeated-measures two-way ANOVA, both factors repeated](23-repeated-two-way-both.md) | #84 |

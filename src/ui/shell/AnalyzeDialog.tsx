@@ -142,6 +142,13 @@ const KINDS: readonly KindInfo[] = [
     tables: ['grouped'],
   },
   {
+    kind: 'repeated-two-way-anova-both',
+    name: 'Repeated-measures two-way ANOVA (both factors repeated)',
+    blurb:
+      'How the rows and data sets (two factors) each affect the values, when every subject is measured at every row-column combination — no between-subjects factor left.',
+    tables: ['grouped'],
+  },
+  {
     kind: 'kruskal-wallis',
     name: 'Kruskal-Wallis',
     blurb: 'Compare three or more groups by ranks, without assuming a bell-shaped distribution.',
@@ -1053,6 +1060,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
       }
       case 'repeated-two-way-anova':
         return { kind, options: options['repeated-two-way-anova'] };
+      case 'repeated-two-way-anova-both':
+        return { kind, options: options['repeated-two-way-anova-both'] };
     }
   };
 

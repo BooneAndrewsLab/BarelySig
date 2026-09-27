@@ -13,6 +13,7 @@ import { pairedNormality } from './paired-normality';
 import { ranktest } from './ranktest';
 import { repeatedMeasures } from './repeated';
 import { repeatedTwoway } from './repeatedTwoway';
+import { repeatedTwowayBoth } from './repeatedTwowayBoth';
 import { ttest } from './ttest';
 import { twoway } from './twoway';
 
@@ -28,6 +29,7 @@ export const REGISTRY: Registry = {
   'two-way-anova': twoway,
   'repeated-measures-anova': repeatedMeasures,
   'repeated-two-way-anova': repeatedTwoway,
+  'repeated-two-way-anova-both': repeatedTwowayBoth,
   friedman,
   normality,
   'paired-normality': pairedNormality,

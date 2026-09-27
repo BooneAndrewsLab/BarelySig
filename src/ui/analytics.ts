@@ -69,6 +69,7 @@ export const EVENTS = {
     'new-two-way-anova',
     'new-repeated-measures-anova',
     'new-repeated-two-way-anova',
+    'new-repeated-two-way-anova-both',
     'new-friedman',
     'new-normality',
     'new-paired-normality',

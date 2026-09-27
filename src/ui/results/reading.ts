@@ -16,6 +16,7 @@ import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
 import type { RepeatedTwoWayResult } from '@/analyses/repeatedTwoway/types';
+import type { RepeatedTwoWayBothResult } from '@/analyses/repeatedTwowayBoth/types';
 import type { TwoWayResult } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
@@ -443,6 +444,30 @@ export function repeatedTwoWayReading(r: RepeatedTwoWayResult): string {
   };
   effect(r.between.p, 'between-subjects factor’s levels');
   effect(r.repeatedGgP, 'repeated factor’s levels');
+  return parts.join(' ');
+}
+
+export function repeatedTwoWayBothMethod(r: RepeatedTwoWayBothResult): string {
+  return `Repeated-measures two-way ANOVA, both factors repeated, every subject measured at every row × column cell. Each of the three terms is Geisser-Greenhouse corrected on its own (epsilon = ${sig(r.rowError.ggEpsilon)} row, ${sig(r.columnError.ggEpsilon)} column, ${sig(r.interactionError.ggEpsilon)} interaction).`;
+}
+
+export function repeatedTwoWayBothReading(r: RepeatedTwoWayBothResult): string {
+  const parts: string[] = [];
+  const pInter = r.interactionError.ggP;
+  parts.push(
+    pInter < 0.05
+      ? `The row factor’s effect depends on the column factor (interaction ${pPhrase(pInter)}): one isn’t the same at every level of the other, so the main effects below are hard to read on their own.`
+      : `There is no evidence that the row factor’s effect depends on the column factor (interaction ${pPhrase(pInter)}), so the two can be read one at a time.`,
+  );
+  const effect = (test: number, what: string) => {
+    parts.push(
+      test < 0.05
+        ? `The ${what} differ (${pPhrase(test)}).`
+        : `There is no evidence that the ${what} differ (${pPhrase(test)}).`,
+    );
+  };
+  effect(r.rowError.ggP, 'row factor’s levels');
+  effect(r.columnError.ggP, 'column factor’s levels');
   return parts.join(' ');
 }
 
