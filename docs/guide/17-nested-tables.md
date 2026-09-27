@@ -98,6 +98,27 @@ replicate with a usable value in some groups but not every group is
 left out of all of them, the same rule as the matched nested t test's,
 and the results name it.
 
+## Descriptive statistics
+
+Choose **Descriptive statistics** to summarise groups without comparing
+them. It reports, for each group:
+
+- **The group summary, from each replicate's own mean** (the number to
+  put in a figure legend): how many replicates had a usable value (n),
+  their mean, SD, SEM and 95% CI. This is the same n a nested t test or
+  nested one-way ANOVA counts, and what a SuperPlot's own error bar
+  already shows — it treats "how many times we ran the experiment" as
+  the sample size, not "how many cells or wells we looked at".
+- **Each replicate's own numbers**: n, mean, SD and SEM of the individual
+  values within it, for spotting one replicate that behaved oddly.
+- **Pooled, for reference only**: n, mean and SD over every individual
+  value, ignoring which replicate it came from. Never use this n for a
+  test or an error bar — pooling collapses the replicate structure and
+  can make a result look far more certain than it is
+  (pseudoreplication). It's shown only because it's a number people
+  reach for out of habit; the group summary above is the one that
+  matters.
+
 ## Comparing three or more groups: nested one-way ANOVA
 
 Choose **nested one-way ANOVA** instead of the nested t test when

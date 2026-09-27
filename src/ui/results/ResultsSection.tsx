@@ -12,6 +12,10 @@ import { type ReactNode, useState, useSyncExternalStore } from 'react';
 import type { DescribedGroup, DescriptiveResult } from '@/analyses/descriptive/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
+import type {
+  DescribedReplicate,
+  NestedDescriptiveResult,
+} from '@/analyses/nested-descriptive/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
@@ -1943,6 +1947,96 @@ function DescriptiveView({ r }: { readonly r: DescriptiveResult }) {
   );
 }
 
+const NESTED_REPLICATE_ROWS: readonly (readonly [string, (r: DescribedReplicate) => string])[] = [
+  ['Number of values (n)', (r) => String(r.n)],
+  ['Mean', (r) => sig(r.mean)],
+  ['Std. deviation', (r) => sig(r.sd)],
+  ['Std. error of mean', (r) => sig(r.sem)],
+];
+
+/** One replicate-level statistics table, headed by each replicate's title. */
+function ReplicateStatsTable({
+  replicates,
+}: {
+  readonly replicates: readonly DescribedReplicate[];
+}) {
+  return (
+    <div className="results-scroll">
+      <table className="results-table wide">
+        <thead>
+          <tr>
+            <th scope="col" />
+            {replicates.map((r, i) => (
+              <th key={`${r.title}-${String(i)}`} scope="col">
+                {r.title}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {NESTED_REPLICATE_ROWS.map(([label, f]) => (
+            <tr key={label}>
+              <th scope="row" title={explain(label)}>
+                {label}
+              </th>
+              {replicates.map((r, i) => (
+                <td key={`${r.title}-${String(i)}`}>{f(r)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const NESTED_DESCRIPTIVE_LEGEND =
+  '— means not defined for these values (e.g. the SD of a single replicate or a single value). ' +
+  'Group summary: from each replicate’s own mean, the same n a nested t test or nested one-way ' +
+  'ANOVA would use. Pooled: every individual value, ignoring the replicate structure — for ' +
+  'reference only, never for a test or an error bar. Pooling inflates the apparent sample size ' +
+  'and can manufacture significance that isn’t there (pseudoreplication).';
+
+function NestedDescriptiveView({ r }: { readonly r: NestedDescriptiveResult }) {
+  return (
+    <>
+      <div className="results-grid">
+        <Grid
+          label="Group summary (from the replicate means)"
+          head={['Group', 'Replicates (n)', 'Mean', 'SD', 'SEM', '95% CI']}
+          rows={r.groups.map((g) => [
+            `${g.title}${nestedDroppedText(g.droppedReplicates)}`,
+            String(g.group.n),
+            sig(g.group.mean),
+            sig(g.group.sd),
+            sig(g.group.sem),
+            interval(g.group.ciLower, g.group.ciUpper),
+          ])}
+        />
+      </div>
+      {r.groups.map((g) => (
+        <div key={g.id}>
+          <p className="hint">{g.title}, per replicate:</p>
+          <ReplicateStatsTable replicates={g.replicates} />
+        </div>
+      ))}
+      <div className="results-grid">
+        <Grid
+          label="Pooled over every individual value (for reference only)"
+          head={['Group', 'n (values)', 'Mean', 'SD']}
+          rows={r.groups.map((g) => [
+            g.title,
+            String(g.pooled.n),
+            sig(g.pooled.mean),
+            sig(g.pooled.sd),
+          ])}
+        />
+      </div>
+      <p className="legend">{NESTED_DESCRIPTIVE_LEGEND}</p>
+    </>
+  );
+}
+
 const EMPTY_CELL: DescribedGroup = {
   id: '',
   title: '',
@@ -2159,6 +2253,9 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'descriptive' && (
           <DescriptiveView r={value as unknown as DescriptiveResult} />
+        )}
+        {value !== null && analysis.kind === 'nested-descriptive' && (
+          <NestedDescriptiveView r={value as unknown as NestedDescriptiveResult} />
         )}
         {entry?.ok && ((value as { warnings?: string[] } | null)?.warnings ?? []).length > 0 && (
           <ul className="warnings">

@@ -394,3 +394,20 @@ export function nestedGroups(
     };
   });
 }
+
+/**
+ * A Nested group's replicate means (note 07's graph statistic, reused so
+ * a graph and a descriptive-statistics results table can never disagree
+ * on what a "replicate mean" is): the mean of each replicate with at
+ * least one usable value, as raw data ready for further description.
+ * Replicates with no usable value are dropped and counted.
+ */
+export function nestedReplicateMeans(g: NestedGroup): RawGroupData {
+  const usable = g.replicates.filter((r) => r.values.length > 0);
+  const means = usable.map((r) => r.values.reduce((a, b) => a + b, 0) / r.values.length);
+  return {
+    kind: 'raw',
+    values: means,
+    dropped: { empty: g.replicates.length - means.length, excluded: 0 },
+  };
+}

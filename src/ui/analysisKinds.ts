@@ -5,6 +5,7 @@ import type { IconName } from './Icon';
 
 export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   descriptive: 'descriptive-stats',
+  'nested-descriptive': 'descriptive-stats',
   't-test': 't-test',
   'nested-t-test': 't-test',
   'rank-test': 't-test',
@@ -26,6 +27,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
 export function testName(spec: AnalysisSpec): string {
   switch (spec.kind) {
     case 'descriptive':
+    case 'nested-descriptive':
       return 'Descriptive statistics';
     case 't-test':
       return spec.options.paired

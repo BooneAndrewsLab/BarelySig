@@ -69,6 +69,7 @@ export function guidePage(id: string): GuidePage | undefined {
 /** Each analysis's page, for "How to read these results" on its results sheet. */
 export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   descriptive: '11-descriptive',
+  'nested-descriptive': '17-nested-tables',
   't-test': '05-t-tests',
   'nested-t-test': '17-nested-tables',
   'nested-one-way-anova': '17-nested-tables',

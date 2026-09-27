@@ -7,7 +7,7 @@
 import type { EngineInput, EngineJob } from '@/engine/engine';
 import type { Plain } from '@/engine/convert';
 import type { Id } from '@/model/ids';
-import { columnGroups, groupedCells, nestedGroups } from '@/model/selectors';
+import { columnGroups, groupedCells, nestedGroups, nestedReplicateMeans } from '@/model/selectors';
 import type { GroupedTable, NestedTable } from '@/model/table';
 
 import { cellId } from '../pairwise';
@@ -51,20 +51,11 @@ function cellsOf(table: GroupedTable, dataSets: readonly Id[]): GraphSummaryRequ
  * itself (src/graphs/data.ts) plots every individual value.
  */
 function nestedMeansOf(table: NestedTable, dataSets: readonly Id[]): GraphSummaryRequest['cells'] {
-  return nestedGroups(table, dataSets).map((g) => {
-    const means = g.replicates
-      .filter((r) => r.values.length > 0)
-      .map((r) => r.values.reduce((a, b) => a + b, 0) / r.values.length);
-    return {
-      id: g.id,
-      title: g.title,
-      data: {
-        kind: 'raw' as const,
-        values: means,
-        dropped: { empty: g.replicates.length - means.length, excluded: 0 },
-      },
-    };
-  });
+  return nestedGroups(table, dataSets).map((g) => ({
+    id: g.id,
+    title: g.title,
+    data: nestedReplicateMeans(g),
+  }));
 }
 
 export const graphSummary: AnalysisModule<

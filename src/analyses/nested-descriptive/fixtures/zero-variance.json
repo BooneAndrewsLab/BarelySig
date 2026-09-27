@@ -1,0 +1,53 @@
+{
+  "input": {
+    "value": [5, 5, 5, 5, 5, 5],
+    "group_idx": [1, 1, 1, 1, 1, 1],
+    "replicate_idx": [1, 1, 1, 2, 2, 2],
+    "mean_value": [5, 5],
+    "mean_group_idx": [1, 1],
+    "k": [1]
+  },
+  "expected": {
+    "groups": [
+      {
+        "replicates": [
+          {
+            "n": 3,
+            "mean": 5,
+            "sd": 0,
+            "sem": 0
+          },
+          {
+            "n": 3,
+            "mean": 5,
+            "sd": 0,
+            "sem": 0
+          }
+        ],
+        "group": {
+          "n": 2,
+          "mean": 5,
+          "sd": 0,
+          "sem": 0,
+          "ci_lower": 5,
+          "ci_upper": 5
+        },
+        "pooled": {
+          "n": 6,
+          "mean": 5,
+          "sd": 0
+        }
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    one <- function(x) {\n        n <- length(x)\n        m <- if (n > 0) \n            mean(x)\n        else NA_real_\n        s <- if (n > 1) \n            sd(x)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem)\n    }\n    group_level <- function(means) {\n        n <- length(means)\n        m <- if (n > 0) \n            mean(means)\n        else NA_real_\n        s <- if (n > 1) \n            sd(means)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        half <- if (n > 1) \n            qt(0.975, n - 1) * sem\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem, ci_lower = m - half, ci_upper = m + \n            half)\n    }\n    described <- function(value, group_idx, replicate_idx, mean_value, mean_group_idx, \n        k) {\n        groups <- lapply(seq_len(k), function(g) {\n            sel <- group_idx == g\n            v <- value[sel]\n            ridx <- replicate_idx[sel]\n            reps <- lapply(sort(unique(ridx)), function(r) one(v[ridx == r]))\n            means <- mean_value[mean_group_idx == g]\n            list(replicates = reps, group = group_level(means), pooled = one(v)[c(\"n\", \n                \"mean\", \"sd\")])\n        })\n        list(groups = groups)\n    }\n}",
+    "call": "described(value, group_idx, replicate_idx, mean_value, mean_group_idx, k)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Every value identical: SD 0 at every level, a zero-width CI."
+}

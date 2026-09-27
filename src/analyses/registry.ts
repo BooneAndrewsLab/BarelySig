@@ -4,6 +4,7 @@ import { friedman } from './friedman';
 import { graphSummary } from './graphsummary';
 import { kruskal } from './kruskal';
 import type { Registry } from './module';
+import { nestedDescriptive } from './nested-descriptive';
 import { nestedOneway } from './nested-oneway';
 import { nestedRepeated } from './nested-repeated';
 import { nestedTTest } from './nested-ttest';
@@ -19,6 +20,7 @@ import { twoway } from './twoway';
 
 export const REGISTRY: Registry = {
   descriptive,
+  'nested-descriptive': nestedDescriptive,
   't-test': ttest,
   'nested-t-test': nestedTTest,
   'rank-test': ranktest,

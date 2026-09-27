@@ -115,6 +115,17 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
+    case 'nested-descriptive':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'The group summary is computed from each biological replicate’s own mean, the same n a nested t test or nested one-way ANOVA would use — not from every individual value.',
+            'The pooled numbers (every individual value, ignoring the replicate structure) are shown for reference only: never use that n for a test or an error bar. Pooling inflates the apparent sample size and can manufacture significance that isn’t there.',
+          ],
+        },
+      ];
     case 't-test': {
       const o = analysis.options;
       const text = o.paired

@@ -17,6 +17,7 @@ import type { Table } from './table';
 /** Options of each analysis kind, as the analysis dialog sets them. Defaults match Prism's. */
 export type AnalysisSpec =
   | { readonly kind: 'descriptive'; readonly options: DescriptiveOptions }
+  | { readonly kind: 'nested-descriptive'; readonly options: NestedDescriptiveOptions }
   | { readonly kind: 't-test'; readonly options: TTestOptions }
   | { readonly kind: 'nested-t-test'; readonly options: NestedTTestOptions }
   | { readonly kind: 'nested-one-way-anova'; readonly options: NestedOneWayOptions }
@@ -44,6 +45,9 @@ export type UserAnalysisKind = Exclude<AnalysisKind, 'graph-summary'>;
 export type UserAnalysisSpec = Exclude<AnalysisSpec, { readonly kind: 'graph-summary' }>;
 
 export type DescriptiveOptions = Readonly<Record<string, never>>;
+
+/** Descriptive statistics of a Nested table (item 25, #75). Nothing to choose. */
+export type NestedDescriptiveOptions = Readonly<Record<string, never>>;
 
 /** Both tests (D'Agostino-Pearson, Shapiro-Wilk) on every group; nothing to choose (note 06). */
 export type NormalityOptions = Readonly<Record<string, never>>;
@@ -253,6 +257,7 @@ export const DEFAULT_OPTIONS: {
   readonly [K in AnalysisKind]: Extract<AnalysisSpec, { kind: K }>['options'];
 } = {
   descriptive: {},
+  'nested-descriptive': {},
   't-test': { paired: false, welch: false, tails: 'two' },
   'nested-t-test': { tails: 'two', matched: false },
   'nested-one-way-anova': { comparisons: { kind: 'all', test: 'tukey' } },

@@ -59,6 +59,7 @@ export const EVENTS = {
   file: ['open', 'open-data', 'download'],
   analysis: [
     'new-descriptive',
+    'new-nested-descriptive',
     'new-t-test',
     'new-nested-t-test',
     'new-rank-test',

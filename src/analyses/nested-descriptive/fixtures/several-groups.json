@@ -1,0 +1,95 @@
+{
+  "input": {
+    "value": [
+      20, 20.399999999999999, 19.800000000000001, 22.100000000000001, 21.899999999999999, 18.5,
+      18.899999999999999, 19.100000000000001, 18.699999999999999, 30.199999999999999,
+      30.600000000000001, 29.899999999999999, 30.100000000000001, 27.399999999999999,
+      27.800000000000001
+    ],
+    "group_idx": [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
+    "replicate_idx": [1, 1, 1, 2, 2, 3, 3, 3, 3, 1, 1, 1, 1, 2, 2],
+    "mean_value": [
+      20.066666666666666, 22, 18.800000000000001, 30.199999999999999, 27.600000000000001
+    ],
+    "mean_group_idx": [1, 1, 1, 2, 2],
+    "k": [2]
+  },
+  "expected": {
+    "groups": [
+      {
+        "replicates": [
+          {
+            "n": 3,
+            "mean": 20.066666666666666,
+            "sd": 0.30550504633038827,
+            "sem": 0.17638342073763877
+          },
+          {
+            "n": 2,
+            "mean": 22,
+            "sd": 0.14142135623731153,
+            "sem": 0.10000000000000142
+          },
+          {
+            "n": 4,
+            "mean": 18.800000000000001,
+            "sd": 0.2581988897471616,
+            "sem": 0.1290994448735808
+          }
+        ],
+        "group": {
+          "n": 3,
+          "mean": 20.288888888888888,
+          "sd": 1.6115325119391901,
+          "sem": 0.93041872957592531,
+          "ci_lower": 16.285620202269008,
+          "ci_upper": 24.292157575508767
+        },
+        "pooled": {
+          "n": 9,
+          "mean": 19.933333333333334,
+          "sd": 1.329473580030833
+        }
+      },
+      {
+        "replicates": [
+          {
+            "n": 4,
+            "mean": 30.199999999999999,
+            "sd": 0.29439202887759586,
+            "sem": 0.14719601443879793
+          },
+          {
+            "n": 2,
+            "mean": 27.600000000000001,
+            "sd": 0.28284271247462051,
+            "sem": 0.20000000000000104
+          }
+        ],
+        "group": {
+          "n": 2,
+          "mean": 28.899999999999999,
+          "sd": 1.8384776310850222,
+          "sem": 1.2999999999999989,
+          "ci_lower": 12.381933842972909,
+          "ci_upper": 45.418066157027084
+        },
+        "pooled": {
+          "n": 6,
+          "mean": 29.333333333333332,
+          "sd": 1.3677231688710503
+        }
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    one <- function(x) {\n        n <- length(x)\n        m <- if (n > 0) \n            mean(x)\n        else NA_real_\n        s <- if (n > 1) \n            sd(x)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem)\n    }\n    group_level <- function(means) {\n        n <- length(means)\n        m <- if (n > 0) \n            mean(means)\n        else NA_real_\n        s <- if (n > 1) \n            sd(means)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        half <- if (n > 1) \n            qt(0.975, n - 1) * sem\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem, ci_lower = m - half, ci_upper = m + \n            half)\n    }\n    described <- function(value, group_idx, replicate_idx, mean_value, mean_group_idx, \n        k) {\n        groups <- lapply(seq_len(k), function(g) {\n            sel <- group_idx == g\n            v <- value[sel]\n            ridx <- replicate_idx[sel]\n            reps <- lapply(sort(unique(ridx)), function(r) one(v[ridx == r]))\n            means <- mean_value[mean_group_idx == g]\n            list(replicates = reps, group = group_level(means), pooled = one(v)[c(\"n\", \n                \"mean\", \"sd\")])\n        })\n        list(groups = groups)\n    }\n}",
+    "call": "described(value, group_idx, replicate_idx, mean_value, mean_group_idx, k)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Two groups, three and two replicates: each group's own numbers must stay separate."
+}

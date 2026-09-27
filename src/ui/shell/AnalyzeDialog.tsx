@@ -89,6 +89,13 @@ const KINDS: readonly KindInfo[] = [
     groups: 2,
   },
   {
+    kind: 'nested-descriptive',
+    name: 'Descriptive statistics',
+    blurb:
+      'Describe each group: n, mean, SD, SEM and 95% CI of the replicate means, plus each replicate’s own numbers.',
+    tables: ['nested'],
+  },
+  {
     kind: 'nested-t-test',
     name: 'Nested t test',
     blurb: 'Compare two groups, weighing each biological replicate by how many values it has.',
@@ -1081,6 +1088,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     switch (kind) {
       case 'descriptive':
         return { kind, options: options.descriptive };
+      case 'nested-descriptive':
+        return { kind, options: options['nested-descriptive'] };
       case 'normality':
         return { kind, options: options.normality };
       case 'paired-normality':

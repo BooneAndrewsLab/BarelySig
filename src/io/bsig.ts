@@ -141,6 +141,7 @@ function analysisJson(a: Analysis): Json {
 function optionsJson(a: AnalysisSpec): Json {
   switch (a.kind) {
     case 'descriptive':
+    case 'nested-descriptive':
     case 'normality':
     case 'paired-normality':
       return {};
@@ -449,6 +450,7 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
   const opts = obj(o['options'], q);
   switch (kind) {
     case 'descriptive':
+    case 'nested-descriptive':
     case 'normality':
     case 'paired-normality':
       return { kind, options: {} };

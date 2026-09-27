@@ -1,0 +1,62 @@
+{
+  "input": {
+    "value": [
+      10.1, 10.300000000000001, 9.9000000000000004, 10, 11.199999999999999, 10.800000000000001,
+      11.5, 9.4000000000000004, 9.0999999999999996, 9.6999999999999993, 9.5999999999999996
+    ],
+    "group_idx": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    "replicate_idx": [1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3],
+    "mean_value": [10.074999999999999, 11.166666666666666, 9.4499999999999993],
+    "mean_group_idx": [1, 1, 1],
+    "k": [1]
+  },
+  "expected": {
+    "groups": [
+      {
+        "replicates": [
+          {
+            "n": 4,
+            "mean": 10.074999999999999,
+            "sd": 0.17078251276599349,
+            "sem": 0.085391256382996744
+          },
+          {
+            "n": 3,
+            "mean": 11.166666666666666,
+            "sd": 0.35118845842842422,
+            "sem": 0.20275875100994042
+          },
+          {
+            "n": 4,
+            "mean": 9.4499999999999993,
+            "sd": 0.26457513110645892,
+            "sem": 0.13228756555322946
+          }
+        ],
+        "group": {
+          "n": 3,
+          "mean": 10.230555555555554,
+          "sd": 0.86884075598423638,
+          "sem": 0.50162544435041689,
+          "ci_lower": 8.0722354681094473,
+          "ci_upper": 12.388875643001661
+        },
+        "pooled": {
+          "n": 11,
+          "mean": 10.145454545454545,
+          "sd": 0.75015149985004548
+        }
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    one <- function(x) {\n        n <- length(x)\n        m <- if (n > 0) \n            mean(x)\n        else NA_real_\n        s <- if (n > 1) \n            sd(x)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem)\n    }\n    group_level <- function(means) {\n        n <- length(means)\n        m <- if (n > 0) \n            mean(means)\n        else NA_real_\n        s <- if (n > 1) \n            sd(means)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        half <- if (n > 1) \n            qt(0.975, n - 1) * sem\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem, ci_lower = m - half, ci_upper = m + \n            half)\n    }\n    described <- function(value, group_idx, replicate_idx, mean_value, mean_group_idx, \n        k) {\n        groups <- lapply(seq_len(k), function(g) {\n            sel <- group_idx == g\n            v <- value[sel]\n            ridx <- replicate_idx[sel]\n            reps <- lapply(sort(unique(ridx)), function(r) one(v[ridx == r]))\n            means <- mean_value[mean_group_idx == g]\n            list(replicates = reps, group = group_level(means), pooled = one(v)[c(\"n\", \n                \"mean\", \"sd\")])\n        })\n        list(groups = groups)\n    }\n}",
+    "call": "described(value, group_idx, replicate_idx, mean_value, mean_group_idx, k)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "One group, three replicates of similar size: the plain case."
+}

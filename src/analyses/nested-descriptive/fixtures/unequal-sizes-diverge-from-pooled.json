@@ -1,0 +1,56 @@
+{
+  "input": {
+    "value": [
+      100, 10.1, 9.9000000000000004, 10, 10.199999999999999, 9.8000000000000007, 10.1,
+      9.9000000000000004, 10, 10
+    ],
+    "group_idx": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    "replicate_idx": [1, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+    "mean_value": [100, 10],
+    "mean_group_idx": [1, 1],
+    "k": [1]
+  },
+  "expected": {
+    "groups": [
+      {
+        "replicates": [
+          {
+            "n": 1,
+            "mean": 100,
+            "sd": null,
+            "sem": null
+          },
+          {
+            "n": 9,
+            "mean": 10,
+            "sd": 0.12247448713915847,
+            "sem": 0.040824829046386159
+          }
+        ],
+        "group": {
+          "n": 2,
+          "mean": 55,
+          "sd": 63.63961030678928,
+          "sem": 45,
+          "ci_lower": -516.77921312786123,
+          "ci_upper": 626.77921312786123
+        },
+        "pooled": {
+          "n": 10,
+          "mean": 19,
+          "sd": 28.460733183341102
+        }
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    one <- function(x) {\n        n <- length(x)\n        m <- if (n > 0) \n            mean(x)\n        else NA_real_\n        s <- if (n > 1) \n            sd(x)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem)\n    }\n    group_level <- function(means) {\n        n <- length(means)\n        m <- if (n > 0) \n            mean(means)\n        else NA_real_\n        s <- if (n > 1) \n            sd(means)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        half <- if (n > 1) \n            qt(0.975, n - 1) * sem\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem, ci_lower = m - half, ci_upper = m + \n            half)\n    }\n    described <- function(value, group_idx, replicate_idx, mean_value, mean_group_idx, \n        k) {\n        groups <- lapply(seq_len(k), function(g) {\n            sel <- group_idx == g\n            v <- value[sel]\n            ridx <- replicate_idx[sel]\n            reps <- lapply(sort(unique(ridx)), function(r) one(v[ridx == r]))\n            means <- mean_value[mean_group_idx == g]\n            list(replicates = reps, group = group_level(means), pooled = one(v)[c(\"n\", \n                \"mean\", \"sd\")])\n        })\n        list(groups = groups)\n    }\n}",
+    "call": "described(value, group_idx, replicate_idx, mean_value, mean_group_idx, k)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "One replicate of a single outlying value against one of nine ordinary values: the group-level mean (of the two replicate means, ~55) must be far from the pooled mean (of all ten raw values, ~19) -- pooling would understate how much that single replicate actually moved the result."
+}

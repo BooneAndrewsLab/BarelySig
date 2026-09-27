@@ -1,0 +1,53 @@
+{
+  "input": {
+    "value": [5, 12, 12.4, 11.800000000000001, 12.199999999999999],
+    "group_idx": [1, 1, 1, 1, 1],
+    "replicate_idx": [1, 2, 2, 2, 2],
+    "mean_value": [5, 12.1],
+    "mean_group_idx": [1, 1],
+    "k": [1]
+  },
+  "expected": {
+    "groups": [
+      {
+        "replicates": [
+          {
+            "n": 1,
+            "mean": 5,
+            "sd": null,
+            "sem": null
+          },
+          {
+            "n": 4,
+            "mean": 12.1,
+            "sd": 0.25819888974716093,
+            "sem": 0.12909944487358047
+          }
+        ],
+        "group": {
+          "n": 2,
+          "mean": 8.5500000000000007,
+          "sd": 5.0204581464244873,
+          "sem": 3.5499999999999998,
+          "ci_lower": -36.557026813420165,
+          "ci_upper": 53.65702681342016
+        },
+        "pooled": {
+          "n": 5,
+          "mean": 10.68,
+          "sd": 3.1830802691732423
+        }
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    one <- function(x) {\n        n <- length(x)\n        m <- if (n > 0) \n            mean(x)\n        else NA_real_\n        s <- if (n > 1) \n            sd(x)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem)\n    }\n    group_level <- function(means) {\n        n <- length(means)\n        m <- if (n > 0) \n            mean(means)\n        else NA_real_\n        s <- if (n > 1) \n            sd(means)\n        else NA_real_\n        sem <- if (n > 1) \n            s/sqrt(n)\n        else NA_real_\n        half <- if (n > 1) \n            qt(0.975, n - 1) * sem\n        else NA_real_\n        list(n = n, mean = m, sd = s, sem = sem, ci_lower = m - half, ci_upper = m + \n            half)\n    }\n    described <- function(value, group_idx, replicate_idx, mean_value, mean_group_idx, \n        k) {\n        groups <- lapply(seq_len(k), function(g) {\n            sel <- group_idx == g\n            v <- value[sel]\n            ridx <- replicate_idx[sel]\n            reps <- lapply(sort(unique(ridx)), function(r) one(v[ridx == r]))\n            means <- mean_value[mean_group_idx == g]\n            list(replicates = reps, group = group_level(means), pooled = one(v)[c(\"n\", \n                \"mean\", \"sd\")])\n        })\n        list(groups = groups)\n    }\n}",
+    "call": "described(value, group_idx, replicate_idx, mean_value, mean_group_idx, k)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Replicate 1 has one value: its own SD and SEM aren't defined, but it still has a mean."
+}

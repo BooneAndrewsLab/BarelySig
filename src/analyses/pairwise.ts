@@ -141,6 +141,7 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
         : rows.flatMap((r) => among(ids, c).map(([a, b]) => pair(cellId(r, a), cellId(r, b))));
     }
     case 'descriptive':
+    case 'nested-descriptive':
     case 'normality':
     case 'paired-normality':
     case 'graph-summary':
@@ -216,6 +217,7 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
       });
     }
     case 'descriptive':
+    case 'nested-descriptive':
     case 'normality':
     case 'paired-normality':
     case 'graph-summary':
