@@ -7,7 +7,7 @@ Files
 - barelysig-mark-dark.svg — off-white #f3f2f2 + red, for dark backgrounds
 - barelysig-mark-on-red.svg — off-white + ink asterisk, for red fields
 - barelysig-app-icon.svg — ink tile, 512px
-- barelysig-favicon.svg — heavier cut for 16/32px (stem/bowl 14, asterisk 7)
+- barelysig-favicon.svg — heavier cut for 16/32px (stem/bowl 14, asterisk 7); transparent, ink switches via `prefers-color-scheme` (red asterisk constant), no background tile
 - barelysig-lockup-light.html / -dark.html — mark + wordmark, self-contained
 
 Wordmark
