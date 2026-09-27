@@ -20,7 +20,6 @@ import {
   EQUAL_SD_CONTROL,
   type KruskalWallisOptions,
   type NestedComparisons,
-  type NestedOneWayOptions,
   type NestedTTestOptions,
   type OneWayOptions,
   type RankTestOptions,
@@ -534,12 +533,17 @@ function OneWayFields(props: {
   );
 }
 
-function NestedOneWayFields(props: {
-  readonly o: NestedOneWayOptions;
+function NestedOneWayFields<O extends { readonly comparisons: NestedComparisons }>(props: {
+  readonly o: O;
   readonly groups: readonly { readonly id: Id; readonly title: string }[];
-  readonly set: (o: NestedOneWayOptions) => void;
+  readonly set: (o: O) => void;
+  /**
+   * Only the repeated-measures kinds have this (#83): a second field
+   * alongside `comparisons`, so the checkbox appears only for them.
+   */
+  readonly sphericity?: { readonly assume: boolean; readonly set: (assume: boolean) => void };
 }) {
-  const { o, set, groups } = props;
+  const { o, set, groups, sphericity } = props;
   const c = o.comparisons;
   const firstId = groups[0]?.id;
   const controlId = c.kind === 'control' ? c.control : firstId;
@@ -552,7 +556,7 @@ function NestedOneWayFields(props: {
         : kind === 'all'
           ? { kind, test: 'tukey' }
           : { kind, control: controlId ?? ('' as Id), test: 'dunnett' };
-    set({ comparisons: next });
+    set({ ...o, comparisons: next });
   };
   return (
     <fieldset>
@@ -590,7 +594,7 @@ function NestedOneWayFields(props: {
           <select
             value={c.control}
             onChange={(e) => {
-              set({ comparisons: { ...c, control: e.currentTarget.value as Id } });
+              set({ ...o, comparisons: { ...c, control: e.currentTarget.value as Id } });
             }}
           >
             {groups.map((g) => (
@@ -610,6 +614,7 @@ function NestedOneWayFields(props: {
             onChange={(e) => {
               const test = e.currentTarget.value;
               set({
+                ...o,
                 comparisons:
                   c.kind === 'all'
                     ? { kind: 'all', test: test as (typeof EQUAL_SD_ALL)[number] }
@@ -625,9 +630,27 @@ function NestedOneWayFields(props: {
           </select>
         </label>
       )}
+      {sphericity && c.kind !== 'none' && (
+        <label className="option">
+          <input
+            type="checkbox"
+            checked={!sphericity.assume}
+            onChange={(e) => {
+              sphericity.set(!e.currentTarget.checked);
+            }}
+          />
+          Don’t assume sphericity for these comparisons (each pair from just its own two groups, FAQ
+          1609’s method)
+        </label>
+      )}
       <p className="hint">
         Each P value is adjusted for the number of comparisons, so the 5% chance of a false
         “significant” applies to the whole set, not to each pair.
+        {sphericity &&
+          c.kind !== 'none' &&
+          (sphericity.assume
+            ? ' Assuming sphericity (Prism’s traditional method, on by default) pools every group’s variability into one residual.'
+            : ' Not assuming sphericity (Prism’s other method): each comparison uses only its own two groups’ pairing, so it has less power, but isn’t thrown off if the groups don’t vary together the same way.')}
       </p>
     </fieldset>
   );
@@ -973,7 +996,9 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return {
           kind,
           options:
-            control !== undefined && c.kind === 'control' ? { comparisons: { ...c, control } } : o,
+            control !== undefined && c.kind === 'control'
+              ? { ...o, comparisons: { ...c, control } }
+              : o,
         };
       }
       case 'nested-repeated-anova': {
@@ -983,7 +1008,9 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return {
           kind,
           options:
-            control !== undefined && c.kind === 'control' ? { comparisons: { ...c, control } } : o,
+            control !== undefined && c.kind === 'control'
+              ? { ...o, comparisons: { ...c, control } }
+              : o,
         };
       }
     }
@@ -1183,6 +1210,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               set={(o) => {
                 set('repeated-measures-anova', o);
               }}
+              sphericity={{
+                assume: options['repeated-measures-anova'].assumeSphericity,
+                set: (assume) => {
+                  set('repeated-measures-anova', {
+                    ...options['repeated-measures-anova'],
+                    assumeSphericity: assume,
+                  });
+                },
+              }}
             />
           )}
           {kind === 'nested-repeated-anova' && (
@@ -1191,6 +1227,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               groups={table.dataSets.filter((d) => picked.includes(d.id))}
               set={(o) => {
                 set('nested-repeated-anova', o);
+              }}
+              sphericity={{
+                assume: options['nested-repeated-anova'].assumeSphericity,
+                set: (assume) => {
+                  set('nested-repeated-anova', {
+                    ...options['nested-repeated-anova'],
+                    assumeSphericity: assume,
+                  });
+                },
               }}
             />
           )}

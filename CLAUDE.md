@@ -267,7 +267,8 @@ how it got here.
   nested t-test/ANOVA, SuperPlots, "Help me choose" guide, key-numbers-
   first results, project manager, file import, worker-rendered graphs,
   Grouped-table descriptives, paired-normality, unbalanced two-way ANOVA,
-  matched nested one-way ANOVA — notes 09–21).
+  matched nested one-way ANOVA, repeated-measures comparisons without
+  assuming sphericity (FAQ 1609's second method, #83) — notes 09–21).
 - **Open issues:**
   - #36 — the user's release steps (above)
   - #44 — real clipboard captures (needs the sibling apps)
@@ -281,7 +282,6 @@ how it got here.
   - #74 — SuperPlot over a violin with replicates joined, Phase 2
   - #81 — two-way repeated-measures ANOVA
   - #82 — exact Friedman P for small tables
-  - #83 — repeated-measures comparisons without assuming sphericity
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling

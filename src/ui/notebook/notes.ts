@@ -239,6 +239,11 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
             'Asks whether the group means are all the same, comparing each subject with itself across the groups so a subject that reads high (or low) everywhere doesn’t hide a real difference. It doesn’t say which groups differ; the comparisons below do.',
             'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default.',
             ...(comps ? [comps] : []),
+            ...(o.assumeSphericity
+              ? []
+              : [
+                  'Comparisons don’t assume sphericity: each pair uses only its own two groups’ pairing, not the ANOVA’s pooled residual.',
+                ]),
             NS,
           ],
         },
@@ -256,6 +261,11 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
             'A replicate that read high (or low) everywhere doesn’t hide a real difference, as long as it goes the same way every time. A replicate with values in some groups but not every group is left out of all of them.',
             'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default.',
             ...(comps ? [comps] : []),
+            ...(o.assumeSphericity
+              ? []
+              : [
+                  'Comparisons don’t assume sphericity: each pair uses only its own two groups’ pairing, not the ANOVA’s pooled residual.',
+                ]),
             NS,
           ],
         },

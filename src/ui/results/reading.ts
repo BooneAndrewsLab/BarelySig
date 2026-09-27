@@ -285,8 +285,15 @@ export function repeatedMethod(r: RepeatedMeasuresResult): string {
   const comps =
     c.kind === 'none'
       ? ''
-      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons.`;
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons, ${sphericityPhrase(r.assumeSphericity)}.`;
   return `Repeated-measures one-way ANOVA, Geisser-Greenhouse corrected (epsilon = ${sig(r.ggEpsilon)}).${comps}`;
+}
+
+/** How the comparisons were computed (#83): stated every time, never left to a silent default. */
+function sphericityPhrase(assumeSphericity: boolean): string {
+  return assumeSphericity
+    ? 'assuming sphericity (pooling every group’s variability, Prism’s traditional method)'
+    : 'not assuming sphericity (each pair from just its own two groups, Prism’s other method, FAQ 1609)';
 }
 
 export function repeatedReading(r: RepeatedMeasuresResult): string {
@@ -315,7 +322,7 @@ export function nestedRepeatedMethod(r: NestedRepeatedResult): string {
   const comps =
     c.kind === 'none'
       ? ''
-      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons.`;
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons, ${sphericityPhrase(r.assumeSphericity)}.`;
   return `Matched nested one-way ANOVA (repeated-measures on the replicate means), Geisser-Greenhouse corrected (epsilon = ${sig(r.ggEpsilon)}).${comps}`;
 }
 

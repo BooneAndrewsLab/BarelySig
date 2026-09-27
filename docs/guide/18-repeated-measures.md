@@ -36,9 +36,29 @@ other, against a control, or run only the overall test.
 
 Repeated-measures ANOVA always assumes every group has the same SD
 (there is no Welch-style option): the design already accounts for each
-subject's own baseline. Its comparisons use the pooled residual from the
-ANOVA table (Tukey, Dunnett, Šidák or Bonferroni), the same way ordinary
-one-way ANOVA's do.
+subject's own baseline. Its comparisons (Tukey, Dunnett, Šidák or
+Bonferroni) can be computed either of two ways — see below.
+
+## Two ways to compute the comparisons
+
+- **Assume sphericity (default).** Every comparison shares the ANOVA
+  table's own pooled residual, the same way ordinary one-way ANOVA's
+  comparisons do. This is the more powerful choice when the groups do
+  vary together about the same amount.
+- **Don't assume sphericity.** Each pair is computed from just its own
+  two groups, exactly as if you'd run a paired t test on those two
+  columns alone, then adjusted for the number of comparisons the same
+  way. This is GraphPad's own recommendation when the groups clearly
+  don't vary together the same way (a low epsilon, or a group whose
+  ups and downs don't track the others): the pooled method can then
+  make some pairs look more (or less) significant than they should,
+  because it borrows scatter from every group, including ones that
+  have nothing to do with the pair being compared. The trade-off: each
+  comparison now uses less data, so it has less power on its own.
+
+Tick the checkbox under the comparisons options to switch. The results
+always say which method produced the numbers shown, right under the
+headline — never a silent default.
 
 ## Sphericity and the Geisser-Greenhouse correction
 
@@ -87,17 +107,14 @@ Prism calls these “Repeated measures one-way ANOVA” and “Friedman test”
   small tables; BarelySig always uses the chi-square approximation for
   now (issue #82), as Kruskal-Wallis did before its own exact P was
   built.
-- **Comparisons after repeated-measures ANOVA:** Prism also offers a
-  second method that doesn’t assume sphericity, comparing each pair as
-  its own paired t test; BarelySig has only the pooled method so far
-  (issue #83).
 - Two-way repeated-measures ANOVA (one or both factors repeated, from a
   Grouped table) isn’t built yet (issue #81).
 
 Everything is checked against R’s own `anova.mlm` (Geisser-Greenhouse and
-Huynh-Feldt epsilon), `aov` and `stats::friedman.test`, with `TukeyHSD`
-and the multcomp package as second checks, on cases with ties, missing
-values, and a strong sphericity violation.
+Huynh-Feldt epsilon), `aov`, `stats::friedman.test` and `t.test` (each
+pair, for the sphericity-free comparisons), with `TukeyHSD` and the
+multcomp package as second checks, on cases with ties, missing values,
+and a strong sphericity violation.
 
 ## On a graph
 
