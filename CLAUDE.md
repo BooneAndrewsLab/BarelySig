@@ -373,6 +373,16 @@ the target).
   Split out: #71 (matched nested ANOVA, after #50), #72 (the unmatched
   REML test is conservative when replicates hardly differ — Prism's
   method; needs the user's decision).
+- Help me choose as a guide (#73, note 15): the Analyze dialog opens on
+  two tabs, Help me choose (default, remembered) and Pick a test
+  myself; one question at a time in bench words with pictures, the
+  user's own row 1 as the pairing example, "I'm not sure" always an
+  answer, a control-group question for 3+ groups (Dunnett/Tukey/Dunn),
+  folded answers with Change, one "Run this test". Pairing wording
+  everywhere now leads with a split sample (one culture split between
+  the groups), never "the same day" (the user's correction). Filed:
+  #74, a SuperPlot over a violin with replicates joined (Lord et al.
+  2020, Fig. S1F), Phase 2.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling

@@ -20,3 +20,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 12 | [Group labels that would overlap](12-label-overlap.md) | #61 |
 | 13 | [Nested tables and SuperPlots](13-nested-tables-superplots.md) | #63–#69 |
 | 14 | [Matched replicates in a Nested table](14-matched-nested.md) | #70 |
+| 15 | [Help me choose, as a guide a novice can follow](15-guided-chooser.md) | #73 |

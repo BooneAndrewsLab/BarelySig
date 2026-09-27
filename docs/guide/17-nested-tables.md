@@ -53,14 +53,20 @@ The results report:
   compared with the within-replicate SD is a sign that which day or
   animal you used matters more than which individual thing you measured.
 
-## Matched replicates: the same experiment in both groups
+## Matched replicates: one sample split between the groups
 
-Often each replicate is **one experiment that ran both groups side by
-side**: on Day 1 you imaged control and drug-treated cells, on Day 2
-again, and so on. Then "Day 1" in Control and "Day 1" in Drug belong
-together, and the fairest comparison is within each day. In the
-Analyze dialog, under **How were the replicates run?**, choose
+Often each replicate is **one sample split between the groups**: on
+Day 1 you split one flask of cells into a control well and a
+drug-treated well and imaged both; on Day 2 a new flask, split again,
+and so on. Then "Day 1" in Control and "Day 1" in Drug share their
+starting material, and the fairest comparison is within each replicate.
+In the Analyze dialog, under **How were the replicates run?**, choose
 **Matched**.
+
+Being done on the same day isn't enough on its own: separate cultures
+or animals for each group, processed on the same day, are still
+independent. Decide from how the experiment was designed, never from
+which choice gives the smaller P.
 
 The test is then a **paired t test on the replicate means**, which is
 what the SuperPlots paper (Lord et al. 2020) uses. Days that differ a
@@ -122,8 +128,10 @@ that shows how repeatable the experiment was. Pick SD or a 95% CI in
 the format panel instead if you prefer. Significance brackets from the
 nested t test or nested one-way ANOVA draw as on any other graph.
 
-Is replicate 1 in Control the _same_ experiment as replicate 1 in
-Treated (same day, same batch of cells)? Then the replicate means pair
+Is replicate 1 in Control the _same_ sample as replicate 1 in Treated:
+one culture, animal or batch of cells split between them and handled in
+parallel? (Being done on the same day isn't enough on its own.) Then
+the replicate means pair
 up, and a trend that holds within every experiment shows as the same
 colour moving the same way in every group — even when the days differ
 a lot from each other. Choose the **matched** nested t test for such

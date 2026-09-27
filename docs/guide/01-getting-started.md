@@ -15,9 +15,10 @@ your data never leave your computer, and there is no account.
    LibreOffice, click the first cell of the table and press `Ctrl+V`. A
    first row of names becomes the group names. See
    [Entering and pasting data](02-data-entry.md).
-3. **Analyze.** Click **Analyze…** under the table and pick a test, or
-   click **Help me choose** and answer a few questions about your
-   experiment. The results appear further down the same page, with a
+3. **Analyze.** Click **Analyze…** under the table. **Help me choose**
+   asks a few questions about your experiment, in plain words, and
+   suggests a test; **Pick a test myself** lists them all. The results
+   appear further down the same page, with a
    sentence saying what they mean. See
    [Choosing a test](04-choosing-a-test.md).
 4. **Graph.** Click **New graph**, next to **Analyze…**. The graph draws the

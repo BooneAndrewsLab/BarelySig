@@ -108,9 +108,16 @@ beforeEach(() => {
   );
 });
 
-function analyze(kind: RegExp, groups?: readonly string[]) {
+/** Opens the Analyze dialog on one of its tabs: the guide, or the list of tests (note 15). */
+function openAnalyze(tab: 'Help me choose' | 'Pick a test myself' = 'Pick a test myself') {
   fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
   const dialog = screen.getByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('tab', { name: tab }));
+  return dialog;
+}
+
+function analyze(kind: RegExp, groups?: readonly string[]) {
+  const dialog = openAnalyze();
   fireEvent.click(within(dialog).getByRole('radio', { name: kind }));
   if (groups) {
     for (const box of within(dialog).getAllByRole('checkbox')) {
@@ -372,8 +379,7 @@ describe('results sheets', () => {
       return Promise.resolve(r as unknown as Json);
     };
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = openAnalyze();
     fireEvent.click(within(dialog).getByRole('radio', { name: /Mann-Whitney/ }));
     fireEvent.click(within(dialog).getByRole('radio', { name: /^Paired/ }));
     fireEvent.click(within(dialog).getByRole('radio', { name: /Pratt/ }));
@@ -469,8 +475,7 @@ describe('results sheets', () => {
       return Promise.resolve(r as unknown as Json);
     };
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = openAnalyze();
     fireEvent.click(within(dialog).getByRole('radio', { name: /One-way ANOVA/ }));
     fireEvent.click(within(dialog).getByRole('radio', { name: /with a control group/ }));
     expect(within(dialog).getByRole('combobox', { name: 'Multiple comparisons test' })).toHaveValue(
@@ -558,8 +563,7 @@ describe('results sheets', () => {
 
   it('adds only the test when the normality box is unticked', () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = openAnalyze();
     fireEvent.click(within(dialog).getByRole('radio', { name: /one-way ANOVA/i }));
     fireEvent.click(
       within(dialog).getByRole('checkbox', { name: /Also test each group for normality/ }),
@@ -570,28 +574,89 @@ describe('results sheets', () => {
     ]);
   });
 
-  it('suggests a test from two plain questions, and fills the dialog with it', () => {
+  it('opens on Help me choose, and remembers the tab picked last', () => {
+    localStorage.removeItem('barelysig.analyze');
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
-    const dialog = screen.getByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('radio', { name: /Help me choose/ }));
-    for (const box of within(dialog).getAllByRole('checkbox')) {
-      if ((box.parentElement?.textContent ?? '') === 'Het') fireEvent.click(box);
+    let dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('tab', { name: 'Help me choose' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(within(dialog).getByText('What do you want to find out?')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Pick a test myself' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
+    dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('tab', { name: 'Pick a test myself' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('guides to a test in plain questions, one at a time, and runs it in one click', () => {
+    render(<App />);
+    const dialog = openAnalyze('Help me choose');
+    const guide = within(dialog);
+    fireEvent.click(guide.getByRole('button', { name: /^Whether the groups differ/ }));
+    for (const box of guide.getAllByRole('checkbox')) {
+      if ((box.parentElement?.textContent ?? '').startsWith('Het')) fireEvent.click(box);
     }
-    expect(within(dialog).getByRole('button', { name: 'Analyze' })).toBeDisabled();
-    fireEvent.click(within(dialog).getByRole('radio', { name: /^Yes: each row is one subject/ }));
-    fireEvent.click(within(dialog).getByRole('radio', { name: /^No: skewed values/ }));
-    expect(within(dialog).getByRole('status')).toHaveTextContent(
-      /Suggested: Wilcoxon matched-pairs test\..*can’t give P < 0\.05/,
-    );
-    fireEvent.click(
-      within(dialog).getByRole('button', { name: 'Use the Wilcoxon matched-pairs test' }),
-    );
-    expect(within(dialog).getByRole('radio', { name: /Mann-Whitney \/ Wilcoxon/ })).toBeChecked();
-    expect(within(dialog).getByRole('radio', { name: /^Paired/ })).toBeChecked();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
+    fireEvent.click(guide.getByRole('button', { name: 'Continue' }));
+    // The pairing question shows the table's own first row.
+    expect(guide.getByText(/^Row 1 of your table has .* in WT and .* in KO\./)).toBeInTheDocument();
+    fireEvent.click(guide.getByRole('button', { name: /^Yes, each row is one mouse/ }));
+    fireEvent.click(guide.getByRole('button', { name: /^Scores, ranks or small counts/ }));
+    const result = within(guide.getByRole('region', { name: 'Suggested test' }));
+    expect(
+      result.getByRole('heading', { name: 'Wilcoxon matched-pairs test' }),
+    ).toBeInTheDocument();
+    expect(result.getByText(/can’t give P < 0\.05/)).toBeInTheDocument();
+    // The answers fold into lines that can be changed.
+    expect(guide.getByText('Each row belongs together')).toBeInTheDocument();
+    fireEvent.click(guide.getByRole('button', { name: 'Change: The numbers are' }));
+    expect(guide.queryByRole('region', { name: 'Suggested test' })).not.toBeInTheDocument();
+    fireEvent.click(guide.getByRole('button', { name: /^Measurements on a smooth scale/ }));
+    expect(
+      within(guide.getByRole('region', { name: 'Suggested test' })).getByRole('heading', {
+        name: 'Paired t test',
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(guide.getByRole('button', { name: 'Change: The numbers are' }));
+    fireEvent.click(guide.getByRole('button', { name: /^Scores, ranks or small counts/ }));
+    fireEvent.click(guide.getByRole('button', { name: 'Run this test' }));
     expect(
       screen.getByRole('heading', { level: 2, name: 'Wilcoxon test of Viability' }),
+    ).toBeInTheDocument();
+  });
+
+  it('asks about a control for three groups, and hands the suggestion to the options', () => {
+    render(<App />);
+    const dialog = openAnalyze('Help me choose');
+    const guide = within(dialog);
+    fireEvent.click(guide.getByRole('button', { name: /^Whether the groups differ/ }));
+    fireEvent.click(guide.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(guide.getByRole('button', { name: /^No, every value is a separate sample/ }));
+    fireEvent.click(guide.getByRole('button', { name: /^Measurements on a smooth scale/ }));
+    fireEvent.click(
+      guide.getByRole('button', { name: /^Yes, compare each group with the control/ }),
+    );
+    fireEvent.click(guide.getByRole('button', { name: 'WT' }));
+    expect(
+      within(guide.getByRole('region', { name: 'Suggested test' })).getByText(
+        /compares each group with WT \(Dunnett’s test\)/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(guide.getByRole('button', { name: 'See its options first' }));
+    expect(guide.getByRole('tab', { name: 'Pick a test myself' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(guide.getByRole('radio', { name: /One-way ANOVA/ })).toBeChecked();
+    expect(guide.getByRole('radio', { name: /with a control group/ })).toBeChecked();
+    fireEvent.click(guide.getByRole('button', { name: 'Analyze' }));
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'One-way ANOVA of Viability' }),
     ).toBeInTheDocument();
   });
 
@@ -675,11 +740,12 @@ describe('matched nested t test sheet (note 14)', () => {
       return Promise.resolve(r as unknown as Json);
     };
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = openAnalyze();
     fireEvent.click(within(dialog).getByRole('radio', { name: /^Nested t test/ }));
     fireEvent.click(
-      within(dialog).getByRole('radio', { name: /^Matched: “Day 1” is the same experiment/ }),
+      within(dialog).getByRole('radio', {
+        name: /^Matched: “Day 1” is one sample split between both groups/,
+      }),
     );
     fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
     const name = 'Matched nested t test of Speed';
@@ -777,8 +843,7 @@ describe('two-way ANOVA sheet', () => {
       }),
     );
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = openAnalyze();
     expect(within(dialog).queryByRole('radio', { name: /^t test/ })).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('radio', { name: /Two-way ANOVA/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));

@@ -139,7 +139,7 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           text: [
             ...(o.matched
               ? [
-                  'Each replicate is the same experiment in both groups, so it compares the groups within each experiment: a paired t test on the replicate means.',
+                  'Each replicate is one sample split between both groups, so it compares the groups within each replicate: a paired t test on the replicate means.',
                   'A day when everything read high doesn’t hide the effect, as long as the difference goes the same way every time. A replicate with values in only one group is left out.',
                 ]
               : [

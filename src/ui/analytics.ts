@@ -67,6 +67,8 @@ export const EVENTS = {
     'new-kruskal-wallis',
     'new-two-way-anova',
     'new-normality',
+    // A new analysis made from Help me choose's suggestion (item 15).
+    'guided',
   ],
   graph: ['new-column', 'new-grouped', 'new-nested', 'export-svg', 'export-png'],
   help: ['page'],

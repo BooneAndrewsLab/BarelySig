@@ -1,15 +1,21 @@
 # Choosing a test
 
-Every analysis starts from a table. Open the table, click **Analyze…**
-above it, and the dialog asks three things: what you want to know, which
-groups, and the options of that test. If you are not sure which test fits
-your experiment, **Help me choose** asks about it and suggests one.
+Every analysis starts from a table. Open the table and click
+**Analyze…** above it. The dialog has two tabs:
+
+- **Help me choose** asks about your experiment, one question at a
+  time, and suggests a test with the reason in plain words. Use it
+  whenever you aren't sure; no statistics knowledge needed.
+- **Pick a test myself** lists every test the table offers, with its
+  options.
+
+The dialog opens on the tab you used last.
 
 ## Running an analysis
 
 1. Open a table and click **Analyze…**.
-2. Under **What do you want to know?** click a test, or **Help me
-   choose**.
+2. On **Pick a test myself**, under **What do you want to know?** click
+   a test.
 3. Under **Which groups?** tick the groups (columns) to analyse (for a
    Grouped table, **Which data sets (columns)?**). A test of exactly two
    groups asks **Which two groups?** and starts with the first two
@@ -47,44 +53,83 @@ can run. See [Column and Grouped tables](03-tables.md#summary-data).
 
 ## Help me choose
 
-**Help me choose** is the first tile when you create an analysis. It
-counts the groups you ticked under **Which groups?**, then asks at most
-two questions:
+**Help me choose** asks only what matters for your table, one question
+at a time. Click an answer and the next question appears; each answered
+question folds into a line with **Change**, so you can see how you got
+to the suggestion and go back to any step.
 
-- **Are the same subjects in every group?** “No” if each group holds
-  different samples, animals or wells. “Yes” if each row is one subject
-  measured in every group: before and after, left and right, matched
-  pairs. Data like these are called **paired** (or **matched**).
-- **Can you assume the values follow a bell-shaped (Gaussian, “normal”)
-  distribution?** “Yes”, “No”, or “Not sure”. This comes mostly from what
-  is known about the kind of measurement, not from a normality test on a
-  few values.
+1. **What do you want to find out?** _Whether the groups differ_, or
+   _The numbers for each group_ (mean, SD, SEM, n: descriptive
+   statistics, for a table or a figure legend).
+2. **Which groups?** Tick the groups to include; each shows how many
+   values it has. Then **Continue**.
+3. **Do the values in one row belong together?** The guide shows your
+   own first row as an example. “No” if every value is a separate
+   sample: different mice, wells, dishes or patients in each group.
+   “Yes” if each row is one mouse or patient measured in every group
+   (before and after, treated and untreated), or one sample (a culture,
+   a batch of cells) split between the groups and handled in parallel.
+   Data like these are called **paired** (or **matched**). Being
+   measured on the same day isn’t enough on its own: separate cultures
+   processed on the same day are still separate samples. Decide from
+   how the experiment was designed, never from which answer gives the
+   smaller P.
+4. **What kind of numbers are these?** This decides whether a test may
+   assume a bell-shaped (Gaussian, “normal”) spread of values; see
+   [the kind of numbers](#the-kind-of-numbers) below.
+5. **Is one of the groups a control?** (Three or more groups.) _Yes_,
+   then click which one: each group is compared with it (Dunnett’s
+   test, or Dunn’s after Kruskal-Wallis). _No_: every group is compared
+   with every other (Tukey’s test, or Dunn’s).
 
-It then says which test it suggests and why. Click **Use the …** (for
-example **Use the Unpaired t test**) to fill the dialog with that test and
-its options, then **Analyze**. The **Analyze** button stays greyed out
-while **Help me choose** is selected, and the dialog says so.
+### The kind of numbers
 
-Some cases skip the questions:
+- _Measurements on a smooth scale_ (weight, length, absorbance,
+  fluorescence, Ct values, % viability): a t test or ANOVA.
+- _Amounts that grow by multiplying_ (concentrations, fold changes,
+  expression levels, titres, counts from tens to thousands): a rank
+  test, with a tip: their logarithms are often bell-shaped, so a t test
+  on a column of logs is the more sensitive choice.
+- _Scores, ranks or small counts_ (a 0–4 score, a rating, foci per
+  cell): a rank test.
+- _I’m not sure_: the test that assumes less (a rank test), unless there
+  are so few values that a rank test can never reach P < 0.05 (for
+  example 3 against 3, 5 pairs or fewer, or 7 values or fewer in all
+  for three or more groups). Then the t test or ANOVA, and it says why.
 
-- A **Grouped table** goes straight to two-way ANOVA.
-- A **Nested table** asks one question: is "Replicate 1" (or whatever
-  you named it) the same experiment in every group? No: the nested t
-  test (two groups) or nested one-way ANOVA (three or more). Yes: the
-  **matched** nested t test for two groups; three or more matched groups
-  need a repeated-measures ANOVA, which BarelySig doesn't have yet. It
-  never asks about the distribution: the test works on replicate means.
+This is the question a normality test can’t answer for you: with a few
+values it can only flag clear departures, so what is known about the
+kind of measurement decides.
+
+### The suggestion
+
+The suggestion names the test and says why, with anything to keep in
+mind. **Run this test** creates the analysis straight away; **See its
+options first** opens it on **Pick a test myself** with the answers
+filled in, to change the options before clicking **Analyze**. For a t
+test or one-way ANOVA a box, ticked at first, also adds normality tests
+of each group as a separate analysis.
+
+“I’m not sure” is always an answer about the experiment. For the rows,
+it takes every value as a separate sample and says that a paired test
+would be more sensitive if the rows do belong together.
+
+Some tables skip questions:
+
+- A **Grouped table** goes straight to two-way ANOVA after the data
+  sets.
+- A **Nested table** asks one question: was “Replicate 1” (or whatever
+  you named it) one sample split between the groups? No: the nested
+  t test (two groups) or nested one-way ANOVA (three or more). Yes: the
+  **matched** nested t test for two groups; three or more matched
+  groups need a repeated-measures ANOVA, which BarelySig doesn’t have
+  yet. It never asks about the kind of numbers: the test works on
+  replicate means.
 - **Summary data** gets the unpaired t test (two groups) or one-way
   ANOVA (three or more), the only tests that work from mean, SD and n.
-- **One group:** there is nothing to compare; use descriptive statistics.
 - **Three or more matched groups** need repeated-measures ANOVA or the
   Friedman test, which BarelySig doesn’t have yet. Don’t use an unpaired
   test instead: it ignores the matching.
-
-“Not sure” suggests the rank test, which assumes less, unless there are
-so few values that a rank test can never reach P < 0.05 (for example 3
-against 3, 5 pairs or fewer, or 7 values or fewer in all for three or
-more groups). Then it suggests the t test or ANOVA and says why.
 
 ## Words you will meet
 

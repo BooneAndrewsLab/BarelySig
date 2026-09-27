@@ -63,13 +63,15 @@ test('paste, test, graph, export, save and reopen', async ({ page }) => {
   await expect(page.getByRole('columnheader', { name: /Vehicle/ })).toBeVisible();
   await expect(page.getByRole('gridcell', { name: /63/ }).first()).toBeVisible();
 
-  // A t test, run by R in the browser.
+  // A t test, chosen by Help me choose (note 15) and run by R in the browser.
   await page.getByRole('button', { name: 'Analyze…' }).click();
-  await page
-    .getByRole('dialog')
-    .getByRole('radio', { name: /^t test/ })
-    .check();
-  await page.getByRole('dialog').getByRole('button', { name: 'Analyze', exact: true }).click();
+  const analyze = page.getByRole('dialog');
+  await analyze.getByRole('button', { name: /^Whether the groups differ/ }).click();
+  await analyze.getByRole('button', { name: 'Continue' }).click();
+  await analyze.getByRole('button', { name: /^No, every value is a separate sample/ }).click();
+  await analyze.getByRole('button', { name: /^Measurements on a smooth scale/ }).click();
+  await expect(analyze.getByRole('heading', { name: 'Unpaired t test' })).toBeVisible();
+  await analyze.getByRole('button', { name: 'Run this test' }).click();
   // The results are a section of the experiment's page, under the data.
   await expect(page.getByRole('heading', { level: 2, name: /t test of Viability/ })).toBeVisible();
   await expect(page.getByText('P < 0.0001').first()).toBeVisible({ timeout: 150_000 });

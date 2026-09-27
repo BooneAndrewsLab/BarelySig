@@ -31,7 +31,6 @@ import {
   WELCH_ALL,
   WELCH_CONTROL,
 } from '@/model/project';
-import { columnGroup } from '@/model/selectors';
 import type { Table, TableType } from '@/model/table';
 
 import { KIND_ICON } from '../analysisKinds';
@@ -39,7 +38,7 @@ import { analytics } from '../analytics';
 import { Icon } from '../Icon';
 import { store } from '../state/store';
 import { Dialog } from './Dialog';
-import { type ChooserAnswers, suggest } from './chooser';
+import { Guide } from './Guide';
 import { analysisTitle } from './tables';
 
 interface Props {
@@ -275,7 +274,7 @@ function NestedTTestFields(props: {
             set({ ...o, matched: false });
           }}
         >
-          Separately: each group’s replicates are different experiments
+          Separately: each group’s replicates are independent (even if run on the same day)
         </Radio>
         <Radio
           name="matched"
@@ -284,8 +283,8 @@ function NestedTTestFields(props: {
             set({ ...o, matched: true });
           }}
         >
-          Matched: “{props.first}” is the same experiment in both groups (same day, same batch of
-          cells)
+          Matched: “{props.first}” is one sample split between both groups (the same culture, animal
+          or batch of cells, handled in parallel)
         </Radio>
         <p className="hint">
           {o.matched
@@ -795,138 +794,24 @@ function TwoWayFields(props: {
   );
 }
 
-/** "Which test?" (#29): plain questions, a suggestion and why. */
-function Chooser(props: {
-  readonly table: Table;
-  readonly picked: readonly Id[];
-  readonly onUse: (spec: UserAnalysisSpec) => void;
-}) {
-  const [answers, setAnswers] = useState<ChooserAnswers>({ matched: null, gaussian: null });
-  const { table } = props;
-  const sizes = props.picked.map((id) => {
-    if (table.type === 'nested') return 1;
-    if (table.type !== 'column') return 0;
-    const g = columnGroup(table, id);
-    return g.kind === 'raw' ? g.values.length : (g.n ?? 0);
-  });
-  const context = { tableType: table.type, summary: table.format.kind === 'summary', sizes };
-  const s = suggest(answers, context);
-  const nested = table.type === 'nested';
-  const asksMatched = (table.type === 'column' || nested) && !context.summary && sizes.length >= 2;
-  const asksGaussian = asksMatched && !nested && !(answers.matched === true && sizes.length > 2);
-  return (
-    <fieldset className="chooser">
-      <legend>Which test?</legend>
-      <p className="hint flush">
-        {table.type === 'grouped'
-          ? 'A Grouped table: two factors, the rows and the data sets.'
-          : `${String(sizes.length)} ${sizes.length === 1 ? 'group' : 'groups'} chosen below${context.summary ? ', entered as summary data (mean, SD, n)' : ''}.`}
-      </p>
-      {asksMatched && nested && (
-        <div role="radiogroup" aria-label="Same experiments in every group?">
-          <p className="question">
-            Is “{table.replicateTitles?.[0] ?? 'Replicate 1'}” the same experiment in every group?
-          </p>
-          <Radio
-            name="matched"
-            checked={answers.matched === false}
-            onPick={() => {
-              setAnswers({ ...answers, matched: false });
-            }}
-          >
-            No: each group’s replicates were run separately
-          </Radio>
-          <Radio
-            name="matched"
-            checked={answers.matched === true}
-            onPick={() => {
-              setAnswers({ ...answers, matched: true });
-            }}
-          >
-            Yes: each replicate ran every group side by side (same day, same batch of cells)
-          </Radio>
-        </div>
-      )}
-      {asksMatched && !nested && (
-        <div role="radiogroup" aria-label="Same subjects in every group?">
-          <p className="question">Are the same subjects in every group?</p>
-          <Radio
-            name="matched"
-            checked={answers.matched === false}
-            onPick={() => {
-              setAnswers({ ...answers, matched: false });
-            }}
-          >
-            No: different samples, animals or wells in each group
-          </Radio>
-          <Radio
-            name="matched"
-            checked={answers.matched === true}
-            onPick={() => {
-              setAnswers({ ...answers, matched: true });
-            }}
-          >
-            Yes: each row is one subject measured in every group (before and after, matched)
-          </Radio>
-        </div>
-      )}
-      {asksGaussian && answers.matched !== null && (
-        <div role="radiogroup" aria-label="Gaussian values?">
-          <p className="question">
-            Can you assume the values follow a bell-shaped (Gaussian, “normal”) distribution?
-          </p>
-          <Radio
-            name="gaussian"
-            checked={answers.gaussian === 'yes'}
-            onPick={() => {
-              setAnswers({ ...answers, gaussian: 'yes' });
-            }}
-          >
-            Yes: e.g. heights, most well-behaved assay readouts
-          </Radio>
-          <Radio
-            name="gaussian"
-            checked={answers.gaussian === 'no'}
-            onPick={() => {
-              setAnswers({ ...answers, gaussian: 'no' });
-            }}
-          >
-            No: skewed values, scores, counts with a few very large ones
-          </Radio>
-          <Radio
-            name="gaussian"
-            checked={answers.gaussian === 'unsure'}
-            onPick={() => {
-              setAnswers({ ...answers, gaussian: 'unsure' });
-            }}
-          >
-            Not sure
-          </Radio>
-        </div>
-      )}
-      {s.kind !== 'ask' && (
-        <div className="suggestion" role="status">
-          {s.kind === 'test' ? (
-            <>
-              <p>
-                <strong>Suggested: {s.name}.</strong> {s.why}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  props.onUse(s.spec);
-                }}
-              >
-                Use the {s.name}
-              </button>
-            </>
-          ) : (
-            <p>{s.why}</p>
-          )}
-        </div>
-      )}
-    </fieldset>
-  );
+type Mode = 'guide' | 'pick';
+const MODE_KEY = 'barelysig.analyze';
+
+/** The last way a new analysis was chosen in this browser (item 15); the guide at first. */
+function readMode(): Mode {
+  try {
+    return globalThis.localStorage.getItem(MODE_KEY) === 'pick' ? 'pick' : 'guide';
+  } catch {
+    return 'guide';
+  }
+}
+
+function keepMode(mode: Mode): void {
+  try {
+    globalThis.localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // Not remembered; the dialog still switches for this visit.
+  }
 }
 
 export function AnalyzeDialog({ table, analysis, onClose }: Props) {
@@ -935,7 +820,12 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const [kind, setKind] = useState<UserAnalysisKind>(
     analysis && analysis.kind !== 'graph-summary' ? analysis.kind : 'descriptive',
   );
-  const [choosing, setChoosing] = useState(false);
+  const [mode, setModeState] = useState<Mode>(() => (analysis ? 'pick' : readMode()));
+  const choosing = mode === 'guide';
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    keepMode(m);
+  };
   const [chosen, setChosen] = useState<readonly Id[]>(
     analysis?.input.kind === 'table' ? analysis.input.dataSets : table.dataSets.map((d) => d.id),
   );
@@ -945,6 +835,11 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   // A paired t test assumes Gaussian differences within rows, not groups: testing each group
   // would check the wrong thing (#33), so it isn't offered there.
   const pairedT = kind === 't-test' && options['t-test'].paired;
+  // A new t test or one-way ANOVA on values offers normality tests too (note 06).
+  const offersNormalityFor = (s: UserAnalysisSpec) =>
+    !analysis &&
+    !summary &&
+    ((s.kind === 't-test' && !s.options.paired) || s.kind === 'one-way-anova');
   const offersNormality =
     !analysis && !summary && ((kind === 't-test' && !pairedT) || kind === 'one-way-anova');
   const picked = table.dataSets.filter((d) => chosen.includes(d.id)).map((d) => d.id);
@@ -956,14 +851,13 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   };
 
   const pickKind = (k: UserAnalysisKind) => {
-    setChoosing(false);
     setKind(k);
     // A test of two groups starts with the first two chosen.
     const n = KINDS.find((x) => x.kind === k)?.groups;
     if (n !== undefined && !analysis && picked.length > n) setChosen(picked.slice(0, n));
   };
 
-  const spec = (): AnalysisSpec => {
+  const spec = (): UserAnalysisSpec => {
     switch (kind) {
       case 'descriptive':
         return { kind, options: options.descriptive };
@@ -1027,9 +921,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     }
   };
 
-  const submit = () => {
+  const submit = (s: UserAnalysisSpec, withNormality: boolean) => {
     const input = { kind: 'table' as const, table: table.id, dataSets: picked };
-    const s = spec();
     const title = analysisTitle(s, table.title);
     if (analysis) {
       const keepTitle = analysis.title !== analysisTitle(analysis, table.title);
@@ -1053,7 +946,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         options: {},
       };
       store.edit(
-        offersNormality && alsoNormality
+        withNormality
           ? {
               op: 'batch',
               label: `Add ${title}`,
@@ -1065,203 +958,223 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           : { op: 'addAnalysis', analysis: main },
         { show: { kind: 'analysis', id } },
       );
-      analytics.trackOnce('analysis', `new-${kind}`);
+      analytics.trackOnce('analysis', `new-${s.kind}`);
+      if (choosing) analytics.trackOnce('analysis', 'guided');
     }
     onClose();
   };
 
   return (
-    <Dialog title={analysis ? 'Change analysis' : `Analyze ${table.title}`} onClose={onClose}>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <fieldset className="type-choice">
-          <legend>What do you want to know?</legend>
-          {!analysis && (
-            <label className={choosing ? 'type-tile chosen' : 'type-tile'}>
-              <input
-                type="radio"
-                name="kind"
-                checked={choosing}
-                onChange={() => {
-                  setChoosing(true);
-                }}
-              />
-              <Icon name="analyze" size={28} />
-              <span className="type-name">Help me choose</span>
-              <span className="type-blurb">
-                Answer two questions about your experiment and get a suggested test, with why.
-              </span>
-            </label>
-          )}
-          {kinds.map((k) => (
-            <label
-              key={k.kind}
-              className={!choosing && kind === k.kind ? 'type-tile chosen' : 'type-tile'}
+    <Dialog
+      title={analysis ? 'Change analysis' : `Analyze ${table.title}`}
+      onClose={onClose}
+      className="analyze"
+    >
+      {!analysis && (
+        <div className="mode-tabs" role="tablist" aria-label="How to choose the test">
+          {(
+            [
+              ['guide', 'Help me choose'],
+              ['pick', 'Pick a test myself'],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              className={mode === m ? 'mode-tab chosen' : 'mode-tab'}
+              onClick={() => {
+                setMode(m);
+              }}
             >
-              <input
-                type="radio"
-                name="kind"
-                checked={!choosing && kind === k.kind}
-                onChange={() => {
-                  pickKind(k.kind);
-                }}
-              />
-              <Icon name={KIND_ICON[k.kind]} size={28} />
-              <span className="type-name">{k.name}</span>
-              <span className="type-blurb">{k.blurb}</span>
-            </label>
+              {label}
+            </button>
           ))}
-        </fieldset>
-
-        <fieldset>
-          <legend>
-            {groups === 2
-              ? 'Which two groups?'
-              : table.type === 'grouped'
-                ? 'Which data sets (columns)?'
-                : 'Which groups?'}
-          </legend>
-          {table.dataSets.length === 0 && <p className="hint">This table has no groups yet.</p>}
-          {table.dataSets.map((d) => (
-            <label key={d.id} className="option">
-              <input
-                type="checkbox"
-                checked={chosen.includes(d.id)}
-                onChange={(e) => {
-                  const on = e.currentTarget.checked;
-                  setChosen((c) => (on ? [...c, d.id] : c.filter((x) => x !== d.id)));
-                }}
-              />
-              {d.title || '(untitled)'}
-            </label>
-          ))}
-          {groups !== undefined && picked.length !== groups && (
-            <p className="hint">
-              This test compares exactly {String(groups)} groups; {String(picked.length)} chosen.
-            </p>
-          )}
-        </fieldset>
-
-        {choosing && (
-          <Chooser
+        </div>
+      )}
+      {choosing ? (
+        <>
+          <Guide
             table={table}
-            picked={picked}
-            onUse={(s) => {
+            chosen={chosen}
+            setChosen={setChosen}
+            normality={{ offered: offersNormalityFor, on: alsoNormality }}
+            setNormality={setAlsoNormality}
+            onRun={(s) => {
+              submit(s, offersNormalityFor(s) && alsoNormality);
+            }}
+            onOptions={(s) => {
               setOptions((cur) => ({ ...cur, [s.kind]: s.options }));
               pickKind(s.kind);
+              setMode('pick');
             }}
           />
-        )}
-        {!choosing && kind === 't-test' && (
-          <TTestFields
-            o={summary ? { ...options['t-test'], paired: false } : options['t-test']}
-            summary={summary}
-            set={(o) => {
-              set('t-test', o);
-            }}
-          />
-        )}
-        {!choosing && kind === 'nested-t-test' && (
-          <NestedTTestFields
-            o={options['nested-t-test']}
-            first={(table.type === 'nested' ? table.replicateTitles?.[0] : null) ?? 'Replicate 1'}
-            set={(o) => {
-              set('nested-t-test', o);
-            }}
-          />
-        )}
-        {!choosing && kind === 'one-way-anova' && (
-          <OneWayFields
-            o={options['one-way-anova']}
-            groups={table.dataSets.filter((d) => picked.includes(d.id))}
-            set={(o) => {
-              set('one-way-anova', o);
-            }}
-          />
-        )}
-        {!choosing && kind === 'nested-one-way-anova' && (
-          <NestedOneWayFields
-            o={options['nested-one-way-anova']}
-            groups={table.dataSets.filter((d) => picked.includes(d.id))}
-            set={(o) => {
-              set('nested-one-way-anova', o);
-            }}
-          />
-        )}
-        {!choosing && kind === 'two-way-anova' && (
-          <TwoWayFields
-            o={options['two-way-anova']}
-            columns={table.dataSets.filter((d) => picked.includes(d.id))}
-            rows={table.rows.map((r, i) => ({
-              id: r.id,
-              title: r.title ?? `Row ${String(i + 1)}`,
-            }))}
-            set={(o) => {
-              set('two-way-anova', o);
-            }}
-          />
-        )}
-        {!choosing && kind === 'kruskal-wallis' && (
-          <KruskalFields
-            o={options['kruskal-wallis']}
-            groups={table.dataSets.filter((d) => picked.includes(d.id))}
-            set={(o) => {
-              set('kruskal-wallis', o);
-            }}
-          />
-        )}
-        {!choosing && kind === 'rank-test' && (
-          <RankTestFields
-            o={options['rank-test']}
-            set={(o) => {
-              set('rank-test', o);
-            }}
-          />
-        )}
-
-        {!choosing && offersNormality && (
-          <fieldset>
-            <legend>Before the test</legend>
-            <label className="option">
-              <input
-                type="checkbox"
-                checked={alsoNormality}
-                onChange={(e) => {
-                  setAlsoNormality(e.currentTarget.checked);
-                }}
-              />
-              Also test each group for normality (a separate analysis)
-            </label>
-            <p className="hint">
-              This test assumes values that follow a bell-shaped (Gaussian) distribution. With few
-              values a normality test can’t confirm that; it can only flag clear departures.
-            </p>
+          <div className="actions">
+            <button type="button" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(spec(), offersNormality && alsoNormality);
+          }}
+        >
+          <fieldset className="type-choice">
+            <legend>What do you want to know?</legend>
+            {kinds.map((k) => (
+              <label key={k.kind} className={kind === k.kind ? 'type-tile chosen' : 'type-tile'}>
+                <input
+                  type="radio"
+                  name="kind"
+                  checked={kind === k.kind}
+                  onChange={() => {
+                    pickKind(k.kind);
+                  }}
+                />
+                <Icon name={KIND_ICON[k.kind]} size={28} />
+                <span className="type-name">{k.name}</span>
+                <span className="type-blurb">{k.blurb}</span>
+              </label>
+            ))}
           </fieldset>
-        )}
 
-        {choosing && (
-          <p className="hint">Answer the questions, then click “Use the …” to pick the test.</p>
-        )}
-        {!choosing && pairedT && !summary && (
-          <p className="hint">
-            A paired t test assumes that the differences within each row follow a bell-shaped
-            distribution, not the groups themselves, so testing each group’s normality wouldn’t
-            check it.
-          </p>
-        )}
-        <div className="actions">
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="primary" disabled={picked.length === 0 || choosing}>
-            {analysis ? 'Update' : 'Analyze'}
-          </button>
-        </div>
-      </form>
+          <fieldset>
+            <legend>
+              {groups === 2
+                ? 'Which two groups?'
+                : table.type === 'grouped'
+                  ? 'Which data sets (columns)?'
+                  : 'Which groups?'}
+            </legend>
+            {table.dataSets.length === 0 && <p className="hint">This table has no groups yet.</p>}
+            {table.dataSets.map((d) => (
+              <label key={d.id} className="option">
+                <input
+                  type="checkbox"
+                  checked={chosen.includes(d.id)}
+                  onChange={(e) => {
+                    const on = e.currentTarget.checked;
+                    setChosen((c) => (on ? [...c, d.id] : c.filter((x) => x !== d.id)));
+                  }}
+                />
+                {d.title || '(untitled)'}
+              </label>
+            ))}
+            {groups !== undefined && picked.length !== groups && (
+              <p className="hint">
+                This test compares exactly {String(groups)} groups; {String(picked.length)} chosen.
+              </p>
+            )}
+          </fieldset>
+
+          {kind === 't-test' && (
+            <TTestFields
+              o={summary ? { ...options['t-test'], paired: false } : options['t-test']}
+              summary={summary}
+              set={(o) => {
+                set('t-test', o);
+              }}
+            />
+          )}
+          {kind === 'nested-t-test' && (
+            <NestedTTestFields
+              o={options['nested-t-test']}
+              first={(table.type === 'nested' ? table.replicateTitles?.[0] : null) ?? 'Replicate 1'}
+              set={(o) => {
+                set('nested-t-test', o);
+              }}
+            />
+          )}
+          {kind === 'one-way-anova' && (
+            <OneWayFields
+              o={options['one-way-anova']}
+              groups={table.dataSets.filter((d) => picked.includes(d.id))}
+              set={(o) => {
+                set('one-way-anova', o);
+              }}
+            />
+          )}
+          {kind === 'nested-one-way-anova' && (
+            <NestedOneWayFields
+              o={options['nested-one-way-anova']}
+              groups={table.dataSets.filter((d) => picked.includes(d.id))}
+              set={(o) => {
+                set('nested-one-way-anova', o);
+              }}
+            />
+          )}
+          {kind === 'two-way-anova' && (
+            <TwoWayFields
+              o={options['two-way-anova']}
+              columns={table.dataSets.filter((d) => picked.includes(d.id))}
+              rows={table.rows.map((r, i) => ({
+                id: r.id,
+                title: r.title ?? `Row ${String(i + 1)}`,
+              }))}
+              set={(o) => {
+                set('two-way-anova', o);
+              }}
+            />
+          )}
+          {kind === 'kruskal-wallis' && (
+            <KruskalFields
+              o={options['kruskal-wallis']}
+              groups={table.dataSets.filter((d) => picked.includes(d.id))}
+              set={(o) => {
+                set('kruskal-wallis', o);
+              }}
+            />
+          )}
+          {kind === 'rank-test' && (
+            <RankTestFields
+              o={options['rank-test']}
+              set={(o) => {
+                set('rank-test', o);
+              }}
+            />
+          )}
+
+          {offersNormality && (
+            <fieldset>
+              <legend>Before the test</legend>
+              <label className="option">
+                <input
+                  type="checkbox"
+                  checked={alsoNormality}
+                  onChange={(e) => {
+                    setAlsoNormality(e.currentTarget.checked);
+                  }}
+                />
+                Also test each group for normality (a separate analysis)
+              </label>
+              <p className="hint">
+                This test assumes values that follow a bell-shaped (Gaussian) distribution. With few
+                values a normality test can’t confirm that; it can only flag clear departures.
+              </p>
+            </fieldset>
+          )}
+
+          {pairedT && !summary && (
+            <p className="hint">
+              A paired t test assumes that the differences within each row follow a bell-shaped
+              distribution, not the groups themselves, so testing each group’s normality wouldn’t
+              check it.
+            </p>
+          )}
+          <div className="actions">
+            <button type="button" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="primary" disabled={picked.length === 0}>
+              {analysis ? 'Update' : 'Analyze'}
+            </button>
+          </div>
+        </form>
+      )}
     </Dialog>
   );
 }

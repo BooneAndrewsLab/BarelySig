@@ -185,7 +185,7 @@ function comparisonsText(
 export function nestedTTestMethod(r: NestedTTestResult): string {
   const tails = r.tails === 'two' ? 'two-tailed' : 'one-tailed';
   if (r.design === 'matched')
-    return `Matched nested t test: a paired t test on the replicate means (n = ${String(r.a.nReplicates)} replicates, each the same experiment in both groups), ${tails}.`;
+    return `Matched nested t test: a paired t test on the replicate means (n = ${String(r.a.nReplicates)} replicates, each split between both groups), ${tails}.`;
   return `Nested t test: a mixed model with the biological replicate as a random effect nested within group, ${tails}.`;
 }
 
