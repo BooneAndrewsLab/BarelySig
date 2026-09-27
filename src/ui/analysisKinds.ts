@@ -15,6 +15,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   'repeated-measures-anova': 'anova',
   friedman: 'anova',
   normality: 'descriptive-stats',
+  'paired-normality': 'descriptive-stats',
   'graph-summary': 'bar-error',
 };
 
@@ -47,6 +48,8 @@ export function testName(spec: AnalysisSpec): string {
       return 'Friedman test';
     case 'normality':
       return 'Normality tests';
+    case 'paired-normality':
+      return 'Normality of the differences';
     case 'graph-summary':
       return 'Graph statistics';
   }

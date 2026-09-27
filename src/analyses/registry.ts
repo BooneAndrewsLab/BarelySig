@@ -8,6 +8,7 @@ import { nestedOneway } from './nested-oneway';
 import { nestedTTest } from './nested-ttest';
 import { normality } from './normality';
 import { oneway } from './oneway';
+import { pairedNormality } from './paired-normality';
 import { ranktest } from './ranktest';
 import { repeatedMeasures } from './repeated';
 import { ttest } from './ttest';
@@ -25,5 +26,6 @@ export const REGISTRY: Registry = {
   'repeated-measures-anova': repeatedMeasures,
   friedman,
   normality,
+  'paired-normality': pairedNormality,
   'graph-summary': graphSummary,
 };

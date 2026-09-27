@@ -140,6 +140,7 @@ function optionsJson(a: AnalysisSpec): Json {
   switch (a.kind) {
     case 'descriptive':
     case 'normality':
+    case 'paired-normality':
       return {};
     case 'graph-summary':
       // Never in a project: graphs' summaries are made from the graph (note 07).
@@ -435,6 +436,7 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
   switch (kind) {
     case 'descriptive':
     case 'normality':
+    case 'paired-normality':
       return { kind, options: {} };
     case 't-test': {
       const tailsPath: Path = q.key('tails');

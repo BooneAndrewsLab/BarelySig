@@ -16,6 +16,7 @@ import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult, TestOutcome } from '@/analyses/normality/types';
 import type { FTest, OneWayResult } from '@/analyses/oneway/types';
+import type { PairedNormalityResult } from '@/analyses/paired-normality/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
@@ -44,6 +45,7 @@ import {
   oneWayMethod,
   oneWayP,
   oneWayReading,
+  pairedNormalityReading,
   rankTestMethod,
   rankTestReading,
   repeatedMethod,
@@ -601,6 +603,63 @@ function NormalityView({ r }: { readonly r: NormalityResult }) {
           label="Number of values"
           head={['Number of values', ...head.slice(1)]}
           rows={[row('n', (g) => `${String(g.n)}${droppedText(g.dropped)}`)]}
+        />
+      </div>
+      <p className="legend">
+        “Passed” means P &gt; 0.05: no clear departure from a Gaussian distribution, not proof of
+        one. Asterisks: {STAR_SCHEME}.
+      </p>
+    </>
+  );
+}
+
+/**
+ * Normality of a paired t test's differences (item 18, #53): the same two
+ * tests as `NormalityView`, run once on the row-by-row differences rather
+ * than on each group.
+ */
+function PairedNormalityView({ r }: { readonly r: PairedNormalityResult }) {
+  const passed = (p: number) => (p > 0.05 ? 'Yes' : 'No');
+  return (
+    <>
+      <Headline reading={pairedNormalityReading(r)} />
+      <p className="method">
+        D’Agostino-Pearson omnibus K² test and Shapiro-Wilk test (Royston) on the differences (“
+        {r.b.title}” − “{r.a.title}”, one per row), α = 0.05.
+      </p>
+      <div className="results-grid">
+        <Grid
+          label="D’Agostino & Pearson test"
+          head={['D’Agostino & Pearson test', 'Differences']}
+          rows={[
+            ['K2', r.dagostino.ran ? sig(r.dagostino.k2) : (notRun(r.dagostino) ?? '')],
+            ['P value', r.dagostino.ran ? pValue(r.dagostino.p) : '—'],
+            ['Passed normality test (α = 0.05)?', r.dagostino.ran ? passed(r.dagostino.p) : '—'],
+            ['P value summary', r.dagostino.ran ? stars(r.dagostino.p) : '—'],
+          ]}
+        />
+        <Grid
+          label="Shapiro-Wilk test"
+          head={['Shapiro-Wilk test', 'Differences']}
+          rows={[
+            ['W', r.shapiroWilk.ran ? sig(r.shapiroWilk.w) : (notRun(r.shapiroWilk) ?? '')],
+            ['P value', r.shapiroWilk.ran ? pValue(r.shapiroWilk.p) : '—'],
+            [
+              'Passed normality test (α = 0.05)?',
+              r.shapiroWilk.ran ? passed(r.shapiroWilk.p) : '—',
+            ],
+            ['P value summary', r.shapiroWilk.ran ? stars(r.shapiroWilk.p) : '—'],
+          ]}
+        />
+        <Grid
+          label="Number of pairs"
+          head={['Number of pairs', 'Differences']}
+          rows={[
+            ['n', String(r.n)],
+            ...(r.droppedRows
+              ? ([['Rows left out (a value missing on one side)', String(r.droppedRows)]] as Row[])
+              : []),
+          ]}
         />
       </div>
       <p className="legend">
@@ -1631,6 +1690,9 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'normality' && (
           <NormalityView r={value as unknown as NormalityResult} />
+        )}
+        {value !== null && analysis.kind === 'paired-normality' && (
+          <PairedNormalityView r={value as unknown as PairedNormalityResult} />
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
           <TwoWayView r={value as unknown as TwoWayResult} id={analysis.id} />

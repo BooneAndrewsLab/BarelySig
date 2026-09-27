@@ -31,10 +31,31 @@ The results repeat this caution.
   **Normality tests** tile, and tick the groups. There are no options.
 
 Each group is tested on its own. For a paired t test the assumption is
-about the differences within each row, which these tests don’t look at,
-so the dialog doesn’t offer them there.
+about the differences within each row, not the two groups, so a plain
+normality test isn’t offered there — see “The paired case” below.
 
 They need the individual values: they can’t run on summary data.
+
+## The paired case
+
+A **paired t test** doesn’t assume the two groups are each Gaussian: it
+assumes the row-by-row differences (one subject’s value in the second
+group minus the first) are. Testing each group on its own would check the
+wrong thing, so the dialog offers a separate test instead, on the
+differences:
+
+- **With a paired t test:** when you create one on individual values, the
+  Analyze dialog has a box “Also test the paired differences for
+  normality (a separate analysis)”, ticked by default. It runs the same
+  two tests, once, on the differences.
+- **On their own:** click **Analyze…** on a Column table, then the
+  **Normality of the differences** tile, and pick the two groups. Rows
+  with a value on only one side drop out of the pairing, as they do for
+  the [paired t test](05-t-tests.md) itself.
+
+The results read exactly like the plain normality tests, with one column,
+“Differences”, in place of one per group, and “Number of pairs” instead
+of “Number of values”.
 
 ## Which groups can be tested
 

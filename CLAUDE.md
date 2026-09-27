@@ -422,6 +422,19 @@ the target).
   only, since a pooled group's percentiles can't be recovered from
   mean/SD/n. The Analyze dialog's tile and "Help me choose" both offer
   it on Grouped tables now.
+- Normality of a paired t test's differences (#53, split from #33, note
+  19): `paired-normality`, a new analysis kind reusing `normality`'s R
+  code by concatenation (as `twoway` reuses `oneway`'s comparisons) on
+  the row-by-row differences (`b - a`) instead of on each group. Offered
+  alongside a paired t test in the Analyze dialog and the guided
+  chooser — the "before the test" checkbox now branches on which
+  companion fits (`normality` on each group for an unpaired test or
+  ANOVA, `paired-normality` on the differences for a paired t test) —
+  and as its own tile, "Normality of the differences". R-oracle
+  fixtures with an independent reference, checked against `fBasics` for
+  n ≥ 20 as `normality`'s are. Wired into every touch point (note 13's
+  lesson): the results view, margin notes, `.bsig`, property tests, the
+  guide (a new "The paired case" section in `10-normality.md`).
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling

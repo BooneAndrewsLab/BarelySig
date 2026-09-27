@@ -10,6 +10,7 @@ import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult } from '@/analyses/normality/types';
+import type { PairedNormalityResult } from '@/analyses/paired-normality/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
@@ -403,4 +404,27 @@ export function normalityReading(r: NormalityResult): string {
     return `No group departs clearly from a Gaussian (bell-shaped) distribution by these tests (P > 0.05 for each).${caution}`;
   }
   return `The values of ${joinAnd(failed)} don’t look Gaussian (P ≤ 0.05). Consider a nonparametric test (Mann-Whitney, Wilcoxon, Kruskal-Wallis). Values that vary by fold changes (concentrations, expression) often look Gaussian as logarithms: make a column of their logs in your spreadsheet and paste that instead.${caution}`;
+}
+
+/**
+ * Normality of a paired t test's row-by-row differences (item 18, #53):
+ * the same reading as `normalityReading`, but about the one set of
+ * differences a paired t test actually assumes are Gaussian, not the two
+ * groups on their own.
+ */
+export function pairedNormalityReading(r: PairedNormalityResult): string {
+  const tests = [
+    ...(r.dagostino.ran ? [['D’Agostino-Pearson', r.dagostino.p] as const] : []),
+    ...(r.shapiroWilk.ran ? [['Shapiro-Wilk', r.shapiroWilk.p] as const] : []),
+  ];
+  if (tests.length === 0) {
+    return 'The pairs are too few for normality tests: Shapiro-Wilk needs at least 3 and D’Agostino-Pearson 8. Decide from what is known about this kind of measurement.';
+  }
+  const caution =
+    ' A normality test can’t show that data are Gaussian: with few pairs it rarely flags anything, and with many it flags departures too small to matter for a paired t test. Base the choice mostly on what you know about this kind of measurement.';
+  const bad = tests.filter(([, p]) => p <= 0.05);
+  if (bad.length === 0) {
+    return `The paired differences don’t depart clearly from a Gaussian (bell-shaped) distribution by these tests (P > 0.05 for each).${caution}`;
+  }
+  return `The paired differences don’t look Gaussian (${bad.map(([name, p]) => `${name} ${pPhrase(p)}`).join(', ')}). Consider a nonparametric test (Wilcoxon matched-pairs). Values that vary by fold changes (concentrations, expression) often look Gaussian as logarithms: make a column of their logs in your spreadsheet and paste that instead.${caution}`;
 }

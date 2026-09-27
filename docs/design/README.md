@@ -24,3 +24,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 16 | [Key numbers first, every number on request](16-key-numbers-first.md) | #57 |
 | 17 | [Repeated-measures one-way ANOVA and the Friedman test](17-repeated-measures.md) | #50, #81–#83 |
 | 18 | [Descriptive statistics of a Grouped table](18-grouped-descriptive.md) | #54 |
+| 19 | [Normality of a paired t test's differences](19-paired-normality.md) | #53 |

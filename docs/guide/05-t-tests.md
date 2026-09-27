@@ -42,11 +42,14 @@ two groups under **Which two groups?**. The options:
   the same SD (Welch’s correction)”. Off by default, as in Prism.
 - **P value:** “Two-tailed (recommended)”, or “One-tailed: only if you
   predicted which group would be higher before collecting the data”.
-- **Before the test:** “Also test each group for normality (a separate
-  analysis)”, ticked by default when you create an unpaired t test on
-  individual values. It adds a [normality tests](10-normality.md) sheet
-  for the same two groups. It isn’t offered for a paired test, which
-  assumes the differences within rows are Gaussian, not the groups.
+- **Before the test:** for an unpaired t test on individual values,
+  “Also test each group for normality (a separate analysis)”, ticked by
+  default. It adds a [normality tests](10-normality.md) sheet for the
+  same two groups. A paired t test assumes the differences within rows
+  are Gaussian, not the groups, so it offers a different box instead:
+  “Also test the paired differences for normality (a separate
+  analysis)”, which runs the same two tests once, on the differences
+  (see [Normality tests: the paired case](10-normality.md#the-paired-case)).
 
 **From summary data** (mean with SD, SEM or %CV, and n) the unpaired test,
 with or without Welch’s correction, works as Prism’s does. The paired

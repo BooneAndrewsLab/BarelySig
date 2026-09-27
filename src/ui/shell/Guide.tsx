@@ -24,9 +24,13 @@ interface Props {
   readonly table: Table;
   readonly chosen: readonly Id[];
   readonly setChosen: (ids: readonly Id[]) => void;
-  /** The companion normality test, when the suggestion offers one (the same box as the dialog's). */
+  /**
+   * The companion normality test, when the suggestion offers one (the same
+   * box as the dialog's): each group's for an unpaired test or ANOVA, the
+   * paired differences' for a paired t test (item 18, #53).
+   */
   readonly normality: {
-    readonly offered: (spec: UserAnalysisSpec) => boolean;
+    readonly offered: (spec: UserAnalysisSpec) => 'normality' | 'paired-normality' | null;
     readonly on: boolean;
   };
   readonly setNormality: (on: boolean) => void;
@@ -504,7 +508,7 @@ export function Guide(props: Props) {
     }
   };
 
-  const offered = next.kind === 'test' && props.normality.offered(next.spec);
+  const offered = next.kind === 'test' ? props.normality.offered(next.spec) : null;
 
   return (
     <div className="guide">
@@ -548,7 +552,9 @@ export function Guide(props: Props) {
                       props.setNormality(e.currentTarget.checked);
                     }}
                   />
-                  Also check each group for a bell shape (a separate analysis)
+                  {offered === 'paired-normality'
+                    ? 'Also check the paired differences for a bell shape (a separate analysis)'
+                    : 'Also check each group for a bell shape (a separate analysis)'}
                 </label>
               )}
               <div className="guide-run">
