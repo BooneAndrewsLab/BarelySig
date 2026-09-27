@@ -23,3 +23,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 15 | [Help me choose, as a guide a novice can follow](15-guided-chooser.md) | #73 |
 | 16 | [Key numbers first, every number on request](16-key-numbers-first.md) | #57 |
 | 17 | [Repeated-measures one-way ANOVA and the Friedman test](17-repeated-measures.md) | #50, #81–#83 |
+| 18 | [Two-way ANOVA from unbalanced summary data](18-unweighted-means-twoway.md) | #51 |

@@ -797,6 +797,7 @@ describe('two-way ANOVA sheet', () => {
     const r: TwoWayResult = {
       from: 'values',
       model: 'full',
+      approximate: false,
       why: null,
       rows: [
         { id: 'r1', title: 'Day 1' },

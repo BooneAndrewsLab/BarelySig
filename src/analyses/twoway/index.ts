@@ -38,7 +38,7 @@ const isObject = (v: Plain | undefined): boolean =>
 
 export const twoway: AnalysisModule<'two-way-anova', TwoWayRequest, TwoWayResult> = {
   kind: 'two-way-anova',
-  version: 2,
+  version: 3,
   code,
 
   prepare(analysis, project): Prepared<TwoWayRequest> {
@@ -155,13 +155,6 @@ export const twoway: AnalysisModule<'two-way-anova', TwoWayRequest, TwoWayResult
           ci.push(col + 1);
         }
       }
-      if (new Set(ns).size > 1) {
-        return {
-          ok: false,
-          reason:
-            'From summary data, two-way ANOVA needs the same n in every cell (Prism uses an approximate method otherwise, which BarelySig doesn’t yet). Enter the values instead.',
-        };
-      }
       return {
         ok: true,
         request: { ...base, data: { kind: 'summary', means, sds, ns, ri, ci }, droppedValues: 0 },
@@ -274,6 +267,7 @@ export const twoway: AnalysisModule<'two-way-anova', TwoWayRequest, TwoWayResult
     return {
       from: request.data.kind === 'summary' ? 'summary' : 'values',
       model: r['model'] === 'full' ? 'full' : 'main-effects',
+      approximate: r['approximate'] === true,
       why: why === 'empty-cell' || why === 'no-replicates' ? why : null,
       rows,
       columns,

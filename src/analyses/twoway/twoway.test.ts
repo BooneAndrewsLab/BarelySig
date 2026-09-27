@@ -220,7 +220,7 @@ describe('prepare', () => {
     expect(row.ok && row.request.control).toBe(1);
   });
 
-  it('takes summary data only when balanced', () => {
+  it('takes summary data whether balanced or not (#51)', () => {
     const balanced = setup(
       [
         [
@@ -252,8 +252,8 @@ describe('prepare', () => {
       { kind: 'summary', stats: 'mean-sd-n' },
     );
     expect(twoway.prepare(unbalanced.analysis(), unbalanced.p)).toMatchObject({
-      ok: false,
-      reason: expect.stringMatching(/needs the same n in every cell/) as string,
+      ok: true,
+      request: { data: { kind: 'summary', ns: [4, 5, 4, 4] } },
     });
   });
 });

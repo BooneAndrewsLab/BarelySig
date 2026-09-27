@@ -346,7 +346,10 @@ export function twoWayMethod(r: TwoWayResult): string {
       ? ''
       : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons ${FAMILY_TEXT[r.options.family] ?? ''}${c.kind === 'control' ? ' against the control' : ''}, with P values adjusted within each family.`;
   const from = r.from === 'summary' ? ' Computed from summary data (mean, SD and n).' : '';
-  return `${model}.${comps}${from}`;
+  const approx = r.approximate
+    ? ' With unequal n per cell, summary data give only an approximate result (Prism’s analysis of unweighted means, Fisher and van Belle, 1993); enter the individual values for an exact one.'
+    : '';
+  return `${model}.${comps}${from}${approx}`;
 }
 
 export function twoWayReading(r: TwoWayResult): string {

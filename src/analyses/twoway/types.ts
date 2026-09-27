@@ -51,6 +51,13 @@ export interface TwoWayResult {
   readonly from: 'values' | 'summary';
   /** With the interaction, or main effects only. */
   readonly model: 'full' | 'main-effects';
+  /**
+   * From summary data with unequal n per cell: Prism's "analysis of
+   * unweighted means" (Fisher and van Belle, 1993), approximate for the
+   * row, column and interaction terms (design note 18, #51). Always
+   * false from raw values or balanced summary data, both exact.
+   */
+  readonly approximate: boolean;
   /** Why main effects only: an empty cell, or one value per cell. */
   readonly why: 'empty-cell' | 'no-replicates' | null;
   readonly rows: readonly Named[];

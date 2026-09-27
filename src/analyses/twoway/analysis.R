@@ -63,7 +63,9 @@ bs_twoway <- function(y, ri, ci, R, C, family, comps, control, test) {
     total = list(ss = ss_total, df = N - 1),
     cells = lapply(seq_len(R), function(r) {
       lapply(seq_len(C), function(c) list(n = n[r, c], mean = cell_mean[r, c], sd = cell_sd[r, c]))
-    })
+    }),
+    # Exact: from real (or reconstructed-from-summary) individual values.
+    approximate = FALSE
   )
   out$comparisons <- list()
   out$comparisons_note <- NA_character_
@@ -103,12 +105,18 @@ bs_twoway_comparisons <- function(m, n, mse, df, family, comps, control, test) {
   )
 }
 
-# From balanced summary data: values with exactly each cell's mean, SD and
-# n (the ANOVA and every comparison depend on nothing else).
+# From summary data (mean, SD and n per cell). Balanced (every n the
+# same): reconstruct values with exactly each cell's mean, SD and n and
+# run the exact regression above (the ANOVA and every comparison depend on
+# nothing else, for any n). Unbalanced: Prism's own summary-data method is
+# approximate (Fisher and van Belle, 1993; item 18, #51) instead, below.
 bs_twoway_summary <- function(means, sds, ns, ri, ci, R, C, family, comps, control, test) {
   if (any(is.na(c(means, sds, ns)))) stop("bs: Two-way ANOVA from summary data needs the mean, SD and n of every cell.")
   if (any(ns != round(ns)) || any(ns < 1)) stop("bs: n must be a whole number of at least 1.")
   if (any(sds < 0)) stop("bs: An SD can't be negative.")
+  if (length(unique(ns)) > 1) {
+    return(bs_twoway_unweighted(means, sds, ns, ri, ci, R, C, family, comps, control, test))
+  }
   y <- numeric(0)
   rr <- numeric(0)
   cc <- numeric(0)
@@ -119,4 +127,58 @@ bs_twoway_summary <- function(means, sds, ns, ri, ci, R, C, family, comps, contr
     cc <- c(cc, rep(ci[i], ns[i]))
   }
   bs_twoway(y, rr, cc, R, C, family, comps, control, test)
+}
+
+# Prism's "analysis of unweighted means" (Fisher and van Belle, 1993) for
+# summary data with unequal n: exact for the residual, cell table and
+# comparisons (which never depended on balance), approximate for the row,
+# column and interaction terms (design note 18). Reduces to the exact
+# balanced formulas when every n is the same.
+bs_twoway_unweighted <- function(means, sds, ns, ri, ci, R, C, family, comps, control, test) {
+  if (length(means) != R * C) stop("bs: Two-way ANOVA from summary data needs every cell filled in.")
+  m <- matrix(NA_real_, R, C)
+  s <- matrix(NA_real_, R, C)
+  n <- matrix(NA_real_, R, C)
+  for (i in seq_along(means)) {
+    m[ri[i], ci[i]] <- means[i]
+    s[ri[i], ci[i]] <- sds[i]
+    n[ri[i], ci[i]] <- ns[i]
+  }
+  N <- sum(n)
+  df_res <- N - R * C
+  if (df_res < 1) stop("bs: There are no values left over to estimate the scatter, so ANOVA can't be computed.")
+  ss_res <- sum((n - 1) * s^2)
+  if (ss_res == 0) stop("bs: The model fits every value exactly (no scatter left), so ANOVA can't be computed.")
+  ms_res <- ss_res / df_res
+  nh <- (R * C) / sum(1 / n)
+  grand <- mean(m)
+  row_mean <- rowMeans(m)
+  col_mean <- colMeans(m)
+  ss_row <- C * nh * sum((row_mean - grand)^2)
+  ss_col <- R * nh * sum((col_mean - grand)^2)
+  int_resid <- m - outer(row_mean, col_mean, "+") + grand
+  ss_int <- nh * sum(int_resid^2)
+  ss_total <- ss_row + ss_col + ss_int + ss_res
+  term <- function(ss, df) {
+    ms <- ss / df
+    f <- ms / ms_res
+    list(ss = ss, df = df, ms = ms, f = f, p = pf(f, df, df_res, lower.tail = FALSE), percent = 100 * ss / ss_total)
+  }
+  out <- list(
+    model = "full", why = NA_character_, rows = R, columns = C, n_total = N,
+    interaction = term(ss_int, (R - 1) * (C - 1)),
+    row = term(ss_row, R - 1), column = term(ss_col, C - 1),
+    residual = list(ss = ss_res, df = df_res, ms = ms_res),
+    total = list(ss = ss_total, df = N - 1),
+    cells = lapply(seq_len(R), function(r) {
+      lapply(seq_len(C), function(c) list(n = n[r, c], mean = m[r, c], sd = s[r, c]))
+    }),
+    approximate = TRUE
+  )
+  out$comparisons <- list()
+  out$comparisons_note <- NA_character_
+  if (comps != "none") {
+    out$comparisons <- bs_twoway_comparisons(m, n, ms_res, df_res, family, comps, control, test)
+  }
+  out
 }
