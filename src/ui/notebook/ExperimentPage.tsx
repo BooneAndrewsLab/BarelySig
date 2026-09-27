@@ -82,7 +82,7 @@ export function ExperimentPage({ project, table, sheet, grid }: Props) {
   }, [sheet]);
 
   return (
-    <article ref={page} className="page" aria-labelledby="page-title">
+    <article ref={page} className={notes ? 'page with-notes' : 'page'} aria-labelledby="page-title">
       <header className="page-head">
         <h1 id="page-title">{table.title}</h1>
         <Description table={table} />

@@ -1756,7 +1756,11 @@ button.danger:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  width: min(100%, 1120px);
+  /* Sections take what the main panel has; the cap only stops lines of
+     a results sheet running across an ultrawide screen. */
+  --note-w: 264px;
+  --note-gap: 32px;
+  width: min(100%, 1920px);
   padding: 32px 40px 64px 48px;
 }
 
@@ -1801,13 +1805,13 @@ textarea.page-desc {
 
 .nb-row {
   display: grid;
-  grid-template-columns: minmax(0, 780px) 264px;
-  gap: 16px 32px;
+  grid-template-columns: minmax(0, 1fr) var(--note-w);
+  gap: 16px var(--note-gap);
   align-items: start;
 }
 
 .nb-row.no-note {
-  grid-template-columns: minmax(0, 780px);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .nb-section {
@@ -1882,7 +1886,7 @@ textarea.page-desc {
 
 /* The plain reading on top of a result, as mockup C's callout. */
 .nb-section .reading {
-  max-width: none;
+  max-width: 90ch;
   margin: 0 0 10px;
   padding: 12px 16px;
   border-radius: 8px;
@@ -1935,10 +1939,14 @@ textarea.page-desc {
 }
 
 .next-steps {
-  max-width: 780px;
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* Centred under the sections, not under sections and notes. */
+.page.with-notes .next-steps {
+  margin-right: calc(var(--note-w) + var(--note-gap));
 }
 
 .next-steps .rule {
@@ -1968,6 +1976,10 @@ button.pill.primary {
 
   .nb-note {
     position: static;
+  }
+
+  .page.with-notes .next-steps {
+    margin-right: 0;
   }
 
   .page {
