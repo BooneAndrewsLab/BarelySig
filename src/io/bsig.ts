@@ -34,6 +34,7 @@ import {
   WELCH_ALL,
   WELCH_CONTROL,
   type ExportRecord,
+  type FriedmanOptions,
   type NestedComparisons,
   type NestedOneWayOptions,
   type NestedTTestOptions,
@@ -46,6 +47,7 @@ import {
   type PointSymbol,
   type Project,
   type RankTestOptions,
+  type RepeatedMeasuresOptions,
   STYLE_NUMBERS,
   type StyleOverrides,
   TWO_WAY_FAMILIES,
@@ -154,13 +156,16 @@ function optionsJson(a: AnalysisSpec): Json {
       return { comparisons: comparisonsJson(a.options.comparisons) };
     case 'two-way-anova':
       return { family: a.options.family, comparisons: comparisonsJson(a.options.comparisons) };
-    case 'kruskal-wallis': {
+    case 'kruskal-wallis':
+    case 'friedman': {
       const c = a.options.comparisons;
       return {
         comparisons: c.kind === 'control' ? { kind: c.kind, control: c.control } : { kind: c.kind },
         corrected: a.options.corrected,
       };
     }
+    case 'repeated-measures-anova':
+      return { comparisons: comparisonsJson(a.options.comparisons) };
   }
 }
 
@@ -490,6 +495,25 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
         paired: bool(opts['paired'], q.key('paired')),
         tails: oneOf(opts['tails'], q.key('tails'), ['two', 'one'] as const),
         zeros: oneOf(opts['zeros'], q.key('zeros'), ['wilcoxon', 'pratt'] as const),
+      };
+      return { kind, options };
+    }
+    case 'repeated-measures-anova': {
+      const options: RepeatedMeasuresOptions = {
+        comparisons: nestedComparisons(opts['comparisons'], q.key('comparisons')),
+      };
+      return { kind, options };
+    }
+    case 'friedman': {
+      const cp = q.key('comparisons');
+      const c = obj(opts['comparisons'], cp);
+      const ck = oneOf(c['kind'], cp.key('kind'), ['none', 'all', 'control'] as const);
+      const options: FriedmanOptions = {
+        comparisons:
+          ck === 'control'
+            ? { kind: ck, control: id(c['control'], cp.key('control')) }
+            : { kind: ck },
+        corrected: bool(opts['corrected'], q.key('corrected')),
       };
       return { kind, options };
     }

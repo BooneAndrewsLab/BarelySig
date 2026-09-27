@@ -1,0 +1,148 @@
+{
+  "input": {
+    "g1": [
+      2.1000000000000001, 3.3999999999999999, 1.8999999999999999, 2.7999999999999998, 3, 2.5,
+      3.2999999999999998, 2.2000000000000002
+    ],
+    "g2": [
+      3, 4.0999999999999996, 2.6000000000000001, 3.5, 3.7999999999999998, 3.1000000000000001, 4,
+      2.8999999999999999
+    ],
+    "g3": [
+      1.8, 3, 1.5, 2.3999999999999999, 2.6000000000000001, 2.1000000000000001, 2.8999999999999999,
+      1.8999999999999999
+    ],
+    "g4": [
+      4.2000000000000002, 5, 3.7999999999999998, 4.5999999999999996, 4.9000000000000004,
+      4.2999999999999998, 5.0999999999999996, 4
+    ],
+    "g5": [
+      2.5, 3.6000000000000001, 2, 3, 3.2000000000000002, 2.7000000000000002, 3.5, 2.3999999999999999
+    ]
+  },
+  "expected": {
+    "k": 5,
+    "n": 8,
+    "statistic": 32,
+    "df": 4,
+    "p": 1.9130979702274055e-6,
+    "groups": [
+      {
+        "rank_sum": 16,
+        "mean_rank": 2
+      },
+      {
+        "rank_sum": 32,
+        "mean_rank": 4
+      },
+      {
+        "rank_sum": 8,
+        "mean_rank": 1
+      },
+      {
+        "rank_sum": 40,
+        "mean_rank": 5
+      },
+      {
+        "rank_sum": 24,
+        "mean_rank": 3
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -2,
+        "z": 2.5298221281347035,
+        "p_unadjusted": 0.011412036386001651,
+        "p": 0.1141203638600165
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": 1,
+        "z": 1.2649110640673518,
+        "p_unadjusted": 0.20590321073206835,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": -3,
+        "z": 3.7947331922020551,
+        "p_unadjusted": 0.00014780231033445423,
+        "p": 0.0014780231033445423
+      },
+      {
+        "i": 1,
+        "j": 5,
+        "diff": -1,
+        "z": 1.2649110640673518,
+        "p_unadjusted": 0.20590321073206835,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": 3,
+        "z": 3.7947331922020551,
+        "p_unadjusted": 0.00014780231033445423,
+        "p": 0.0014780231033445423
+      },
+      {
+        "i": 2,
+        "j": 4,
+        "diff": -1,
+        "z": 1.2649110640673518,
+        "p_unadjusted": 0.20590321073206835,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 5,
+        "diff": 1,
+        "z": 1.2649110640673518,
+        "p_unadjusted": 0.20590321073206835,
+        "p": 1
+      },
+      {
+        "i": 3,
+        "j": 4,
+        "diff": -4,
+        "z": 5.0596442562694071,
+        "p_unadjusted": 4.200393976022008e-7,
+        "p": 4.2003939760220083e-6
+      },
+      {
+        "i": 3,
+        "j": 5,
+        "diff": -2,
+        "z": 2.5298221281347035,
+        "p_unadjusted": 0.011412036386001651,
+        "p": 0.1141203638600165
+      },
+      {
+        "i": 4,
+        "j": 5,
+        "diff": 2,
+        "z": 2.5298221281347035,
+        "p_unadjusted": 0.011412036386001651,
+        "p": 0.1141203638600165
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = ft$p.value, groups = lapply(seq_len(k), function(j) list(rank_sum = rank_sum[j], \n                mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "friedman(complete_rows(g1, g2, g3, g4, g5))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Five treatments x 8 subjects: ten comparisons.",
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}

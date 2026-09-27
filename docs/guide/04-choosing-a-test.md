@@ -127,9 +127,10 @@ Some tables skip questions:
   replicate means.
 - **Summary data** gets the unpaired t test (two groups) or one-way
   ANOVA (three or more), the only tests that work from mean, SD and n.
-- **Three or more matched groups** need repeated-measures ANOVA or the
-  Friedman test, which BarelySig doesn’t have yet. Don’t use an unpaired
-  test instead: it ignores the matching.
+- **Three or more matched groups** get
+  [repeated-measures ANOVA or the Friedman test](18-repeated-measures.md),
+  the same way two matched groups get the paired t test or Wilcoxon test.
+  Don’t use an unpaired test instead: it ignores the matching.
 
 ## Words you will meet
 

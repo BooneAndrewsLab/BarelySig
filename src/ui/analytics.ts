@@ -66,6 +66,8 @@ export const EVENTS = {
     'new-nested-one-way-anova',
     'new-kruskal-wallis',
     'new-two-way-anova',
+    'new-repeated-measures-anova',
+    'new-friedman',
     'new-normality',
     // A new analysis made from Help me choose's suggestion (item 15).
     'guided',

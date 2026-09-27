@@ -1,0 +1,97 @@
+{
+  "input": {
+    "g1": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "g2": [11, 12, 13, 14, 15, 16, 17, 18, 19],
+    "g3": [21, 22, 23, 24, 25, 26, 27, 28, 29],
+    "g4": [31, 32, 33, 34, 35, 36, 37, 38, 39]
+  },
+  "expected": {
+    "k": 4,
+    "n": 9,
+    "statistic": 27,
+    "df": 3,
+    "p": 5.8873555835776638e-6,
+    "groups": [
+      {
+        "rank_sum": 9,
+        "mean_rank": 1
+      },
+      {
+        "rank_sum": 18,
+        "mean_rank": 2
+      },
+      {
+        "rank_sum": 27,
+        "mean_rank": 3
+      },
+      {
+        "rank_sum": 36,
+        "mean_rank": 4
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -1,
+        "z": 1.6431676725154982,
+        "p_unadjusted": 0.10034824646229079,
+        "p": 0.60208947877374475
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -2,
+        "z": 3.2863353450309964,
+        "p_unadjusted": 0.0010150009471130688,
+        "p": 0.0060900056826784128
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": -3,
+        "z": 4.9295030175464944,
+        "p_unadjusted": 8.2439062382168726e-7,
+        "p": 4.9463437429301235e-6
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": -1,
+        "z": 1.6431676725154982,
+        "p_unadjusted": 0.10034824646229079,
+        "p": 0.60208947877374475
+      },
+      {
+        "i": 2,
+        "j": 4,
+        "diff": -2,
+        "z": 3.2863353450309964,
+        "p_unadjusted": 0.0010150009471130688,
+        "p": 0.0060900056826784128
+      },
+      {
+        "i": 3,
+        "j": 4,
+        "diff": -1,
+        "z": 1.6431676725154982,
+        "p_unadjusted": 0.10034824646229079,
+        "p": 0.60208947877374475
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = ft$p.value, groups = lapply(seq_len(k), function(j) list(rank_sum = rank_sum[j], \n                mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "friedman(complete_rows(g1, g2, g3, g4))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Complete agreement, every row: P near its smallest possible value.",
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}

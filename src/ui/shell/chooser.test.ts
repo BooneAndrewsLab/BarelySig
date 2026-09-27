@@ -134,10 +134,20 @@ describe('help me choose', () => {
     expect(pick(s)).toEqual(['ask', 'control']);
   });
 
-  it('has no test yet for three or more matched groups, and says so', () => {
-    const s = suggest(ans({ matched: 'yes' }), column([5, 5, 5]));
-    expect(s.kind).toBe('none');
-    expect(text(s)).toMatch(/repeated-measures ANOVA or a Friedman test/);
+  it('asks the kind of numbers, then suggests repeated-measures ANOVA or the Friedman test, for three or more matched groups', () => {
+    const three = column([5, 5, 5]);
+    expect(pick(suggest(ans({ matched: 'yes' }), three))).toEqual(['ask', 'values']);
+    const rm = suggest(ans({ matched: 'yes', values: 'measurement', control: 'all' }), three);
+    expect(pick(rm)).toEqual(['repeated-measures-anova', 'Repeated-measures ANOVA']);
+    expect(rm.kind === 'test' && rm.spec.options).toMatchObject({
+      comparisons: { kind: 'all', test: 'tukey' },
+    });
+    expect(text(rm)).toMatch(/measured on the same mice/);
+    const friedman = suggest(ans({ matched: 'yes', values: 'score', control: 'g0' as Id }), three);
+    expect(pick(friedman)).toEqual(['friedman', 'Friedman test']);
+    expect(friedman.kind === 'test' && friedman.spec.options).toMatchObject({
+      comparisons: { kind: 'control', control: 'g0' },
+    });
   });
 
   it('goes straight to two-way ANOVA for Grouped tables, and to summary-data tests', () => {

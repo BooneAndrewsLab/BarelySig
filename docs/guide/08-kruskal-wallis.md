@@ -19,8 +19,8 @@ bell-shaped distribution. It ranks all the values together (smallest =
   says so.
 - **Not from summary data:** ranks need the individual values. Use
   one-way ANOVA there.
-- **Not for matched groups** (the same subjects in every group): the
-  Friedman test isn’t available yet.
+- **Not for matched groups** (the same subjects in every group): use the
+  [Friedman test](18-repeated-measures.md) instead.
 - For two groups use the [Mann-Whitney test](06-rank-tests.md).
 
 Like other rank tests it compares whole distributions: a significant

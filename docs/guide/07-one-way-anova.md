@@ -14,8 +14,8 @@ comparisons**, which pairs of groups differ.
   independent of each other.
 - Ordinary ANOVA also assumes every group has the **same SD**. If the
   spreads clearly differ, use the Welch option below.
-- **Not for matched groups** (the same subjects in every group):
-  repeated-measures ANOVA isn’t available yet.
+- **Not for matched groups** (the same subjects in every group): use
+  [repeated-measures ANOVA](18-repeated-measures.md).
 - **Not for skewed values:** consider the
   [Kruskal-Wallis test](08-kruskal-wallis.md).
 

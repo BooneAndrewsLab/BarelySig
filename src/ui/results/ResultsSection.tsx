@@ -10,12 +10,14 @@ import { openGuide } from '../help/openGuide';
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult, TestOutcome } from '@/analyses/normality/types';
 import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
+import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { Id } from '@/model/ids';
@@ -30,6 +32,8 @@ import { STAR_SCHEME, dfText, interval, levelText, pPhrase, pValue, sig, stars }
 import { setAllNumbersOpen, useAllNumbersOpen } from './openNumbers';
 import {
   COMPARISON_TEST,
+  friedmanMethod,
+  friedmanReading,
   kruskalMethod,
   kruskalReading,
   nestedOneWayMethod,
@@ -42,6 +46,9 @@ import {
   oneWayReading,
   rankTestMethod,
   rankTestReading,
+  repeatedMethod,
+  repeatedP,
+  repeatedReading,
   tTestMethod,
   tTestReading,
   twoWayMethod,
@@ -702,6 +709,95 @@ function KruskalView({ r, id }: { readonly r: KruskalWallisResult; readonly id: 
   );
 }
 
+function FriedmanView({ r, id }: { readonly r: FriedmanResult; readonly id: Id }) {
+  const sections: Section[] = [
+    [
+      'Friedman test',
+      [
+        ['P value', pValue(r.p)],
+        ['Exact or approximate P value?', 'Approximate (chi-square)'],
+        ['P value summary', stars(r.p)],
+        ['Do the groups differ significantly (P < 0.05)?', yesNo(r.p)],
+        ['Number of groups', String(r.groups.length)],
+        ['Friedman statistic', sig(r.statistic)],
+      ],
+    ],
+    [
+      'Data analyzed',
+      [
+        ['Number of subjects (complete rows)', String(r.n)],
+        ...(r.droppedRows
+          ? ([['Rows left out (a value missing somewhere)', String(r.droppedRows)]] as Row[])
+          : []),
+      ],
+    ],
+  ];
+  const adjusted = r.corrected;
+  return (
+    <>
+      <Headline
+        reading={friedmanReading(r)}
+        figures={[
+          pFigure('P value', r.p, 'approximate'),
+          { label: 'Friedman statistic', value: sig(r.statistic) },
+          ...(r.pairs.length ? [pairsFigure('Dunn’s', r.pairs, adjusted)] : []),
+        ]}
+      />
+      <p className="method">{friedmanMethod(r)}</p>
+      {r.pairs.length > 0 && (
+        <div className="results-grid">
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
+              'Mean rank diff.',
+              'Significant?',
+              'Summary',
+              adjusted ? 'Adjusted P value' : 'Individual P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+        </div>
+      )}
+      <AllNumbers id={id}>
+        <Sections sections={sections} />
+        <Grid
+          label="Data summary"
+          head={['Data summary', 'Sum of ranks', 'Mean rank']}
+          rows={r.groups.map((g) => [g.title, sig(g.rankSum), sig(g.meanRank)])}
+        />
+        {r.pairs.length > 0 && (
+          <Grid
+            label="Test details"
+            head={['Test details', 'Mean rank 1', 'Mean rank 2', 'Mean rank diff.', 'Z']}
+            rows={r.pairs.map((x) => {
+              const g1 = r.groups.find((g) => g.id === x.a.id);
+              const g2 = r.groups.find((g) => g.id === x.b.id);
+              return [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(g1?.meanRank ?? null),
+                sig(g2?.meanRank ?? null),
+                sig(x.diff),
+                sig(x.z),
+              ];
+            })}
+          />
+        )}
+      </AllNumbers>
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals. The Friedman P is
+        approximate (chi-square); very small tables get an exact P in a later version (#82).
+      </p>
+    </>
+  );
+}
+
 const FAMILY_TITLE: Readonly<Record<string, string>> = {
   'within-rows': 'Within each row, compare data sets (simple effects)',
   'within-columns': 'Within each data set, compare rows (simple effects)',
@@ -1043,6 +1139,146 @@ function OneWayView({ r, id }: { readonly r: OneWayResult; readonly id: Id }) {
   );
 }
 
+function RepeatedMeasuresView({ r, id }: { readonly r: RepeatedMeasuresResult; readonly id: Id }) {
+  const a = r.anova;
+  const c = r.comparisons;
+  const name = c.kind === 'none' ? '' : (COMPARISON_TEST[c.test] ?? c.test);
+  const twoGroups = r.groups.length === 2;
+  const sections: Section[] = [
+    [
+      'ANOVA summary',
+      [
+        ['F', sig(a.f)],
+        ['P value (Geisser-Greenhouse corrected)', pValue(r.ggP)],
+        ['P value summary', stars(r.ggP)],
+        ['Significant difference among means (P < 0.05)?', yesNo(r.ggP)],
+        ['Geisser-Greenhouse epsilon', sig(r.ggEpsilon)],
+        ['P value (uncorrected)', pValue(a.p)],
+        ['P value (Huynh-Feldt corrected)', pValue(r.hfP)],
+        ['Huynh-Feldt epsilon', sig(r.hfEpsilon)],
+        ['R squared (treatment effect)', sig(a.rSquaredTreatment)],
+        ['R squared (matching effectiveness)', sig(a.rSquaredSubjects)],
+      ],
+    ],
+  ];
+  return (
+    <>
+      <Headline
+        reading={repeatedReading(r)}
+        figures={[
+          pFigure('P value (GG corrected)', repeatedP(r)),
+          {
+            label: 'F (DFn, DFd)',
+            value: sig(a.f),
+            detail: `DFn = ${dfText(a.dfTreatment)}, DFd = ${dfText(a.dfResidual)}`,
+          },
+          ...(r.pairs.length ? [pairsFigure(name, r.pairs, true)] : []),
+        ]}
+      />
+      <p className="method">{repeatedMethod(r)}</p>
+      {r.pairs.length > 0 && (
+        <div className="results-grid">
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${name} multiple comparisons test`,
+              'Mean diff.',
+              '95.00% CI of diff.',
+              'Significant?',
+              'Summary',
+              'Adjusted P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              interval(x.ciLower, x.ciUpper),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+        </div>
+      )}
+      <AllNumbers id={id}>
+        <Sections sections={sections} />
+        <Grid
+          label="ANOVA table"
+          head={['ANOVA table', 'SS', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+          rows={[
+            [
+              'Treatment',
+              sig(a.ssTreatment),
+              dfText(a.dfTreatment),
+              sig(a.msTreatment),
+              `F (${dfText(a.dfTreatment)}, ${dfText(a.dfResidual)}) = ${sig(a.f)}`,
+              pPhrase(a.p),
+            ],
+            [
+              'Subjects (matching)',
+              sig(a.ssSubjects),
+              dfText(a.dfSubjects),
+              sig(a.msSubjects),
+              '',
+              '',
+            ],
+            ['Residual', sig(a.ssResidual), dfText(a.dfResidual), sig(a.msResidual), '', ''],
+            ['Total', sig(a.ssTotal), dfText(a.dfTotal), '', '', ''],
+          ]}
+        />
+        <Grid
+          label="Data summary"
+          head={['Data summary', 'Mean']}
+          rows={r.groups.map((g) => [g.title, sig(g.mean)])}
+        />
+        <Grid
+          label="Data analyzed"
+          head={['Data analyzed', '']}
+          rows={[
+            ['Number of subjects (complete rows)', String(r.n)],
+            ...(r.droppedRows
+              ? ([['Rows left out (a value missing somewhere)', String(r.droppedRows)]] as Row[])
+              : []),
+          ]}
+        />
+        {r.pairs.length > 0 && (
+          <Grid
+            label="Test details"
+            head={[
+              'Test details',
+              'Mean 1',
+              'Mean 2',
+              'Mean diff.',
+              'SE of diff.',
+              name === 'Tukey’s' ? 'q' : 't',
+              'DF',
+            ]}
+            rows={r.pairs.map((x) => {
+              const g1 = r.groups.find((g) => g.id === x.a.id);
+              const g2 = r.groups.find((g) => g.id === x.b.id);
+              return [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(g1?.mean ?? null),
+                sig(g2?.mean ?? null),
+                sig(x.diff),
+                sig(x.se),
+                sig(x.statistic),
+                dfText(x.df),
+              ];
+            })}
+          />
+        )}
+      </AllNumbers>
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
+        reports it.{' '}
+        {twoGroups
+          ? 'With two groups, epsilon is always 1 and every P agrees.'
+          : 'Prism reports the Geisser-Greenhouse corrected P by default; the uncorrected and Huynh-Feldt P are under “All numbers”.'}
+      </p>
+    </>
+  );
+}
+
 function NestedOneWayView({ r, id }: { readonly r: NestedOneWayResult; readonly id: Id }) {
   const a = r.anova;
   const c = r.comparisons;
@@ -1350,6 +1586,12 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'one-way-anova' && (
           <OneWayView r={value as unknown as OneWayResult} id={analysis.id} />
+        )}
+        {value !== null && analysis.kind === 'repeated-measures-anova' && (
+          <RepeatedMeasuresView r={value as unknown as RepeatedMeasuresResult} id={analysis.id} />
+        )}
+        {value !== null && analysis.kind === 'friedman' && (
+          <FriedmanView r={value as unknown as FriedmanResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'rank-test' && (
           <RankTestView r={value as unknown as RankTestResult} id={analysis.id} />

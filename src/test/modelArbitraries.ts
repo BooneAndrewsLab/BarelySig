@@ -76,6 +76,18 @@ const comparisons: fc.Arbitrary<Comparisons> = fc.oneof(
     .map((c): Comparisons => ({ kind: 'control', control: c.control, test: c.test })),
 );
 
+/** The equal-SD-only comparisons of nested one-way ANOVA and repeated-measures ANOVA. */
+const nestedComparisonsArb: fc.Arbitrary<NestedComparisons> = fc.oneof(
+  fc.constant<NestedComparisons>({ kind: 'none' }),
+  fc.constantFrom(...EQUAL_SD_ALL).map((test): NestedComparisons => ({ kind: 'all', test })),
+  fc
+    .record({
+      control: fc.string({ minLength: 1, maxLength: 6 }).map(asId),
+      test: fc.constantFrom(...EQUAL_SD_CONTROL),
+    })
+    .map((c): NestedComparisons => ({ kind: 'control', control: c.control, test: c.test })),
+);
+
 /**
  * Every analysis kind with every option it can take (the `.bsig` round
  * trip can only see a field the generator fills). Records are spread into
@@ -115,21 +127,26 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
   fc
     .record({ tails, matched: fc.boolean() })
     .map((o): AnalysisSpec => ({ kind: 'nested-t-test', options: { ...o } })),
+  nestedComparisonsArb.map((comparisons): AnalysisSpec => ({
+    kind: 'nested-one-way-anova',
+    options: { comparisons },
+  })),
+  nestedComparisonsArb.map((comparisons): AnalysisSpec => ({
+    kind: 'repeated-measures-anova',
+    options: { comparisons },
+  })),
   fc
-    .oneof(
-      fc.constant<NestedComparisons>({ kind: 'none' }),
-      fc.constantFrom(...EQUAL_SD_ALL).map((test): NestedComparisons => ({ kind: 'all', test })),
-      fc
-        .record({
-          control: fc.string({ minLength: 1, maxLength: 6 }).map(asId),
-          test: fc.constantFrom(...EQUAL_SD_CONTROL),
-        })
-        .map((c): NestedComparisons => ({ kind: 'control', control: c.control, test: c.test })),
-    )
-    .map((comparisons): AnalysisSpec => ({
-      kind: 'nested-one-way-anova',
-      options: { comparisons },
-    })),
+    .record({
+      comparisons: fc.oneof(
+        fc.constant({ kind: 'none' as const }),
+        fc.constant({ kind: 'all' as const }),
+        fc
+          .string({ minLength: 1, maxLength: 6 })
+          .map((c) => ({ kind: 'control' as const, control: asId(c) })),
+      ),
+      corrected: fc.boolean(),
+    })
+    .map((o): AnalysisSpec => ({ kind: 'friedman', options: { ...o } })),
 );
 
 export type Shape =

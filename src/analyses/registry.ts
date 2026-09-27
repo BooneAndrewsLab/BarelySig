@@ -1,5 +1,6 @@
 /** Every analysis module, by kind (item 04). */
 import { descriptive } from './descriptive';
+import { friedman } from './friedman';
 import { graphSummary } from './graphsummary';
 import { kruskal } from './kruskal';
 import type { Registry } from './module';
@@ -8,6 +9,7 @@ import { nestedTTest } from './nested-ttest';
 import { normality } from './normality';
 import { oneway } from './oneway';
 import { ranktest } from './ranktest';
+import { repeatedMeasures } from './repeated';
 import { ttest } from './ttest';
 import { twoway } from './twoway';
 
@@ -20,6 +22,8 @@ export const REGISTRY: Registry = {
   'nested-one-way-anova': nestedOneway,
   'kruskal-wallis': kruskal,
   'two-way-anova': twoway,
+  'repeated-measures-anova': repeatedMeasures,
+  friedman,
   normality,
   'graph-summary': graphSummary,
 };

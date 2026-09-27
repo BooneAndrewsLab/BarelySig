@@ -188,6 +188,37 @@ export function pairedGroups(table: ColumnTable, a: Id, b: Id): PairedData {
   return { pairs, droppedRows };
 }
 
+export interface MatchedData {
+  /** One per complete row: the subject's id and its value in each requested group, in order. */
+  readonly rows: readonly { readonly row: Id; readonly values: readonly number[] }[];
+  /** Rows with a value missing (or excluded) in at least one requested group. */
+  readonly droppedRows: number;
+}
+
+/**
+ * N groups of a Column table paired by row, for repeated-measures ANOVA
+ * and the Friedman test (item 17): a row with a value missing anywhere
+ * among `ids` drops out entirely, not just the columns it's missing
+ * from. Needs replicates (item 06's rule for the two-group case,
+ * `pairedGroups`, read across N).
+ */
+export function matchedGroups(table: ColumnTable, ids: readonly Id[]): MatchedData {
+  if (table.format.kind === 'summary') {
+    throw new DataError(
+      'A repeated-measures test needs the individual values, not summary data (mean, SD, n).',
+    );
+  }
+  const sets = ids.map((id) => requireDataSet(table, id));
+  const rows: { row: Id; values: readonly number[] }[] = [];
+  let droppedRows = 0;
+  table.rows.forEach((row, r) => {
+    const values = sets.map((ds) => usable(table, ds, 0, r));
+    if (values.every((v) => v !== null)) rows.push({ row: row.id, values });
+    else if (sets.some((ds) => ds.subcolumns[0]?.[r] != null)) droppedRows += 1;
+  });
+  return { rows, droppedRows };
+}
+
 export interface GroupedData {
   /** Row-factor levels. */
   readonly rows: readonly { readonly id: Id; readonly title: string | null }[];

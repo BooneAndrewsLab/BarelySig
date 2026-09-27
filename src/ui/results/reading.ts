@@ -5,16 +5,18 @@
  * not the chance the result is "real", and a non-significant result is
  * no evidence of a difference, not evidence of none.
  */
+import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult } from '@/analyses/normality/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
+import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
 import type { TwoWayResult } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
-import { howOften, pPhrase } from './format';
+import { howOften, pPhrase, sig } from './format';
 
 export function tTestMethod(r: TTestResult): string {
   const tails = r.tails === 'two' ? 'two-tailed' : 'one-tailed';
@@ -271,6 +273,56 @@ export function oneWayReading(r: OneWayResult): string {
     text += comparisonsText(p, name, r.pairs, true, 'overall ANOVA');
   }
   return text;
+}
+
+/** The P a repeated-measures reading goes by: Prism's default, Geisser-Greenhouse corrected. */
+export const repeatedP = (r: RepeatedMeasuresResult): number => r.ggP;
+
+export function repeatedMethod(r: RepeatedMeasuresResult): string {
+  const c = r.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons.`;
+  return `Repeated-measures one-way ANOVA, Geisser-Greenhouse corrected (epsilon = ${sig(r.ggEpsilon)}).${comps}`;
+}
+
+export function repeatedReading(r: RepeatedMeasuresResult): string {
+  const p = repeatedP(r);
+  const phrase = pPhrase(p);
+  const often = howOften(p);
+  const k = String(r.groups.length);
+  let text =
+    p < 0.05
+      ? `The means of the ${k} groups are not all the same (${phrase}): at least one differs from the others. If all groups truly had the same mean, differences at least this large would turn up in ${often} like this one.`
+      : `There is no evidence that the means of the ${k} groups differ (${phrase}). If they truly had the same mean, differences at least this large would turn up in ${often}. That doesn’t show the means are the same; the experiment may be too small to see a difference.`;
+  if (r.groups.length === 2)
+    text += ' With two groups, epsilon is always 1 and every P (uncorrected, GG, HF) agrees.';
+  if (r.comparisons.kind !== 'none') {
+    const name = COMPARISON_TEST[r.comparisons.test] ?? r.comparisons.test;
+    text += comparisonsText(p, name, r.pairs, true, 'overall ANOVA');
+  }
+  return text;
+}
+
+export function friedmanMethod(r: FriedmanResult): string {
+  const c = r.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` Dunn’s multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), ${r.corrected ? 'each P multiplied by the number of comparisons' : 'not adjusted for the number of comparisons'}.`;
+  return `Friedman test (nonparametric, ranks within each row), approximate P value (chi-square).${comps}`;
+}
+
+export function friedmanReading(r: FriedmanResult): string {
+  const phrase = pPhrase(r.p);
+  const often = howOften(r.p);
+  const k = String(r.groups.length);
+  const text =
+    r.p < 0.05
+      ? `The ${k} groups don’t all have the same distribution (${phrase}): values in at least one tend to be higher or lower than in the others. If all came from the same distribution, ranks at least this far apart would turn up in ${often} like this one.`
+      : `There is no evidence that the ${k} groups differ (${phrase}). If all came from the same distribution, ranks at least this far apart would turn up in ${often}. That doesn’t show the groups are the same; the experiment may be too small to see a difference.`;
+  return text + comparisonsText(r.p, 'Dunn’s', r.pairs, r.corrected);
 }
 
 const FAMILY_TEXT: Readonly<Record<string, string>> = {

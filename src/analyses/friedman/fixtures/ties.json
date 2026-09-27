@@ -1,0 +1,68 @@
+{
+  "input": {
+    "g1": [2, 3, 2, 4, 3],
+    "g2": [3, 3, 2, 5, 4],
+    "g3": [2, 4, 3, 4, 3]
+  },
+  "expected": {
+    "k": 3,
+    "n": 5,
+    "statistic": 2.7999999999999998,
+    "df": 2,
+    "p": 0.24659696394160649,
+    "groups": [
+      {
+        "rank_sum": 7.5,
+        "mean_rank": 1.5
+      },
+      {
+        "rank_sum": 12,
+        "mean_rank": 2.3999999999999999
+      },
+      {
+        "rank_sum": 10.5,
+        "mean_rank": 2.1000000000000001
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -0.89999999999999991,
+        "z": 1.4230249470757705,
+        "p_unadjusted": 0.15472892348537853,
+        "p": 0.4641867704561356
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -0.60000000000000009,
+        "z": 0.94868329805051388,
+        "p_unadjusted": 0.34278171114791134,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": 0.29999999999999982,
+        "z": 0.47434164902525661,
+        "p_unadjusted": 0.63525629599724853,
+        "p": 1
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = ft$p.value, groups = lapply(seq_len(k), function(j) list(rank_sum = rank_sum[j], \n                mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "friedman(complete_rows(g1, g2, g3))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "3 treatments x 5 subjects, ties within several rows.",
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}

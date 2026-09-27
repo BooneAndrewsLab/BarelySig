@@ -24,6 +24,8 @@ export type AnalysisSpec =
   | { readonly kind: 'one-way-anova'; readonly options: OneWayOptions }
   | { readonly kind: 'kruskal-wallis'; readonly options: KruskalWallisOptions }
   | { readonly kind: 'two-way-anova'; readonly options: TwoWayOptions }
+  | { readonly kind: 'repeated-measures-anova'; readonly options: RepeatedMeasuresOptions }
+  | { readonly kind: 'friedman'; readonly options: FriedmanOptions }
   | { readonly kind: 'normality'; readonly options: NormalityOptions }
   /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
   | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
@@ -154,6 +156,26 @@ export interface TwoWayOptions {
   readonly comparisons: Comparisons;
 }
 
+/**
+ * Repeated-measures one-way ANOVA (item 17, #50): a Column table paired
+ * by row, with the Geisser-Greenhouse correction. Comparisons are the
+ * equal-SD family only (FAQ 1609's "traditional method", against the
+ * ANOVA's own residual); no Welch-style variant (#83 is the other method).
+ */
+export interface RepeatedMeasuresOptions {
+  readonly comparisons: NestedComparisons;
+}
+
+/** The Friedman test with Dunn's comparisons (item 17, #50): the nonparametric matched test. */
+export interface FriedmanOptions {
+  readonly comparisons:
+    | { readonly kind: 'none' }
+    | { readonly kind: 'all' }
+    | { readonly kind: 'control'; readonly control: Id };
+  /** Dunn's P multiplied by the number of comparisons (Prism's default), or each on its own. */
+  readonly corrected: boolean;
+}
+
 export const DEFAULT_OPTIONS: {
   readonly [K in AnalysisKind]: Extract<AnalysisSpec, { kind: K }>['options'];
 } = {
@@ -165,6 +187,8 @@ export const DEFAULT_OPTIONS: {
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },
   'two-way-anova': { family: 'within-rows', comparisons: { kind: 'all', test: 'tukey' } },
+  'repeated-measures-anova': { comparisons: { kind: 'all', test: 'tukey' } },
+  friedman: { comparisons: { kind: 'all' }, corrected: true },
   normality: {},
   'graph-summary': { whiskers: null, kde: null },
 };

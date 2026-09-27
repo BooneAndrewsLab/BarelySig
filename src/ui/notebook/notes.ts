@@ -228,6 +228,42 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
+    case 'repeated-measures-anova': {
+      const o = analysis.options;
+      const comps = comparisonsText(table, o.comparisons);
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Asks whether the group means are all the same, comparing each subject with itself across the groups so a subject that reads high (or low) everywhere doesn’t hide a real difference. It doesn’t say which groups differ; the comparisons below do.',
+            'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default.',
+            ...(comps ? [comps] : []),
+            NS,
+          ],
+        },
+      ];
+    }
+    case 'friedman': {
+      const o = analysis.options;
+      const dunn =
+        o.comparisons.kind === 'none'
+          ? []
+          : [
+              `Dunn’s test compares ${o.comparisons.kind === 'all' ? 'every pair of groups' : 'each group with the control'} by their mean ranks${o.corrected ? ', and adjusts each P for the number of comparisons' : '. You chose not to adjust P for the number of comparisons, so each P is for its comparison alone'}.`,
+            ];
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'The rank version of repeated-measures ANOVA: ranks each subject’s values across the groups, so one extreme subject can’t dominate, then asks whether the groups’ ranks tend to differ.',
+            ...dunn,
+            NS,
+          ],
+        },
+      ];
+    }
     case 'normality':
       return [
         {

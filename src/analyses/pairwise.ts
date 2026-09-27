@@ -8,11 +8,13 @@
 import type { Json } from '@/model/json';
 import type { Analysis, AnalysisKind, Project } from '@/model/project';
 
+import type { FriedmanResult } from './friedman/types';
 import type { KruskalWallisResult } from './kruskal/types';
 import type { NestedOneWayResult } from './nested-oneway/types';
 import type { NestedTTestResult } from './nested-ttest/types';
 import type { OneWayResult } from './oneway/types';
 import type { RankTestResult } from './ranktest/types';
+import type { RepeatedMeasuresResult } from './repeated/types';
 import type { TTestResult } from './ttest/types';
 import type { TwoWayResult } from './twoway/types';
 
@@ -37,6 +39,8 @@ export const BRACKET_KINDS: ReadonlySet<AnalysisKind> = new Set<AnalysisKind>([
   'nested-one-way-anova',
   'kruskal-wallis',
   'two-way-anova',
+  'repeated-measures-anova',
+  'friedman',
 ]);
 
 export const gives = (a: Analysis): boolean => BRACKET_KINDS.has(a.kind);
@@ -82,7 +86,9 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     }
     case 'one-way-anova':
     case 'nested-one-way-anova':
-    case 'kruskal-wallis': {
+    case 'kruskal-wallis':
+    case 'repeated-measures-anova':
+    case 'friedman': {
       return among(ids, analysis.options.comparisons).map(([a, b]) => ({
         key: pairKey(analysis.id, a, b),
         a,
@@ -134,8 +140,15 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     }
     case 'one-way-anova':
     case 'nested-one-way-anova':
-    case 'kruskal-wallis': {
-      const r = value as unknown as OneWayResult | NestedOneWayResult | KruskalWallisResult;
+    case 'kruskal-wallis':
+    case 'repeated-measures-anova':
+    case 'friedman': {
+      const r = value as unknown as
+        | OneWayResult
+        | NestedOneWayResult
+        | KruskalWallisResult
+        | RepeatedMeasuresResult
+        | FriedmanResult;
       return r.pairs.map((c) => ({
         key: pairKey(analysis.id, c.a.id, c.b.id),
         a: c.a.id,

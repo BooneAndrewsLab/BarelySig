@@ -158,7 +158,7 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
     if (matched) {
       return {
         kind: 'none',
-        why: 'Three or more groups that share each replicate need a repeated-measures ANOVA on the replicate means, which BarelySig doesn’t have yet (issues #50, #71). Meanwhile, compare two groups at a time with the matched nested t test, and keep in mind that every extra comparison makes a chance “significant” result more likely.',
+        why: 'Three or more groups that share each replicate need a repeated-measures ANOVA on the replicate means, which BarelySig doesn’t have yet (issue #71). Meanwhile, compare two groups at a time with the matched nested t test, and keep in mind that every extra comparison makes a chance “significant” result more likely.',
       };
     }
     const c = control();
@@ -202,12 +202,6 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
     a.matched === 'unsure'
       ? 'This treats every value as a separate sample. If each row is in fact one mouse, patient or split sample, a paired test is more sensitive: ask whoever did the experiment.'
       : undefined;
-  if (paired && k > 2) {
-    return {
-      kind: 'none',
-      why: 'Three or more groups measured on the same mice, patients or split samples need a repeated-measures ANOVA or a Friedman test, which BarelySig doesn’t have yet (issue #50). Don’t use an unpaired test instead: it ignores that the rows belong together. Meanwhile, compare two groups at a time with a paired test, and keep in mind that every extra comparison makes a chance “significant” result more likely.',
-    };
-  }
   if (a.values === null) return { kind: 'ask', question: 'values' };
 
   const sizes = ctx.groups.map((g) => g.n);
@@ -217,7 +211,9 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
       ? paired
         ? smallest <= 5 // Wilcoxon: 2 / 2^n >= 0.05 up to 5 pairs.
         : !rankTestCanBeSignificant(sizes[0] ?? 0, sizes[1] ?? 0)
-      : sizes.reduce((s, n) => s + n, 0) <= 7;
+      : paired
+        ? smallest <= 7 // As the unpaired k > 2 case below, but rows (subjects), not values in all.
+        : sizes.reduce((s, n) => s + n, 0) <= 7;
   const bell = a.values === 'measurement';
   const rank = !bell && !(a.values === 'unsure' && rankUseless);
   const few =
@@ -260,13 +256,50 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
 
   const c = control();
   if (c === null) return { kind: 'ask', question: 'control' };
+  const groupsPhrase = paired
+    ? `${String(k)} groups measured on the same mice, patients or split samples, one per row`
+    : `${String(k)} groups of separate samples`;
   if (!rank) {
+    if (paired) {
+      return {
+        kind: 'test',
+        spec: {
+          kind: 'repeated-measures-anova',
+          options: {
+            ...DEFAULT_OPTIONS['repeated-measures-anova'],
+            comparisons:
+              c.kind === 'all'
+                ? DEFAULT_OPTIONS['repeated-measures-anova'].comparisons
+                : { kind: 'control', control: c.control, test: 'dunnett' },
+          },
+        },
+        name: 'Repeated-measures ANOVA',
+        why: `${groupsPhrase}. Repeated-measures ANOVA compares each subject with itself across the groups, asks whether the groups differ at all, and ${comparisonsWord(c, ctx.groups)}.`,
+        ...notes(bell ? undefined : UNSURE, bell ? undefined : LOGS),
+      };
+    }
     return oneWay(c, {
       why: bell
-        ? `${String(k)} groups of separate samples, measured on a smooth scale. One-way ANOVA asks whether the groups differ at all, and ${comparisonsWord(c, ctx.groups)}, adjusting each P for the number of comparisons.`
+        ? `${groupsPhrase}, measured on a smooth scale. One-way ANOVA asks whether the groups differ at all, and ${comparisonsWord(c, ctx.groups)}, adjusting each P for the number of comparisons.`
         : `${few}, so one-way ANOVA is the practical choice. It asks whether the groups differ at all, and ${comparisonsWord(c, ctx.groups)}.`,
       ...notes(bell ? undefined : UNSURE, bell ? undefined : LOGS, unsurePaired),
     });
+  }
+  if (paired) {
+    return {
+      kind: 'test',
+      spec: {
+        kind: 'friedman',
+        options: { ...DEFAULT_OPTIONS.friedman, comparisons: c },
+      },
+      name: 'Friedman test',
+      why: `${groupsPhrase}. The Friedman test ranks the values within each row, so it doesn’t need them to be bell-shaped (it is “nonparametric”); it asks whether the groups differ at all, and ${comparisonsWord(c, ctx.groups, 'ranks')}.`,
+      ...notes(
+        a.values === 'unsure' ? SAFER : undefined,
+        a.values === 'multiplying' ? LOGS : undefined,
+        rankUseless ? `${few}; consider whether repeated-measures ANOVA is justified.` : undefined,
+      ),
+    };
   }
   return {
     kind: 'test',
@@ -275,7 +308,7 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
       options: { ...DEFAULT_OPTIONS['kruskal-wallis'], comparisons: c },
     },
     name: 'Kruskal-Wallis test',
-    why: `${String(k)} groups of separate samples. The Kruskal-Wallis test ranks all the values from lowest to highest, so it doesn’t need them to be bell-shaped (it is “nonparametric”); it asks whether the groups differ at all, and ${comparisonsWord(c, ctx.groups, 'ranks')}.`,
+    why: `${groupsPhrase}. The Kruskal-Wallis test ranks all the values from lowest to highest, so it doesn’t need them to be bell-shaped (it is “nonparametric”); it asks whether the groups differ at all, and ${comparisonsWord(c, ctx.groups, 'ranks')}.`,
     ...notes(
       a.values === 'unsure' ? SAFER : undefined,
       a.values === 'multiplying' ? LOGS : undefined,

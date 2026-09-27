@@ -106,6 +106,13 @@ const KINDS: readonly KindInfo[] = [
     tables: ['column'],
   },
   {
+    kind: 'repeated-measures-anova',
+    name: 'Repeated-measures ANOVA',
+    blurb:
+      'Compare two or more groups measured on the same rows (subjects), then which pairs differ.',
+    tables: ['column'],
+  },
+  {
     kind: 'two-way-anova',
     name: 'Two-way ANOVA',
     blurb:
@@ -116,6 +123,13 @@ const KINDS: readonly KindInfo[] = [
     kind: 'kruskal-wallis',
     name: 'Kruskal-Wallis',
     blurb: 'Compare three or more groups by ranks, without assuming a bell-shaped distribution.',
+    tables: ['column'],
+  },
+  {
+    kind: 'friedman',
+    name: 'Friedman test',
+    blurb:
+      'Compare three or more groups measured on the same rows (subjects) by ranks, without assuming a bell-shaped distribution.',
     tables: ['column'],
   },
 ];
@@ -839,9 +853,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const offersNormalityFor = (s: UserAnalysisSpec) =>
     !analysis &&
     !summary &&
-    ((s.kind === 't-test' && !s.options.paired) || s.kind === 'one-way-anova');
+    ((s.kind === 't-test' && !s.options.paired) ||
+      s.kind === 'one-way-anova' ||
+      s.kind === 'repeated-measures-anova');
   const offersNormality =
-    !analysis && !summary && ((kind === 't-test' && !pairedT) || kind === 'one-way-anova');
+    !analysis &&
+    !summary &&
+    ((kind === 't-test' && !pairedT) ||
+      kind === 'one-way-anova' ||
+      kind === 'repeated-measures-anova');
   const picked = table.dataSets.filter((d) => chosen.includes(d.id)).map((d) => d.id);
   const info = KINDS.find((k) => k.kind === kind);
   const groups = info?.groups;
@@ -895,6 +915,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           options: control !== undefined ? { ...o, comparisons: { kind: 'control', control } } : o,
         };
       }
+      case 'friedman': {
+        const o = options.friedman;
+        const c = o.comparisons;
+        const control = c.kind === 'control' && !picked.includes(c.control) ? picked[0] : undefined;
+        return {
+          kind,
+          options: control !== undefined ? { ...o, comparisons: { kind: 'control', control } } : o,
+        };
+      }
       case 'one-way-anova': {
         const o = options['one-way-anova'];
         const c = o.comparisons;
@@ -910,6 +939,16 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
       }
       case 'nested-one-way-anova': {
         const o = options['nested-one-way-anova'];
+        const c = o.comparisons;
+        const control = c.kind === 'control' && !picked.includes(c.control) ? picked[0] : undefined;
+        return {
+          kind,
+          options:
+            control !== undefined && c.kind === 'control' ? { comparisons: { ...c, control } } : o,
+        };
+      }
+      case 'repeated-measures-anova': {
+        const o = options['repeated-measures-anova'];
         const c = o.comparisons;
         const control = c.kind === 'control' && !picked.includes(c.control) ? picked[0] : undefined;
         return {
@@ -1107,6 +1146,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               }}
             />
           )}
+          {kind === 'repeated-measures-anova' && (
+            <NestedOneWayFields
+              o={options['repeated-measures-anova']}
+              groups={table.dataSets.filter((d) => picked.includes(d.id))}
+              set={(o) => {
+                set('repeated-measures-anova', o);
+              }}
+            />
+          )}
           {kind === 'two-way-anova' && (
             <TwoWayFields
               o={options['two-way-anova']}
@@ -1126,6 +1174,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               groups={table.dataSets.filter((d) => picked.includes(d.id))}
               set={(o) => {
                 set('kruskal-wallis', o);
+              }}
+            />
+          )}
+          {kind === 'friedman' && (
+            <KruskalFields
+              o={options.friedman}
+              groups={table.dataSets.filter((d) => picked.includes(d.id))}
+              set={(o) => {
+                set('friedman', o);
               }}
             />
           )}

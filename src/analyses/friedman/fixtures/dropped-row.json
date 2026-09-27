@@ -1,0 +1,68 @@
+{
+  "input": {
+    "g1": [5, 4.2000000000000002, null, 3.7999999999999998, 4.9000000000000004, 4.4000000000000004],
+    "g2": [6.0999999999999996, 5, 6.7999999999999998, null, 5.9000000000000004, 5.2999999999999998],
+    "g3": [4.7999999999999998, 4, 5.5, 3.2000000000000002, 4.5999999999999996, 4.0999999999999996]
+  },
+  "expected": {
+    "k": 3,
+    "n": 4,
+    "statistic": 8,
+    "df": 2,
+    "p": 0.018315638888734179,
+    "groups": [
+      {
+        "rank_sum": 8,
+        "mean_rank": 2
+      },
+      {
+        "rank_sum": 12,
+        "mean_rank": 3
+      },
+      {
+        "rank_sum": 4,
+        "mean_rank": 1
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -1,
+        "z": 1.4142135623730949,
+        "p_unadjusted": 0.15729920705028516,
+        "p": 0.47189762115085548
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": 1,
+        "z": 1.4142135623730949,
+        "p_unadjusted": 0.15729920705028516,
+        "p": 0.47189762115085548
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": 2,
+        "z": 2.8284271247461898,
+        "p_unadjusted": 0.0046777349810472697,
+        "p": 0.014033204943141808
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = ft$p.value, groups = lapply(seq_len(k), function(j) list(rank_sum = rank_sum[j], \n                mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "friedman(complete_rows(g1, g2, g3))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Two rows each missing a different group's value: both drop out entirely, leaving 4.",
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}

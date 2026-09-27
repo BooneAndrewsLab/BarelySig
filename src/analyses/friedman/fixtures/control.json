@@ -1,0 +1,79 @@
+{
+  "input": {
+    "g1": [
+      10.199999999999999, 9.8000000000000007, 10.5, 9.5, 10, 10.300000000000001, 9.6999999999999993
+    ],
+    "g2": [11.5, 11, 11.800000000000001, 10.6, 11.199999999999999, 11.6, 10.9],
+    "g3": [
+      10.4, 9.9000000000000004, 10.699999999999999, 9.5999999999999996, 10.1, 10.5,
+      9.8000000000000007
+    ],
+    "g4": [12.1, 11.6, 12.5, 11.199999999999999, 11.9, 12.199999999999999, 11.5]
+  },
+  "expected": {
+    "k": 4,
+    "n": 7,
+    "statistic": 21,
+    "df": 3,
+    "p": 0.00010527618177149765,
+    "groups": [
+      {
+        "rank_sum": 7,
+        "mean_rank": 1
+      },
+      {
+        "rank_sum": 21,
+        "mean_rank": 3
+      },
+      {
+        "rank_sum": 14,
+        "mean_rank": 2
+      },
+      {
+        "rank_sum": 28,
+        "mean_rank": 4
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -2,
+        "z": 2.8982753492378874,
+        "p_unadjusted": 0.0037522101008738498,
+        "p": 0.011256630302621549
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -1,
+        "z": 1.4491376746189437,
+        "p_unadjusted": 0.1472991386226761,
+        "p": 0.44189741586802833
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": -3,
+        "z": 4.3474130238568316,
+        "p_unadjusted": 1.3775266858130711e-5,
+        "p": 4.1325800574392134e-5
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = ft$p.value, groups = lapply(seq_len(k), function(j) list(rank_sum = rank_sum[j], \n                mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "friedman(complete_rows(g1, g2, g3, g4), comps = \"control\", control = 1)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Against a control: three comparisons, each P multiplied by 3.",
+  "options": {
+    "comparisons": "control",
+    "control": 1,
+    "corrected": true
+  }
+}

@@ -249,7 +249,7 @@ qPCR, plate readers).
 storage, accounts, mobile-first layouts (tablets must not break; desktop is
 the target).
 
-## Status (2026-09-26)
+## Status (2026-09-27)
 
 - Repo: `BooneAndrewsLab/BarelySig`, private, **not published yet**.
   `deploy.yml` is ready: on a published GitHub Release it runs the check
@@ -392,6 +392,27 @@ the target).
   descriptive statistics are untouched (already just a few short
   tables). Filed: #80 (favicon: an inverse, theme-adaptive variant like
   PlasmidPop's, instead of a fixed black tile).
+- Favicon fixed (#80): transparent, ink switches via
+  `prefers-color-scheme` like PlasmidPop's, red asterisk constant; no
+  more solid ink tile on the browser tab. App icon untouched.
+- Milestone 10 follow-up, #50 (one-way slice, note 17): repeated-measures
+  one-way ANOVA (Geisser-Greenhouse correction from base R's own
+  `stats:::sphericity`/`anova.mlm`, no extra package) and the Friedman
+  test with Dunn's comparisons, both on a Column table paired by row (a
+  new N-ary selector, `matchedGroups`, generalising `pairedGroups`).
+  Comparisons after the ANOVA reuse `oneway`'s `bs_comparisons` directly
+  (as `twoway` already does); epsilon is clamped to Prism's stated
+  `[1/(k−1), 1]`, which also makes k = 2 read epsilon = 1 with no
+  special case, matching Prism's own stated behaviour there. Wired into
+  every touch point a new analysis kind needs (note 13's lesson):
+  brackets, margin notes, the Analyze dialog, "help me choose", the
+  results view, `.bsig`, the guide (`18-repeated-measures.md`), property
+  tests. Split off, each its own issue: two-way repeated-measures ANOVA
+  (#81), exact Friedman P for small tables (#82, as Kruskal-Wallis's
+  was before #49), and comparisons without assuming sphericity (#83).
+  #71 (matched nested one-way ANOVA) still waits on its own sibling
+  piece, not this one. A genuine oracle bug (not an app bug) was caught
+  only by the parity test: see Lessons.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
@@ -521,6 +542,24 @@ the target).
   already applies in production. First hit by loading `nlme`/`emmeans`
   at runtime for the first time; test any newly-`packages`-bearing
   analysis in an actual dev-server browser, not just `npm run test`.
+- **When an oracle and the app agree on everything except one family of
+  P values, and the ratio between them looks like a small integer,
+  suspect a count mismatch before the shared math** (note 17): a
+  Dunnett-comparisons oracle computed one correlation value (a scalar)
+  instead of one per comparison sharing the control, so its "probability
+  over the whole family" integral silently ran as a single comparison —
+  about `1 / K` of the right answer in the tail, K the number of
+  comparisons. Calling both implementations directly with identical
+  arguments (bypassing the fixture) showed them agreeing exactly; the
+  bug was in what fed them, not in the numerically shared function.
+- **Base R has more built in than it looks like:** the Geisser-Greenhouse
+  and Huynh-Feldt corrections for repeated-measures ANOVA need no extra
+  package — `stats:::anova.mlm`'s `test = "Spherical"` branch (and the
+  unexported `stats:::sphericity()` it calls) are exactly this, already
+  in `stats`. Epsilon is bounded to `[1/(k−1), 1]` in theory but not in
+  the raw R value: with very few subjects relative to treatments,
+  Huynh-Feldt epsilon came back negative and its corrected P a `NaN`
+  (note 17); clamp both epsilons to that range, not just cap at 1.
 
 ## Layout
 
