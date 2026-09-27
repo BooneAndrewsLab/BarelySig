@@ -383,6 +383,15 @@ the target).
   the groups), never "the same day" (the user's correction). Filed:
   #74, a SuperPlot over a violin with replicates joined (Lord et al.
   2020, Fig. S1F), Phase 2.
+- Key numbers first (#57, note 16): each analysis section shows the
+  reading and the one table a reader needs (the multiple-comparisons
+  table, for a test that runs one) beside the headline; the rest of
+  Prism's layout (ANOVA table, SD tests, cell means, data summary, test
+  details) sits behind an "All numbers" toggle, remembered per section
+  (`src/ui/results/openNumbers.ts`), closed by default. Normality and
+  descriptive statistics are untouched (already just a few short
+  tables). Filed: #80 (favicon: an inverse, theme-adaptive variant like
+  PlasmidPop's, instead of a fixed black tile).
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
