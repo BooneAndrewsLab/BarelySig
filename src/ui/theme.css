@@ -3,6 +3,17 @@
  * Red is kept for the active cell, keyboard focus and the current item;
  * a selection is an ink tint, so red never reads as an error.
  */
+
+/* UI font (item 25, #58): self-hosted, subsetted, variable weight so one
+ * file covers every font-weight below; falls back to the system font
+ * while it loads, and everywhere the glyph subset doesn't reach. */
+@font-face {
+  font-family: 'Archivo UI';
+  src: url('/fonts/archivo-ui.woff2') format('woff2');
+  font-weight: 380 720;
+  font-display: swap;
+}
+
 :root {
   --bs-ink: #201e1d;
   --bs-ground: #f3f2f2;
@@ -17,7 +28,7 @@
   --tint-strong: rgb(32 30 29 / 12%);
   --warning: #8a5a00;
   --error: #b3200a;
-  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-ui: 'Archivo UI', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --radius: 4px;
   color: var(--bs-ink);
   background: var(--bs-ground);

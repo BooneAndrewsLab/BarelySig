@@ -12,6 +12,8 @@ Files
 
 Wordmark
 - Font: Archivo 700, width axis 88, letter-spacing -0.035em, lowercase
+  (source vendored at `design/fonts/Archivo[wdth,wght].ttf`; also the UI
+  font, `design/fonts/README.md`, design note 25, #58)
 - Text: "arely" in ink, "sig" in red
 - Mark height = 1.32 × font size (84px at 64px); bottom of the stem sits on the text baseline (mark shifted down 10% of its height with baseline alignment)
 

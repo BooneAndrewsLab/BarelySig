@@ -271,7 +271,8 @@ how it got here.
   assuming sphericity (FAQ 1609's second method, #83), exact Friedman P
   for small tables (#82), repeated-measures two-way ANOVA (one factor
   repeated, #81, then both factors repeated, #84) with its own multiple
-  comparisons (#85) — notes 09–24).
+  comparisons (#85), self-hosted subsetted Archivo as the UI font (#58)
+  — notes 09–25).
 - **Open issues:**
   - #36 — the user's release steps (above)
   - #44 — real clipboard captures (needs the sibling apps)
@@ -279,7 +280,6 @@ how it got here.
   - #48 — exact Spearman (deferred to Phase 2)
   - #52 — two-way comparisons with empty cells (low priority: summary-data
     entry currently requires every cell filled)
-  - #58 — UI font
   - #72 — keep the conservative REML unmatched nested test, or switch to
     Prism's method? Needs the user's decision
   - #74 — SuperPlot over a violin with replicates joined, Phase 2
@@ -323,6 +323,11 @@ how it got here.
   `scripts/seaborn-reference.py` renders note 05's reference figures;
   `scripts/make-icons.sh` the PWA icons. Any Python with fonttools /
   seaborn runs them.
+- UI font (note 25, #58): `scripts/make-ui-font.py` rebuilds
+  `public/fonts/archivo-ui.woff2` from
+  `design/fonts/Archivo[wdth,wght].ttf` (the same source
+  `scripts/make-wordmark.py` outlines the wordmark from). Needs
+  fonttools + brotli.
 - WebR engine pin: `src/engine/lock.json`. `webr:fetch` fails on drift;
   change only with `npm run webr:fetch -- --update-lock`, then
   `oracle:pin`, `oracle:generate` and the parity test.

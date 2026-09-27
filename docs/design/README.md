@@ -30,3 +30,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 22 | [Repeated-measures two-way ANOVA (one factor repeated)](22-repeated-two-way.md) | #81 |
 | 23 | [Repeated-measures two-way ANOVA, both factors repeated](23-repeated-two-way-both.md) | #84 |
 | 24 | [Comparisons after repeated-measures two-way ANOVA](24-repeated-two-way-comparisons.md) | #85 |
+| 25 | [UI font: bundle Archivo or keep the system font?](25-ui-font.md) | #58 |

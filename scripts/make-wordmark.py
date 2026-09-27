@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Regenerates src/ui/logoWordmark.ts: the "arelysig" wordmark as
 SVG path outlines (Archivo Bold, width axis 88, letter-spacing -0.035em), so the
-app ships no webfont. See design/logo/README.md.
+wordmark itself ships as outlines, not a webfont. See design/logo/README.md.
+(The UI font, a separate use of the same family, is a real webfont built by
+scripts/make-ui-font.py — design note 25, #58.)
 
-Usage:  python3 scripts/make-wordmark.py 'path/to/Archivo[wdth,wght].ttf'
+Usage:  python3 scripts/make-wordmark.py ['path/to/Archivo[wdth,wght].ttf']
+        Defaults to the vendored design/fonts/Archivo[wdth,wght].ttf.
 Needs:  pip install fonttools uharfbuzz   (Archivo is OFL-1.1, from
         https://github.com/Omnibus-Type/Archivo)
 """
+import os
 import sys
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
@@ -19,8 +23,12 @@ TRACK = -0.035  # em
 TEXT = 'arelysig'
 SPLIT = 5  # "arely" is ink, "sig" accent
 OUT = 'src/ui/logoWordmark.ts'
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+DEFAULT_SOURCE = os.path.join(ROOT, "design/fonts/Archivo[wdth,wght].ttf")
 
-font = instantiateVariableFont(TTFont(sys.argv[1]), {'wdth': 88, 'wght': 700})
+font = instantiateVariableFont(
+    TTFont(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SOURCE), {'wdth': 88, 'wght': 700}
+)
 upem = font['head'].unitsPerEm
 scale = SIZE / upem
 glyphset = font.getGlyphSet()

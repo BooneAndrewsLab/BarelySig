@@ -90,7 +90,10 @@ export default defineConfig({
       workbox: {
         // The app shell is precached; WebR is not (tens of MB would hold up
         // the worker's install) but cached on first use, below (item 04).
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        // woff/woff2: the graph (Arimo) and UI (Archivo) fonts (item 25,
+        // #58) — public/ files the CSS references by URL, not bundled by
+        // Vite, so they need their own extensions here to be precached.
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff,woff2}'],
         globIgnores: ['webr/**'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: `${base}index.html`,
