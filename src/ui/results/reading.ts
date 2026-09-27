@@ -15,6 +15,7 @@ import type { PairedNormalityResult } from '@/analyses/paired-normality/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
+import type { RepeatedTwoWayResult } from '@/analyses/repeatedTwoway/types';
 import type { TwoWayResult } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
@@ -416,6 +417,32 @@ export function twoWayReading(r: TwoWayResult): string {
       `${COMPARISON_TEST[c.test] ?? c.test} comparisons ${FAMILY_TEXT[r.options.family] ?? ''}: ${String(sig)} of ${String(pairs.length)} ${pairs.length === 1 ? 'pair differs' : 'pairs differ'} after adjusting for the number of comparisons.`,
     );
   }
+  return parts.join(' ');
+}
+
+export function repeatedTwoWayMethod(r: RepeatedTwoWayResult): string {
+  const which = r.options.repeatedFactor === 'column' ? 'data sets' : 'rows';
+  return `Repeated-measures two-way ANOVA, ${which} matched by subcolumn. Geisser-Greenhouse corrected (epsilon = ${sig(r.ggEpsilon)}), for the repeated factor and the interaction; the between-subjects factor needs no such correction.`;
+}
+
+export function repeatedTwoWayReading(r: RepeatedTwoWayResult): string {
+  const parts: string[] = [];
+  const p = r.interaction.p ?? 1;
+  parts.push(
+    p < 0.05
+      ? `The repeated factor’s effect depends on the between-subjects factor (interaction ${pPhrase(p)}): one isn’t the same at every level of the other, so the main effects below are hard to read on their own.`
+      : `There is no evidence that the repeated factor’s effect depends on the between-subjects factor (interaction ${pPhrase(p)}), so the two can be read one at a time.`,
+  );
+  const effect = (test: number | null, what: string) => {
+    if (test === null) return;
+    parts.push(
+      test < 0.05
+        ? `The ${what} differ (${pPhrase(test)}).`
+        : `There is no evidence that the ${what} differ (${pPhrase(test)}).`,
+    );
+  };
+  effect(r.between.p, 'between-subjects factor’s levels');
+  effect(r.repeatedGgP, 'repeated factor’s levels');
   return parts.join(' ');
 }
 

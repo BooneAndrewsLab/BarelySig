@@ -68,6 +68,7 @@ export const EVENTS = {
     'new-kruskal-wallis',
     'new-two-way-anova',
     'new-repeated-measures-anova',
+    'new-repeated-two-way-anova',
     'new-friedman',
     'new-normality',
     'new-paired-normality',

@@ -23,6 +23,7 @@ import {
   type NestedTTestOptions,
   type OneWayOptions,
   type RankTestOptions,
+  type RepeatedTwoWayOptions,
   TWO_WAY_FAMILIES,
   type TTestOptions,
   type TwoWayFamily,
@@ -131,6 +132,13 @@ const KINDS: readonly KindInfo[] = [
     name: 'Two-way ANOVA',
     blurb:
       'How the rows and the data sets (two factors) each affect the values, and whether they interact.',
+    tables: ['grouped'],
+  },
+  {
+    kind: 'repeated-two-way-anova',
+    name: 'Repeated-measures two-way ANOVA',
+    blurb:
+      'How the rows and data sets (two factors) each affect the values, when one factor is measured on the same subjects.',
     tables: ['grouped'],
   },
   {
@@ -735,6 +743,36 @@ const FAMILY_LABEL: Readonly<Record<TwoWayFamily, string>> = {
   'all-cells': 'Compare every cell with every other cell',
 };
 
+function RepeatedTwoWayFields(props: {
+  readonly o: RepeatedTwoWayOptions;
+  readonly set: (o: RepeatedTwoWayOptions) => void;
+}) {
+  const { o, set } = props;
+  return (
+    <fieldset>
+      <legend>Which factor is repeated</legend>
+      <Radio
+        name="repeated-factor"
+        checked={o.repeatedFactor === 'column'}
+        onPick={() => {
+          set({ repeatedFactor: 'column' });
+        }}
+      >
+        The data sets — matched by subcolumn within each row
+      </Radio>
+      <Radio
+        name="repeated-factor"
+        checked={o.repeatedFactor === 'row'}
+        onPick={() => {
+          set({ repeatedFactor: 'row' });
+        }}
+      >
+        The rows — matched by subcolumn within each data set
+      </Radio>
+    </fieldset>
+  );
+}
+
 function TwoWayFields(props: {
   readonly o: TwoWayOptions;
   readonly columns: readonly { readonly id: Id; readonly title: string }[];
@@ -1013,6 +1051,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               : o,
         };
       }
+      case 'repeated-two-way-anova':
+        return { kind, options: options['repeated-two-way-anova'] };
     }
   };
 
@@ -1249,6 +1289,14 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               }))}
               set={(o) => {
                 set('two-way-anova', o);
+              }}
+            />
+          )}
+          {kind === 'repeated-two-way-anova' && (
+            <RepeatedTwoWayFields
+              o={options['repeated-two-way-anova']}
+              set={(o) => {
+                set('repeated-two-way-anova', o);
               }}
             />
           )}

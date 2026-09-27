@@ -253,6 +253,76 @@ export function groupedCells(
   };
 }
 
+export interface GroupedSubject {
+  /** Index into the *between* levels (rows, or data sets when `repeatedFactor` is `'row'`). */
+  readonly level: number;
+  /** One value per repeated level, in `rows`' (or `dataSets`') order. */
+  readonly values: readonly number[];
+}
+
+export interface GroupedSubjectsData {
+  readonly rows: readonly { readonly id: Id; readonly title: string | null }[];
+  readonly dataSets: readonly { readonly id: Id; readonly title: string }[];
+  readonly subjects: readonly GroupedSubject[];
+  /** A subcolumn slot with a value in at least one repeated level but not every one. */
+  readonly droppedSubjects: number;
+}
+
+/**
+ * A Grouped table's subcolumn-indexed subjects, for repeated-measures
+ * two-way ANOVA (item 22, #81): `repeatedFactor` says which factor is
+ * matched by subcolumn position (`'column'`: subcolumn *s* of row *r* is
+ * one subject, matched across data sets; `'row'`: subcolumn *s* of data
+ * set *c* is one subject, matched across rows). The other factor is
+ * between-subjects. A subject missing a value in any repeated level
+ * drops out whole (`matchedGroups`' rule, read across the subcolumn
+ * dimension instead of the row dimension).
+ */
+export function groupedMatchedSubjects(
+  table: GroupedTable,
+  dataSets: readonly Id[],
+  repeatedFactor: 'row' | 'column',
+): GroupedSubjectsData {
+  if (table.format.kind !== 'replicates') {
+    throw new DataError(
+      'Repeated-measures two-way ANOVA needs the individual values, not summary data (mean, SD, n).',
+    );
+  }
+  const sets = dataSets.map((id) => requireDataSet(table, id));
+  const count = table.format.count;
+  const rows = table.rows.map((r) => ({ id: r.id, title: r.title }));
+  const outSets = sets.map((d) => ({ id: d.id, title: d.title }));
+  const subjects: { level: number; values: number[] }[] = [];
+  let droppedSubjects = 0;
+
+  const raw = (ds: DataSet, s: number, r: number): boolean => ds.subcolumns[s]?.[r] != null;
+
+  if (repeatedFactor === 'column') {
+    table.rows.forEach((_, r) => {
+      for (let s = 0; s < count; s++) {
+        const values = sets.map((ds) => usable(table, ds, s, r));
+        if (values.every((v) => v !== null)) {
+          subjects.push({ level: r, values: values });
+        } else if (sets.some((ds) => raw(ds, s, r))) {
+          droppedSubjects += 1;
+        }
+      }
+    });
+  } else {
+    sets.forEach((ds, c) => {
+      for (let s = 0; s < count; s++) {
+        const values = table.rows.map((_, r) => usable(table, ds, s, r));
+        if (values.every((v) => v !== null)) {
+          subjects.push({ level: c, values: values });
+        } else if (table.rows.some((_, r) => raw(ds, s, r))) {
+          droppedSubjects += 1;
+        }
+      }
+    });
+  }
+  return { rows, dataSets: outSets, subjects, droppedSubjects };
+}
+
 export interface NestedGroup {
   readonly id: Id;
   readonly title: string;

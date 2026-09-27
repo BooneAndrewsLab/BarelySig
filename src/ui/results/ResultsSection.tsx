@@ -20,6 +20,7 @@ import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { PairedNormalityResult } from '@/analyses/paired-normality/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { RepeatedMeasuresResult } from '@/analyses/repeated/types';
+import type { RepeatedTwoWayResult, RepeatedTwoWayTerm } from '@/analyses/repeatedTwoway/types';
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { Id } from '@/model/ids';
@@ -55,6 +56,8 @@ import {
   repeatedMethod,
   repeatedP,
   repeatedReading,
+  repeatedTwoWayMethod,
+  repeatedTwoWayReading,
   tTestMethod,
   tTestReading,
   twoWayMethod,
@@ -870,6 +873,99 @@ const FAMILY_TITLE: Readonly<Record<string, string>> = {
   'main-rows': 'Compare rows (main row effect)',
   'all-cells': 'Compare cell means regardless of rows and data sets',
 };
+
+function RepeatedTwoWayView({ r, id }: { readonly r: RepeatedTwoWayResult; readonly id: Id }) {
+  const between = r.options.repeatedFactor === 'column' ? 'Row factor' : 'Data set factor';
+  const repeated = r.options.repeatedFactor === 'column' ? 'Data set factor' : 'Row factor';
+  const f = (t: RepeatedTwoWayTerm) => (t.f !== null && t.df > 0 ? sig(t.f) : '');
+  return (
+    <>
+      <Headline
+        reading={repeatedTwoWayReading(r)}
+        figures={[
+          pFigure(between, r.between.p ?? 1),
+          pFigure(`${repeated} (GG corrected)`, r.repeatedGgP),
+          pFigure('Interaction (GG corrected)', r.interactionGgP),
+        ]}
+      />
+      <p className="method">{repeatedTwoWayMethod(r)}</p>
+      {r.droppedSubjects > 0 && (
+        <p className="status-banner info">
+          {String(r.droppedSubjects)} {r.droppedSubjects === 1 ? 'subject' : 'subjects'} missing a
+          value in some but not every {r.options.repeatedFactor === 'column' ? 'data set' : 'row'}{' '}
+          left out.
+        </p>
+      )}
+      <AllNumbers id={id}>
+        <Grid
+          label="ANOVA table"
+          head={['ANOVA table', 'SS', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+          rows={[
+            [
+              between,
+              sig(r.between.ss),
+              dfText(r.between.df),
+              sig(r.between.ms),
+              `F (${dfText(r.between.df)}, ${dfText(r.subjects.df)}) = ${f(r.between)}`,
+              r.between.p !== null ? pPhrase(r.between.p) : '',
+            ],
+            [
+              'Subjects (matching)',
+              sig(r.subjects.ss),
+              dfText(r.subjects.df),
+              sig(r.subjects.ms),
+              '',
+              '',
+            ],
+            [
+              repeated,
+              sig(r.repeated.ss),
+              dfText(r.repeated.df),
+              sig(r.repeated.ms),
+              `F (${dfText(r.repeated.df)}, ${dfText(r.residual.df)}) = ${f(r.repeated)}`,
+              r.repeated.p !== null ? pPhrase(r.repeated.p) : '',
+            ],
+            [
+              'Interaction',
+              sig(r.interaction.ss),
+              dfText(r.interaction.df),
+              sig(r.interaction.ms),
+              `F (${dfText(r.interaction.df)}, ${dfText(r.residual.df)}) = ${f(r.interaction)}`,
+              r.interaction.p !== null ? pPhrase(r.interaction.p) : '',
+            ],
+            ['Residual', sig(r.residual.ss), dfText(r.residual.df), sig(r.residual.ms), '', ''],
+            ['Total', sig(r.total.ss), dfText(r.total.df), '', '', ''],
+          ]}
+        />
+        <Sections
+          sections={[
+            [
+              'Data summary',
+              [
+                ['Number of subjects', String(r.n)],
+                [
+                  `Number of ${r.options.repeatedFactor === 'column' ? 'rows' : 'data sets'} (between-subjects factor)`,
+                  String(r.betweenLevels),
+                ],
+                [
+                  `Number of ${r.options.repeatedFactor === 'column' ? 'data sets' : 'rows'} (repeated factor)`,
+                  String(r.repeatedLevels),
+                ],
+                ['Geisser-Greenhouse epsilon', sig(r.ggEpsilon)],
+                ['Huynh-Feldt epsilon', sig(r.hfEpsilon)],
+                ['P value (Huynh-Feldt corrected, repeated factor)', pValue(r.repeatedHfP)],
+                ['P value (Huynh-Feldt corrected, interaction)', pValue(r.interactionHfP)],
+                ...(r.droppedSubjects > 0
+                  ? ([['Subjects left out', String(r.droppedSubjects)]] as Row[])
+                  : []),
+              ],
+            ],
+          ]}
+        />
+      </AllNumbers>
+    </>
+  );
+}
 
 function TwoWayView({ r, id }: { readonly r: TwoWayResult; readonly id: Id }) {
   const terms: (readonly [string, TwoWayTerm])[] = [
@@ -1855,6 +1951,9 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
           <TwoWayView r={value as unknown as TwoWayResult} id={analysis.id} />
+        )}
+        {value !== null && analysis.kind === 'repeated-two-way-anova' && (
+          <RepeatedTwoWayView r={value as unknown as RepeatedTwoWayResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'kruskal-wallis' && (
           <KruskalView r={value as unknown as KruskalWallisResult} id={analysis.id} />
