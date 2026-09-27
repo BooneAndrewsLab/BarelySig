@@ -119,6 +119,29 @@ them. It reports, for each group:
   reach for out of habit; the group summary above is the one that
   matters.
 
+## Normality tests
+
+Choose **Normality tests** to check whether each group's replicate means
+look like they come from a bell-shaped (Gaussian) distribution — the
+same D'Agostino-Pearson and Shapiro-Wilk tests as a Column table's
+[normality tests](10-normality.md), run on the replicate means
+(`nestedReplicateMeans`) rather than on every individual value. This is
+what the matched nested t test, the matched nested one-way ANOVA and
+this table's own descriptive statistics (above) actually assume.
+
+**Read this before trusting a "passed":** the usual Nested-table
+experiment has three biological replicates per group. Three is
+Shapiro-Wilk's absolute minimum to run at all, and with that few points
+a normality test has essentially no power to detect non-normality — it
+will pass almost regardless of the true shape. A pass here does **not**
+confirm the assumption is met; decide mostly from what you know about
+the kind of measurement, the same advice the Column-table normality
+tests give for a "few values", only more so here. The results repeat
+this caution.
+
+Run it on its own: click **Analyze…** on a Nested table, then the
+**Normality tests** tile, and pick the groups. There are no options.
+
 ## Comparing three or more groups: nested one-way ANOVA
 
 Choose **nested one-way ANOVA** instead of the nested t test when

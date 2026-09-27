@@ -143,6 +143,7 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     case 'descriptive':
     case 'nested-descriptive':
     case 'normality':
+    case 'nested-normality':
     case 'paired-normality':
     case 'graph-summary':
     case 'repeated-two-way-anova-both':
@@ -219,6 +220,7 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     case 'descriptive':
     case 'nested-descriptive':
     case 'normality':
+    case 'nested-normality':
     case 'paired-normality':
     case 'graph-summary':
     case 'repeated-two-way-anova-both':

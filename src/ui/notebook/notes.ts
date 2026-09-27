@@ -340,6 +340,17 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
+    case 'nested-normality':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Tests each group’s replicate means — the same numbers a matched nested t test, matched nested one-way ANOVA or nested-descriptive’s group summary use — not the individual values.',
+            'With this few replicates (often three) a normality test has essentially no power to detect non-normality: it will pass almost regardless of the true shape. A pass here does not confirm the assumption is met; decide mostly from what you know about the measurement.',
+          ],
+        },
+      ];
     case 'paired-normality':
       return [
         {

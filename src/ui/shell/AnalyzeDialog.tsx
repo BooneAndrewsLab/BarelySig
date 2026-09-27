@@ -96,6 +96,13 @@ const KINDS: readonly KindInfo[] = [
     tables: ['nested'],
   },
   {
+    kind: 'nested-normality',
+    name: 'Normality tests',
+    blurb:
+      'Check whether each group’s replicate means look bell-shaped — with the usual few replicates, these tests have little power to tell.',
+    tables: ['nested'],
+  },
+  {
     kind: 'nested-t-test',
     name: 'Nested t test',
     blurb: 'Compare two groups, weighing each biological replicate by how many values it has.',
@@ -1092,6 +1099,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return { kind, options: options['nested-descriptive'] };
       case 'normality':
         return { kind, options: options.normality };
+      case 'nested-normality':
+        return { kind, options: options['nested-normality'] };
       case 'paired-normality':
         return { kind, options: options['paired-normality'] };
       case 't-test':

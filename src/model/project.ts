@@ -34,6 +34,7 @@ export type AnalysisSpec =
     }
   | { readonly kind: 'friedman'; readonly options: FriedmanOptions }
   | { readonly kind: 'normality'; readonly options: NormalityOptions }
+  | { readonly kind: 'nested-normality'; readonly options: NestedNormalityOptions }
   | { readonly kind: 'paired-normality'; readonly options: PairedNormalityOptions }
   /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
   | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
@@ -51,6 +52,14 @@ export type NestedDescriptiveOptions = Readonly<Record<string, never>>;
 
 /** Both tests (D'Agostino-Pearson, Shapiro-Wilk) on every group; nothing to choose (note 06). */
 export type NormalityOptions = Readonly<Record<string, never>>;
+
+/**
+ * The same two tests, run once per group on its replicate means rather
+ * than on every individual value (item 26, #77): what the matched nested
+ * t test, matched nested one-way ANOVA and nested-descriptive's group
+ * summary actually assume. Nothing to choose.
+ */
+export type NestedNormalityOptions = Readonly<Record<string, never>>;
 
 /**
  * The same two tests, run once on a paired t test's row-by-row differences
@@ -278,6 +287,7 @@ export const DEFAULT_OPTIONS: {
   },
   'repeated-two-way-anova-both': {},
   normality: {},
+  'nested-normality': {},
   'paired-normality': {},
   'graph-summary': { whiskers: null, kde: null },
 };

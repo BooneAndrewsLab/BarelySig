@@ -16,6 +16,7 @@ import type {
   DescribedReplicate,
   NestedDescriptiveResult,
 } from '@/analyses/nested-descriptive/types';
+import type { NestedNormalityResult } from '@/analyses/nested-normality/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
@@ -48,6 +49,7 @@ import {
   friedmanReading,
   kruskalMethod,
   kruskalReading,
+  nestedNormalityReading,
   nestedOneWayMethod,
   nestedOneWayReading,
   nestedRepeatedMethod,
@@ -626,6 +628,68 @@ function NormalityView({ r }: { readonly r: NormalityResult }) {
       <p className="legend">
         “Passed” means P &gt; 0.05: no clear departure from a Gaussian distribution, not proof of
         one. Asterisks: {STAR_SCHEME}.
+      </p>
+    </>
+  );
+}
+
+/**
+ * Normality of a Nested table's replicate means (item 26, #77): the same
+ * two tests as `NormalityView`, run once per group on its replicate
+ * means (`nestedReplicateMeans`, note 26) rather than on every individual
+ * value.
+ */
+function NestedNormalityView({ r }: { readonly r: NestedNormalityResult }) {
+  const head = ['', ...r.groups.map((g) => `${g.title}${nestedDroppedText(g.droppedReplicates)}`)];
+  const row = (label: string, f: (g: NestedNormalityResult['groups'][number]) => string) => [
+    label,
+    ...r.groups.map(f),
+  ];
+  const passed = (p: number) => (p > 0.05 ? 'Yes' : 'No');
+  return (
+    <>
+      <Headline reading={nestedNormalityReading(r)} />
+      <p className="method">
+        D’Agostino-Pearson omnibus K² test and Shapiro-Wilk test (Royston), each group’s replicate
+        means on their own, α = 0.05.
+      </p>
+      <div className="results-grid">
+        <Grid
+          label="D’Agostino & Pearson test"
+          head={['D’Agostino & Pearson test', ...head.slice(1)]}
+          rows={[
+            row('K2', (g) => (g.dagostino.ran ? sig(g.dagostino.k2) : (notRun(g.dagostino) ?? ''))),
+            row('P value', (g) => (g.dagostino.ran ? pValue(g.dagostino.p) : '—')),
+            row('Passed normality test (α = 0.05)?', (g) =>
+              g.dagostino.ran ? passed(g.dagostino.p) : '—',
+            ),
+            row('P value summary', (g) => (g.dagostino.ran ? stars(g.dagostino.p) : '—')),
+          ]}
+        />
+        <Grid
+          label="Shapiro-Wilk test"
+          head={['Shapiro-Wilk test', ...head.slice(1)]}
+          rows={[
+            row('W', (g) =>
+              g.shapiroWilk.ran ? sig(g.shapiroWilk.w) : (notRun(g.shapiroWilk) ?? ''),
+            ),
+            row('P value', (g) => (g.shapiroWilk.ran ? pValue(g.shapiroWilk.p) : '—')),
+            row('Passed normality test (α = 0.05)?', (g) =>
+              g.shapiroWilk.ran ? passed(g.shapiroWilk.p) : '—',
+            ),
+            row('P value summary', (g) => (g.shapiroWilk.ran ? stars(g.shapiroWilk.p) : '—')),
+          ]}
+        />
+        <Grid
+          label="Number of replicates"
+          head={['Number of replicates', ...head.slice(1)]}
+          rows={[row('n', (g) => String(g.n))]}
+        />
+      </div>
+      <p className="legend">
+        “Passed” means P &gt; 0.05: no clear departure from a Gaussian distribution, not proof of
+        one — and with this few replicates these tests have essentially no power to detect
+        non-normality either way. Asterisks: {STAR_SCHEME}.
       </p>
     </>
   );
@@ -2217,6 +2281,9 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'normality' && (
           <NormalityView r={value as unknown as NormalityResult} />
+        )}
+        {value !== null && analysis.kind === 'nested-normality' && (
+          <NestedNormalityView r={value as unknown as NestedNormalityResult} />
         )}
         {value !== null && analysis.kind === 'paired-normality' && (
           <PairedNormalityView r={value as unknown as PairedNormalityResult} />

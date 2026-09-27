@@ -5,6 +5,7 @@ import { graphSummary } from './graphsummary';
 import { kruskal } from './kruskal';
 import type { Registry } from './module';
 import { nestedDescriptive } from './nested-descriptive';
+import { nestedNormality } from './nested-normality';
 import { nestedOneway } from './nested-oneway';
 import { nestedRepeated } from './nested-repeated';
 import { nestedTTest } from './nested-ttest';
@@ -34,6 +35,7 @@ export const REGISTRY: Registry = {
   'repeated-two-way-anova-both': repeatedTwowayBoth,
   friedman,
   normality,
+  'nested-normality': nestedNormality,
   'paired-normality': pairedNormality,
   'graph-summary': graphSummary,
 };

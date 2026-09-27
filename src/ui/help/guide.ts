@@ -83,5 +83,6 @@ export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   'repeated-two-way-anova-both': '20-repeated-two-way-both',
   friedman: '18-repeated-measures',
   normality: '10-normality',
+  'nested-normality': '17-nested-tables',
   'paired-normality': '10-normality',
 };

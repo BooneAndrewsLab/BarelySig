@@ -9,6 +9,7 @@ import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
+import type { NestedNormalityResult } from '@/analyses/nested-normality/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult } from '@/analyses/normality/types';
 import type { PairedNormalityResult } from '@/analyses/paired-normality/types';
@@ -540,4 +541,33 @@ export function pairedNormalityReading(r: PairedNormalityResult): string {
     return `The paired differences don’t depart clearly from a Gaussian (bell-shaped) distribution by these tests (P > 0.05 for each).${caution}`;
   }
   return `The paired differences don’t look Gaussian (${bad.map(([name, p]) => `${name} ${pPhrase(p)}`).join(', ')}). Consider a nonparametric test (Wilcoxon matched-pairs). Values that vary by fold changes (concentrations, expression) often look Gaussian as logarithms: make a column of their logs in your spreadsheet and paste that instead.${caution}`;
+}
+
+/**
+ * Normality of a Nested table's replicate means (item 26, #77): the same
+ * reading as `normalityReading`, but with a stronger caveat — the typical
+ * three replicates per group is Shapiro-Wilk's floor, not just "a few".
+ */
+export function nestedNormalityReading(r: NestedNormalityResult): string {
+  const failed: string[] = [];
+  let ran = 0;
+  for (const g of r.groups) {
+    const tests = [
+      ...(g.dagostino.ran ? [['D’Agostino-Pearson', g.dagostino.p] as const] : []),
+      ...(g.shapiroWilk.ran ? [['Shapiro-Wilk', g.shapiroWilk.p] as const] : []),
+    ];
+    ran += tests.length;
+    const bad = tests.filter(([, p]) => p <= 0.05);
+    if (bad.length > 0)
+      failed.push(`${g.title} (${bad.map(([name, p]) => `${name} ${pPhrase(p)}`).join(', ')})`);
+  }
+  if (ran === 0) {
+    return 'The groups have too few replicates for normality tests: Shapiro-Wilk needs at least 3 replicate means and D’Agostino-Pearson 8. Decide from what is known about this kind of measurement.';
+  }
+  const caution =
+    ' With this few replicates a normality test has essentially no power to detect non-normality — it will pass almost regardless of the true shape. A pass here does not confirm the assumption is met; decide mostly from what you know about the measurement.';
+  if (failed.length === 0) {
+    return `No group’s replicate means depart clearly from a Gaussian (bell-shaped) distribution by these tests (P > 0.05 for each).${caution}`;
+  }
+  return `The replicate means of ${joinAnd(failed)} don’t look Gaussian (P ≤ 0.05).${caution}`;
 }

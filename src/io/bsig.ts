@@ -143,6 +143,7 @@ function optionsJson(a: AnalysisSpec): Json {
     case 'descriptive':
     case 'nested-descriptive':
     case 'normality':
+    case 'nested-normality':
     case 'paired-normality':
       return {};
     case 'graph-summary':
@@ -452,6 +453,7 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     case 'descriptive':
     case 'nested-descriptive':
     case 'normality':
+    case 'nested-normality':
     case 'paired-normality':
       return { kind, options: {} };
     case 't-test': {

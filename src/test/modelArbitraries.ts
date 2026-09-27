@@ -102,6 +102,10 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
   }),
   fc.constant<AnalysisSpec>({ kind: 'normality', options: DEFAULT_OPTIONS.normality }),
   fc.constant<AnalysisSpec>({
+    kind: 'nested-normality',
+    options: DEFAULT_OPTIONS['nested-normality'],
+  }),
+  fc.constant<AnalysisSpec>({
     kind: 'paired-normality',
     options: DEFAULT_OPTIONS['paired-normality'],
   }),
