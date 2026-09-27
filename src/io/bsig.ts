@@ -166,6 +166,7 @@ function optionsJson(a: AnalysisSpec): Json {
       };
     }
     case 'repeated-measures-anova':
+    case 'nested-repeated-anova':
       return { comparisons: comparisonsJson(a.options.comparisons) };
   }
 }
@@ -500,7 +501,8 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       };
       return { kind, options };
     }
-    case 'repeated-measures-anova': {
+    case 'repeated-measures-anova':
+    case 'nested-repeated-anova': {
       const options: RepeatedMeasuresOptions = {
         comparisons: nestedComparisons(opts['comparisons'], q.key('comparisons')),
       };

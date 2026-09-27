@@ -90,8 +90,13 @@ The paired t test on the means was right on 5%. It gives every
 replicate the same weight, however many cells it has, so keep those
 numbers similar where you can.
 
-Three or more groups with matched replicates need a repeated-measures
-ANOVA on the replicate means, which BarelySig doesn't have yet.
+Three or more groups with matched replicates need a **matched nested
+one-way ANOVA**: a repeated-measures ANOVA on the replicate means (see
+"Repeated measures" in this guide for what it reports — Geisser-
+Greenhouse-corrected P, epsilon, and matched multiple comparisons). A
+replicate with a usable value in some groups but not every group is
+left out of all of them, the same rule as the matched nested t test's,
+and the results name it.
 
 ## Comparing three or more groups: nested one-way ANOVA
 
@@ -126,7 +131,8 @@ error bar are the mean ± SEM _of the replicate means_ (n = number of
 replicates, not number of values) — the paper's recommendation, since
 that shows how repeatable the experiment was. Pick SD or a 95% CI in
 the format panel instead if you prefer. Significance brackets from the
-nested t test or nested one-way ANOVA draw as on any other graph.
+nested t test, nested one-way ANOVA or matched nested one-way ANOVA
+draw as on any other graph.
 
 Is replicate 1 in Control the _same_ sample as replicate 1 in Treated:
 one culture, animal or batch of cells split between them and handled in

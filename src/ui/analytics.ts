@@ -64,6 +64,7 @@ export const EVENTS = {
     'new-rank-test',
     'new-one-way-anova',
     'new-nested-one-way-anova',
+    'new-nested-repeated-anova',
     'new-kruskal-wallis',
     'new-two-way-anova',
     'new-repeated-measures-anova',

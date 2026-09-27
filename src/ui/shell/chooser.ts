@@ -157,9 +157,21 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
           };
     }
     if (matched) {
+      const c = control();
+      if (c === null) return { kind: 'ask', question: 'control' };
       return {
-        kind: 'none',
-        why: 'Three or more groups that share each replicate need a repeated-measures ANOVA on the replicate means, which BarelySig doesn’t have yet (issue #71). Meanwhile, compare two groups at a time with the matched nested t test, and keep in mind that every extra comparison makes a chance “significant” result more likely.',
+        kind: 'test',
+        spec: {
+          kind: 'nested-repeated-anova',
+          options: {
+            comparisons:
+              c.kind === 'all'
+                ? DEFAULT_OPTIONS['nested-repeated-anova'].comparisons
+                : { kind: 'control', control: c.control, test: 'dunnett' },
+          },
+        },
+        name: 'Matched nested one-way ANOVA',
+        why: `Each replicate was one sample split between all ${String(k)} groups, so the test compares the groups within each replicate: a repeated-measures ANOVA on the replicate means, as the matched nested t test does for two groups. A replicate that read high (or low) everywhere doesn’t hide a difference that goes the same way every time, and ${comparisonsWord(c, ctx.groups)}.`,
       };
     }
     const c = control();

@@ -10,6 +10,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   'rank-test': 't-test',
   'one-way-anova': 'anova',
   'nested-one-way-anova': 'anova',
+  'nested-repeated-anova': 'anova',
   'kruskal-wallis': 'anova',
   'two-way-anova': 'grouped',
   'repeated-measures-anova': 'anova',
@@ -38,6 +39,8 @@ export function testName(spec: AnalysisSpec): string {
       return spec.options.welch ? 'Welch’s ANOVA' : 'One-way ANOVA';
     case 'nested-one-way-anova':
       return 'Nested one-way ANOVA';
+    case 'nested-repeated-anova':
+      return 'Matched nested one-way ANOVA';
     case 'kruskal-wallis':
       return 'Kruskal-Wallis test';
     case 'two-way-anova':

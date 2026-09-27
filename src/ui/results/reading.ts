@@ -8,6 +8,7 @@
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
+import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult } from '@/analyses/normality/types';
 import type { PairedNormalityResult } from '@/analyses/paired-normality/types';
@@ -290,6 +291,36 @@ export function repeatedMethod(r: RepeatedMeasuresResult): string {
 
 export function repeatedReading(r: RepeatedMeasuresResult): string {
   const p = repeatedP(r);
+  const phrase = pPhrase(p);
+  const often = howOften(p);
+  const k = String(r.groups.length);
+  let text =
+    p < 0.05
+      ? `The means of the ${k} groups are not all the same (${phrase}): at least one differs from the others. If all groups truly had the same mean, differences at least this large would turn up in ${often} like this one.`
+      : `There is no evidence that the means of the ${k} groups differ (${phrase}). If they truly had the same mean, differences at least this large would turn up in ${often}. That doesn’t show the means are the same; the experiment may be too small to see a difference.`;
+  if (r.groups.length === 2)
+    text += ' With two groups, epsilon is always 1 and every P (uncorrected, GG, HF) agrees.';
+  if (r.comparisons.kind !== 'none') {
+    const name = COMPARISON_TEST[r.comparisons.test] ?? r.comparisons.test;
+    text += comparisonsText(p, name, r.pairs, true, 'overall ANOVA');
+  }
+  return text;
+}
+
+/** The P a matched nested one-way ANOVA reading goes by: Prism's default, Geisser-Greenhouse corrected. */
+export const nestedRepeatedP = (r: NestedRepeatedResult): number => r.ggP;
+
+export function nestedRepeatedMethod(r: NestedRepeatedResult): string {
+  const c = r.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), with P values adjusted for the number of comparisons.`;
+  return `Matched nested one-way ANOVA (repeated-measures on the replicate means), Geisser-Greenhouse corrected (epsilon = ${sig(r.ggEpsilon)}).${comps}`;
+}
+
+export function nestedRepeatedReading(r: NestedRepeatedResult): string {
+  const p = nestedRepeatedP(r);
   const phrase = pPhrase(p);
   const often = howOften(p);
   const k = String(r.groups.length);

@@ -190,15 +190,23 @@ describe('help me choose', () => {
     expect(pick(suggest(ans(), nested([2])))).toEqual(['none']);
   });
 
-  it('suggests the matched nested t test for matched replicates, and nothing yet for three groups', () => {
+  it('suggests the matched nested t test for two matched groups', () => {
     const s = suggest(ans({ matched: 'yes' }), nested([2, 2]));
     expect(pick(s)).toEqual(['nested-t-test', 'Matched nested t test']);
     expect(s.kind === 'test' && s.spec).toEqual({
       kind: 'nested-t-test',
       options: { tails: 'two', matched: true },
     });
-    const three = suggest(ans({ matched: 'yes' }), nested([2, 2, 2]));
-    expect(three.kind === 'none' && three.why).toMatch(/#71/);
+  });
+
+  it('suggests the matched nested one-way ANOVA for three or more matched groups', () => {
+    expect(pick(suggest(ans({ matched: 'yes' }), nested([2, 2, 2])))).toEqual(['ask', 'control']);
+    const three = suggest(ans({ matched: 'yes', control: 'all' }), nested([2, 2, 2]));
+    expect(pick(three)).toEqual(['nested-repeated-anova', 'Matched nested one-way ANOVA']);
+    expect(three.kind === 'test' && three.spec).toEqual({
+      kind: 'nested-repeated-anova',
+      options: { comparisons: { kind: 'all', test: 'tukey' } },
+    });
   });
 
   it('lists only the questions that led to the suggestion', () => {

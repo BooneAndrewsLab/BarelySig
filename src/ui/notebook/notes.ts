@@ -244,6 +244,23 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
         },
       ];
     }
+    case 'nested-repeated-anova': {
+      const o = analysis.options;
+      const comps = comparisonsText(table, o.comparisons);
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Each replicate is one sample split between every group, so it compares the groups within each replicate: a repeated-measures ANOVA on the replicate means. It doesn’t say which groups differ; the comparisons below do.',
+            'A replicate that read high (or low) everywhere doesn’t hide a real difference, as long as it goes the same way every time. A replicate with values in some groups but not every group is left out of all of them.',
+            'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default.',
+            ...(comps ? [comps] : []),
+            NS,
+          ],
+        },
+      ];
+    }
     case 'friedman': {
       const o = analysis.options;
       const dunn =

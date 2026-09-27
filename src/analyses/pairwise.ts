@@ -11,6 +11,7 @@ import type { Analysis, AnalysisKind, Project } from '@/model/project';
 import type { FriedmanResult } from './friedman/types';
 import type { KruskalWallisResult } from './kruskal/types';
 import type { NestedOneWayResult } from './nested-oneway/types';
+import type { NestedRepeatedResult } from './nested-repeated/types';
 import type { NestedTTestResult } from './nested-ttest/types';
 import type { OneWayResult } from './oneway/types';
 import type { RankTestResult } from './ranktest/types';
@@ -37,6 +38,7 @@ export const BRACKET_KINDS: ReadonlySet<AnalysisKind> = new Set<AnalysisKind>([
   'rank-test',
   'one-way-anova',
   'nested-one-way-anova',
+  'nested-repeated-anova',
   'kruskal-wallis',
   'two-way-anova',
   'repeated-measures-anova',
@@ -86,6 +88,7 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     }
     case 'one-way-anova':
     case 'nested-one-way-anova':
+    case 'nested-repeated-anova':
     case 'kruskal-wallis':
     case 'repeated-measures-anova':
     case 'friedman': {
@@ -141,12 +144,14 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     }
     case 'one-way-anova':
     case 'nested-one-way-anova':
+    case 'nested-repeated-anova':
     case 'kruskal-wallis':
     case 'repeated-measures-anova':
     case 'friedman': {
       const r = value as unknown as
         | OneWayResult
         | NestedOneWayResult
+        | NestedRepeatedResult
         | KruskalWallisResult
         | RepeatedMeasuresResult
         | FriedmanResult;

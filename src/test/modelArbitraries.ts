@@ -139,6 +139,10 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     kind: 'repeated-measures-anova',
     options: { comparisons },
   })),
+  nestedComparisonsArb.map((comparisons): AnalysisSpec => ({
+    kind: 'nested-repeated-anova',
+    options: { comparisons },
+  })),
   fc
     .record({
       comparisons: fc.oneof(

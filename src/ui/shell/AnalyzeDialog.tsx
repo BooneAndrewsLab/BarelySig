@@ -101,6 +101,13 @@ const KINDS: readonly KindInfo[] = [
     tables: ['nested'],
   },
   {
+    kind: 'nested-repeated-anova',
+    name: 'Matched nested one-way ANOVA',
+    blurb:
+      'Compare three or more groups whose replicates are the same experiment split between them: a repeated-measures ANOVA on the replicate means.',
+    tables: ['nested'],
+  },
+  {
     kind: 'rank-test',
     name: 'Mann-Whitney / Wilcoxon',
     blurb: 'Compare two groups by ranks, without assuming a bell-shaped distribution.',
@@ -969,6 +976,16 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             control !== undefined && c.kind === 'control' ? { comparisons: { ...c, control } } : o,
         };
       }
+      case 'nested-repeated-anova': {
+        const o = options['nested-repeated-anova'];
+        const c = o.comparisons;
+        const control = c.kind === 'control' && !picked.includes(c.control) ? picked[0] : undefined;
+        return {
+          kind,
+          options:
+            control !== undefined && c.kind === 'control' ? { comparisons: { ...c, control } } : o,
+        };
+      }
     }
   };
 
@@ -1165,6 +1182,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               groups={table.dataSets.filter((d) => picked.includes(d.id))}
               set={(o) => {
                 set('repeated-measures-anova', o);
+              }}
+            />
+          )}
+          {kind === 'nested-repeated-anova' && (
+            <NestedOneWayFields
+              o={options['nested-repeated-anova']}
+              groups={table.dataSets.filter((d) => picked.includes(d.id))}
+              set={(o) => {
+                set('nested-repeated-anova', o);
               }}
             />
           )}

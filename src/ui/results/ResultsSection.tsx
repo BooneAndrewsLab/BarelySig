@@ -13,6 +13,7 @@ import type { DescribedGroup, DescriptiveResult } from '@/analyses/descriptive/t
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
+import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
 import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { NormalityResult, TestOutcome } from '@/analyses/normality/types';
 import type { FTest, OneWayResult } from '@/analyses/oneway/types';
@@ -39,6 +40,9 @@ import {
   kruskalReading,
   nestedOneWayMethod,
   nestedOneWayReading,
+  nestedRepeatedMethod,
+  nestedRepeatedP,
+  nestedRepeatedReading,
   nestedTTestMethod,
   nestedTTestReading,
   normalityReading,
@@ -1338,6 +1342,159 @@ function RepeatedMeasuresView({ r, id }: { readonly r: RepeatedMeasuresResult; r
   );
 }
 
+function NestedRepeatedView({ r, id }: { readonly r: NestedRepeatedResult; readonly id: Id }) {
+  const a = r.anova;
+  const c = r.comparisons;
+  const name = c.kind === 'none' ? '' : (COMPARISON_TEST[c.test] ?? c.test);
+  const twoGroups = r.groups.length === 2;
+  const sections: Section[] = [
+    [
+      'ANOVA summary',
+      [
+        ['F', sig(a.f)],
+        ['P value (Geisser-Greenhouse corrected)', pValue(r.ggP)],
+        ['P value summary', stars(r.ggP)],
+        ['Significant difference among means (P < 0.05)?', yesNo(r.ggP)],
+        ['Geisser-Greenhouse epsilon', sig(r.ggEpsilon)],
+        ['P value (uncorrected)', pValue(a.p)],
+        ['P value (Huynh-Feldt corrected)', pValue(r.hfP)],
+        ['Huynh-Feldt epsilon', sig(r.hfEpsilon)],
+        ['R squared (treatment effect)', sig(a.rSquaredTreatment)],
+        ['R squared (matching effectiveness)', sig(a.rSquaredSubjects)],
+      ],
+    ],
+  ];
+  return (
+    <>
+      <Headline
+        reading={nestedRepeatedReading(r)}
+        figures={[
+          pFigure('P value (GG corrected)', nestedRepeatedP(r)),
+          {
+            label: 'F (DFn, DFd)',
+            value: sig(a.f),
+            detail: `DFn = ${dfText(a.dfTreatment)}, DFd = ${dfText(a.dfResidual)}`,
+          },
+          ...(r.pairs.length ? [pairsFigure(name, r.pairs, true)] : []),
+        ]}
+      />
+      <p className="method">{nestedRepeatedMethod(r)}</p>
+      {r.pairs.length > 0 && (
+        <div className="results-grid">
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${name} multiple comparisons test`,
+              'Mean diff.',
+              '95.00% CI of diff.',
+              'Significant?',
+              'Summary',
+              'Adjusted P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              interval(x.ciLower, x.ciUpper),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+        </div>
+      )}
+      <AllNumbers id={id}>
+        <Sections sections={sections} />
+        <Grid
+          label="ANOVA table"
+          head={['ANOVA table', 'SS', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+          rows={[
+            [
+              'Treatment',
+              sig(a.ssTreatment),
+              dfText(a.dfTreatment),
+              sig(a.msTreatment),
+              `F (${dfText(a.dfTreatment)}, ${dfText(a.dfResidual)}) = ${sig(a.f)}`,
+              pPhrase(a.p),
+            ],
+            [
+              'Replicates (matching)',
+              sig(a.ssSubjects),
+              dfText(a.dfSubjects),
+              sig(a.msSubjects),
+              '',
+              '',
+            ],
+            ['Residual', sig(a.ssResidual), dfText(a.dfResidual), sig(a.msResidual), '', ''],
+            ['Total', sig(a.ssTotal), dfText(a.dfTotal), '', '', ''],
+          ]}
+        />
+        <Grid
+          label="Data summary"
+          head={['Data summary', 'Mean']}
+          rows={r.groups.map((g) => [g.title, sig(g.mean)])}
+        />
+        <Grid
+          label="Data analyzed"
+          head={['Data analyzed', '']}
+          rows={[
+            ['Number of matched replicates', String(r.n)],
+            ...(r.droppedReplicates
+              ? ([
+                  [
+                    'Replicates left out (no usable value in any group)',
+                    String(r.droppedReplicates),
+                  ],
+                ] as Row[])
+              : []),
+            ...(r.unmatched.length
+              ? ([
+                  [
+                    'Replicates left out (values in some groups but not every group)',
+                    r.unmatched.join(', '),
+                  ],
+                ] as Row[])
+              : []),
+          ]}
+        />
+        {r.pairs.length > 0 && (
+          <Grid
+            label="Test details"
+            head={[
+              'Test details',
+              'Mean 1',
+              'Mean 2',
+              'Mean diff.',
+              'SE of diff.',
+              name === 'Tukey’s' ? 'q' : 't',
+              'DF',
+            ]}
+            rows={r.pairs.map((x) => {
+              const g1 = r.groups.find((g) => g.id === x.a.id);
+              const g2 = r.groups.find((g) => g.id === x.b.id);
+              return [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(g1?.mean ?? null),
+                sig(g2?.mean ?? null),
+                sig(x.diff),
+                sig(x.se),
+                sig(x.statistic),
+                dfText(x.df),
+              ];
+            })}
+          />
+        )}
+      </AllNumbers>
+      <p className="legend">
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
+        reports it.{' '}
+        {twoGroups
+          ? 'With two groups, epsilon is always 1 and every P agrees.'
+          : 'Prism reports the Geisser-Greenhouse corrected P by default; the uncorrected and Huynh-Feldt P are under “All numbers”.'}
+      </p>
+    </>
+  );
+}
+
 function NestedOneWayView({ r, id }: { readonly r: NestedOneWayResult; readonly id: Id }) {
   const a = r.anova;
   const c = r.comparisons;
@@ -1705,6 +1862,9 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'repeated-measures-anova' && (
           <RepeatedMeasuresView r={value as unknown as RepeatedMeasuresResult} id={analysis.id} />
+        )}
+        {value !== null && analysis.kind === 'nested-repeated-anova' && (
+          <NestedRepeatedView r={value as unknown as NestedRepeatedResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'friedman' && (
           <FriedmanView r={value as unknown as FriedmanResult} id={analysis.id} />
