@@ -966,7 +966,13 @@ select {
   grid-column: 1 / -1;
 }
 
-.results-grid + .legend {
+.all-numbers-toggle {
+  display: block;
+  margin: 4px 2px 14px;
+}
+
+.results-grid + .legend,
+.all-numbers-toggle + .legend {
   margin-top: 14px;
 }
 

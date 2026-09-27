@@ -18,6 +18,7 @@ import type { FTest, OneWayResult } from '@/analyses/oneway/types';
 import type { RankTestResult } from '@/analyses/ranktest/types';
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
+import type { Id } from '@/model/ids';
 import type { Analysis, Project } from '@/model/project';
 import type { Dropped } from '@/model/selectors';
 
@@ -26,6 +27,7 @@ import { AnalyzeDialog } from '../shell/AnalyzeDialog';
 import { getResults } from '../state/results';
 import { store } from '../state/store';
 import { STAR_SCHEME, dfText, interval, levelText, pPhrase, pValue, sig, stars } from './format';
+import { setAllNumbersOpen, useAllNumbersOpen } from './openNumbers';
 import {
   COMPARISON_TEST,
   kruskalMethod,
@@ -77,6 +79,29 @@ function Sections({ sections }: { readonly sections: readonly Section[] }) {
       </tbody>
     </table>
   ));
+}
+
+/**
+ * Prism's full layout, collapsed behind a toggle (#57): open state remembered
+ * per analysis, so one section's choice doesn't affect another's.
+ */
+function AllNumbers({ id, children }: { readonly id: Id; readonly children: ReactNode }) {
+  const open = useAllNumbersOpen(id);
+  return (
+    <>
+      <button
+        type="button"
+        className="link all-numbers-toggle"
+        aria-expanded={open}
+        onClick={() => {
+          setAllNumbersOpen(id, !open);
+        }}
+      >
+        {open ? 'Hide the rest of the numbers' : 'All numbers'}
+      </button>
+      {open && <div className="results-grid">{children}</div>}
+    </>
+  );
 }
 
 /** A key number beside the reading: what it is, its value, and a qualifier. */
@@ -135,7 +160,7 @@ function droppedText(d: Dropped | null): string {
   return ` (${parts.join(', ')} left out)`;
 }
 
-function TTestView({ r }: { readonly r: TTestResult }) {
+function TTestView({ r, id }: { readonly r: TTestResult; readonly id: Id }) {
   const tails = r.tails === 'two' ? 'Two-tailed' : 'One-tailed';
   const test: Section = [
     r.test === 'paired'
@@ -235,9 +260,9 @@ function TTestView({ r }: { readonly r: TTestResult }) {
         ]}
       />
       <p className="method">{tTestMethod(r)}</p>
-      <div className="results-grid">
+      <AllNumbers id={id}>
         <Sections sections={sections} />
-      </div>
+      </AllNumbers>
       <p className="legend">Asterisks: {STAR_SCHEME}.</p>
     </>
   );
@@ -250,7 +275,7 @@ function nestedDroppedText(dropped: number): string {
     : '';
 }
 
-function NestedTTestView({ r }: { readonly r: NestedTTestResult }) {
+function NestedTTestView({ r, id }: { readonly r: NestedTTestResult; readonly id: Id }) {
   const tails = r.tails === 'two' ? 'Two-tailed' : 'One-tailed';
   const matched = r.design === 'matched';
   const test: Section = [
@@ -338,9 +363,9 @@ function NestedTTestView({ r }: { readonly r: NestedTTestResult }) {
         ]}
       />
       <p className="method">{nestedTTestMethod(r)}</p>
-      <div className="results-grid">
+      <AllNumbers id={id}>
         <Sections sections={sections} />
-      </div>
+      </AllNumbers>
       <p className="legend">Asterisks: {STAR_SCHEME}.</p>
     </>
   );
@@ -352,7 +377,7 @@ function rankCi(r: RankTestResult, what: string): Row {
   return [`${levelText(r.ci.level)} CI of ${what}${short}`, interval(r.ci.lower, r.ci.upper)];
 }
 
-function RankTestView({ r }: { readonly r: RankTestResult }) {
+function RankTestView({ r, id }: { readonly r: RankTestResult; readonly id: Id }) {
   const head: Row[] = [
     ['P value', pValue(r.p)],
     ['Exact or approximate P value?', r.exact ? 'Exact' : 'Approximate'],
@@ -452,9 +477,9 @@ function RankTestView({ r }: { readonly r: RankTestResult }) {
         ]}
       />
       <p className="method">{rankTestMethod(r)}</p>
-      <div className="results-grid">
+      <AllNumbers id={id}>
         <Sections sections={sections} />
-      </div>
+      </AllNumbers>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. A rank test’s confidence level can’t be exactly 95%; the level
         shown is the one achieved.
@@ -579,7 +604,7 @@ function NormalityView({ r }: { readonly r: NormalityResult }) {
   );
 }
 
-function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
+function KruskalView({ r, id }: { readonly r: KruskalWallisResult; readonly id: Id }) {
   const sections: Section[] = [
     [
       'Kruskal-Wallis test',
@@ -605,7 +630,28 @@ function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
         ]}
       />
       <p className="method">{kruskalMethod(r)}</p>
-      <div className="results-grid">
+      {r.pairs.length > 0 && (
+        <div className="results-grid">
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
+              'Mean rank diff.',
+              'Significant?',
+              'Summary',
+              adjusted ? 'Adjusted P value' : 'Individual P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+        </div>
+      )}
+      <AllNumbers id={id}>
         <Sections sections={sections} />
         <Grid
           label="Data summary"
@@ -619,52 +665,33 @@ function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
           ])}
         />
         {r.pairs.length > 0 && (
-          <>
-            <Grid
-              label="Multiple comparisons"
-              head={[
-                `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
-                'Mean rank diff.',
-                'Significant?',
-                'Summary',
-                adjusted ? 'Adjusted P value' : 'Individual P value',
-              ]}
-              rows={r.pairs.map((x) => [
+          <Grid
+            label="Test details"
+            head={[
+              'Test details',
+              'Mean rank 1',
+              'Mean rank 2',
+              'Mean rank diff.',
+              'n1',
+              'n2',
+              'Z',
+            ]}
+            rows={r.pairs.map((x) => {
+              const g1 = r.groups.find((g) => g.id === x.a.id);
+              const g2 = r.groups.find((g) => g.id === x.b.id);
+              return [
                 `${x.a.title} vs. ${x.b.title}`,
+                sig(g1?.meanRank ?? null),
+                sig(g2?.meanRank ?? null),
                 sig(x.diff),
-                x.p < 0.05 ? 'Yes' : 'No',
-                stars(x.p),
-                pValue(x.p),
-              ])}
-            />
-            <Grid
-              label="Test details"
-              head={[
-                'Test details',
-                'Mean rank 1',
-                'Mean rank 2',
-                'Mean rank diff.',
-                'n1',
-                'n2',
-                'Z',
-              ]}
-              rows={r.pairs.map((x) => {
-                const g1 = r.groups.find((g) => g.id === x.a.id);
-                const g2 = r.groups.find((g) => g.id === x.b.id);
-                return [
-                  `${x.a.title} vs. ${x.b.title}`,
-                  sig(g1?.meanRank ?? null),
-                  sig(g2?.meanRank ?? null),
-                  sig(x.diff),
-                  String(g1?.n ?? ''),
-                  String(g2?.n ?? ''),
-                  sig(x.z),
-                ];
-              })}
-            />
-          </>
+                String(g1?.n ?? ''),
+                String(g2?.n ?? ''),
+                sig(x.z),
+              ];
+            })}
+          />
         )}
-      </div>
+      </AllNumbers>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals.{' '}
         {r.exact
@@ -683,7 +710,7 @@ const FAMILY_TITLE: Readonly<Record<string, string>> = {
   'all-cells': 'Compare cell means regardless of rows and data sets',
 };
 
-function TwoWayView({ r }: { readonly r: TwoWayResult }) {
+function TwoWayView({ r, id }: { readonly r: TwoWayResult; readonly id: Id }) {
   const terms: (readonly [string, TwoWayTerm])[] = [
     ...(r.interaction ? ([['Interaction', r.interaction]] as const) : []),
     ['Row factor', r.row],
@@ -708,7 +735,41 @@ function TwoWayView({ r }: { readonly r: TwoWayResult }) {
         figures={terms.map(([name, t]) => pFigure(name, t.p, `${sig(t.percent)}% of variation`))}
       />
       <p className="method">{twoWayMethod(r)}</p>
-      <div className="results-grid">
+      {r.comparisonsNote && (
+        <p className="status-banner info">
+          {r.comparisonsNote === 'empty-cell'
+            ? 'Multiple comparisons aren’t available when a cell has no values (the model without interaction gives means that depend on its fit); fill in the cell, or compare fewer groups.'
+            : 'Comparisons within rows, within data sets or between cells need more than one value per cell. Compare the main effects instead (Prism does the same).'}
+        </p>
+      )}
+      {r.families.length > 0 && (
+        <div className="results-grid">
+          <h2 className="results-subhead">{FAMILY_TITLE[r.options.family]}</h2>
+          {r.families.map((f, i) => (
+            <Grid
+              key={i}
+              label={f.label ?? 'Multiple comparisons'}
+              head={[
+                `${test} multiple comparisons${f.label ? `: ${f.label}` : ''}`,
+                'Mean diff.',
+                '95.00% CI of diff.',
+                'Significant?',
+                'Summary',
+                'Adjusted P value',
+              ]}
+              rows={f.pairs.map((x) => [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(x.diff),
+                interval(x.ciLower, x.ciUpper),
+                x.p < 0.05 ? 'Yes' : 'No',
+                stars(x.p),
+                pValue(x.p),
+              ])}
+            />
+          ))}
+        </div>
+      )}
+      <AllNumbers id={id}>
         <Grid
           label="Source of variation"
           head={[
@@ -766,54 +827,22 @@ function TwoWayView({ r }: { readonly r: TwoWayResult }) {
             ],
           ]}
         />
-        {r.comparisonsNote && (
-          <p className="status-banner info">
-            {r.comparisonsNote === 'empty-cell'
-              ? 'Multiple comparisons aren’t available when a cell has no values (the model without interaction gives means that depend on its fit); fill in the cell, or compare fewer groups.'
-              : 'Comparisons within rows, within data sets or between cells need more than one value per cell. Compare the main effects instead (Prism does the same).'}
-          </p>
-        )}
         {r.families.length > 0 && (
-          <>
-            <h2 className="results-subhead">{FAMILY_TITLE[r.options.family]}</h2>
-            {r.families.map((f, i) => (
-              <Grid
-                key={i}
-                label={f.label ?? 'Multiple comparisons'}
-                head={[
-                  `${test} multiple comparisons${f.label ? `: ${f.label}` : ''}`,
-                  'Mean diff.',
-                  '95.00% CI of diff.',
-                  'Significant?',
-                  'Summary',
-                  'Adjusted P value',
-                ]}
-                rows={f.pairs.map((x) => [
-                  `${x.a.title} vs. ${x.b.title}`,
-                  sig(x.diff),
-                  interval(x.ciLower, x.ciUpper),
-                  x.p < 0.05 ? 'Yes' : 'No',
-                  stars(x.p),
-                  pValue(x.p),
-                ])}
-              />
-            ))}
-            <Grid
-              label="Test details"
-              head={['Test details', 'Mean diff.', 'SE of diff.', qName, 'DF']}
-              rows={r.families.flatMap((f) =>
-                f.pairs.map((x) => [
-                  `${f.label ? `${f.label}: ` : ''}${x.a.title} vs. ${x.b.title}`,
-                  sig(x.diff),
-                  sig(x.se),
-                  sig(x.statistic),
-                  dfText(x.df),
-                ]),
-              )}
-            />
-          </>
+          <Grid
+            label="Test details"
+            head={['Test details', 'Mean diff.', 'SE of diff.', qName, 'DF']}
+            rows={r.families.flatMap((f) =>
+              f.pairs.map((x) => [
+                `${f.label ? `${f.label}: ` : ''}${x.a.title} vs. ${x.b.title}`,
+                sig(x.diff),
+                sig(x.se),
+                sig(x.statistic),
+                dfText(x.df),
+              ]),
+            )}
+          />
         )}
-      </div>
+      </AllNumbers>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Mean diff. is the first minus the second. Main effects compare
         least-squares means (the average of the cell means). With unbalanced data the Type III sums
@@ -823,7 +852,7 @@ function TwoWayView({ r }: { readonly r: TwoWayResult }) {
   );
 }
 
-function OneWayView({ r }: { readonly r: OneWayResult }) {
+function OneWayView({ r, id }: { readonly r: OneWayResult; readonly id: Id }) {
   const a = r.anova;
   const sections: Section[] = [];
   if (r.welchAnova && r.brownForsytheAnova) {
@@ -913,7 +942,30 @@ function OneWayView({ r }: { readonly r: OneWayResult }) {
         ]}
       />
       <p className="method">{oneWayMethod(r)}</p>
-      <div className="results-grid">
+      {r.pairs.length > 0 && (
+        <div className="results-grid">
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${name} multiple comparisons test`,
+              'Mean diff.',
+              '95.00% CI of diff.',
+              'Significant?',
+              'Summary',
+              'Adjusted P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              interval(x.ciLower, x.ciUpper),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+        </div>
+      )}
+      <AllNumbers id={id}>
         <Sections sections={sections} />
         {!r.welch && (
           <Grid
@@ -952,58 +1004,37 @@ function OneWayView({ r }: { readonly r: OneWayResult }) {
           ])}
         />
         {r.pairs.length > 0 && (
-          <>
-            <Grid
-              label="Multiple comparisons"
-              head={[
-                `${name} multiple comparisons test`,
-                'Mean diff.',
-                '95.00% CI of diff.',
-                'Significant?',
-                'Summary',
-                'Adjusted P value',
-              ]}
-              rows={r.pairs.map((x) => [
+          <Grid
+            label="Test details"
+            head={[
+              'Test details',
+              'Mean 1',
+              'Mean 2',
+              'Mean diff.',
+              'SE of diff.',
+              'n1',
+              'n2',
+              qName,
+              'DF',
+            ]}
+            rows={r.pairs.map((x) => {
+              const g1 = r.groups.find((g) => g.id === x.a.id);
+              const g2 = r.groups.find((g) => g.id === x.b.id);
+              return [
                 `${x.a.title} vs. ${x.b.title}`,
+                sig(g1?.mean ?? null),
+                sig(g2?.mean ?? null),
                 sig(x.diff),
-                interval(x.ciLower, x.ciUpper),
-                x.p < 0.05 ? 'Yes' : 'No',
-                stars(x.p),
-                pValue(x.p),
-              ])}
-            />
-            <Grid
-              label="Test details"
-              head={[
-                'Test details',
-                'Mean 1',
-                'Mean 2',
-                'Mean diff.',
-                'SE of diff.',
-                'n1',
-                'n2',
-                qName,
-                'DF',
-              ]}
-              rows={r.pairs.map((x) => {
-                const g1 = r.groups.find((g) => g.id === x.a.id);
-                const g2 = r.groups.find((g) => g.id === x.b.id);
-                return [
-                  `${x.a.title} vs. ${x.b.title}`,
-                  sig(g1?.mean ?? null),
-                  sig(g2?.mean ?? null),
-                  sig(x.diff),
-                  sig(x.se),
-                  String(g1?.n ?? ''),
-                  String(g2?.n ?? ''),
-                  sig(x.statistic),
-                  dfText(x.df),
-                ];
-              })}
-            />
-          </>
+                sig(x.se),
+                String(g1?.n ?? ''),
+                String(g2?.n ?? ''),
+                sig(x.statistic),
+                dfText(x.df),
+              ];
+            })}
+          />
         )}
-      </div>
+      </AllNumbers>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
         reports it.
@@ -1012,7 +1043,7 @@ function OneWayView({ r }: { readonly r: OneWayResult }) {
   );
 }
 
-function NestedOneWayView({ r }: { readonly r: NestedOneWayResult }) {
+function NestedOneWayView({ r, id }: { readonly r: NestedOneWayResult; readonly id: Id }) {
   const a = r.anova;
   const c = r.comparisons;
   const name = c.kind === 'none' ? '' : (COMPARISON_TEST[c.test] ?? c.test);
@@ -1049,19 +1080,8 @@ function NestedOneWayView({ r }: { readonly r: NestedOneWayResult }) {
         ]}
       />
       <p className="method">{nestedOneWayMethod(r)}</p>
-      <div className="results-grid">
-        <Sections sections={sections} />
-        <Grid
-          label="Data summary"
-          head={['Data summary', 'Replicates', 'Values', 'Mean']}
-          rows={r.groups.map((g) => [
-            `${g.title}${nestedDroppedText(g.dropped)}`,
-            String(g.nReplicates),
-            String(g.nValues),
-            sig(g.mean),
-          ])}
-        />
-        {r.pairs.length > 0 && (
+      {r.pairs.length > 0 && (
+        <div className="results-grid">
           <Grid
             label="Multiple comparisons"
             head={[
@@ -1081,8 +1101,21 @@ function NestedOneWayView({ r }: { readonly r: NestedOneWayResult }) {
               pValue(x.p),
             ])}
           />
-        )}
-      </div>
+        </div>
+      )}
+      <AllNumbers id={id}>
+        <Sections sections={sections} />
+        <Grid
+          label="Data summary"
+          head={['Data summary', 'Replicates', 'Values', 'Mean']}
+          rows={r.groups.map((g) => [
+            `${g.title}${nestedDroppedText(g.dropped)}`,
+            String(g.nReplicates),
+            String(g.nValues),
+            sig(g.mean),
+          ])}
+        />
+      </AllNumbers>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
         reports it.
@@ -1298,28 +1331,28 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
       >
         <Status analysis={analysis} over={value !== null} />
         {value !== null && analysis.kind === 't-test' && (
-          <TTestView r={value as unknown as TTestResult} />
+          <TTestView r={value as unknown as TTestResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'nested-t-test' && (
-          <NestedTTestView r={value as unknown as NestedTTestResult} />
+          <NestedTTestView r={value as unknown as NestedTTestResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'nested-one-way-anova' && (
-          <NestedOneWayView r={value as unknown as NestedOneWayResult} />
+          <NestedOneWayView r={value as unknown as NestedOneWayResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'normality' && (
           <NormalityView r={value as unknown as NormalityResult} />
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
-          <TwoWayView r={value as unknown as TwoWayResult} />
+          <TwoWayView r={value as unknown as TwoWayResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'kruskal-wallis' && (
-          <KruskalView r={value as unknown as KruskalWallisResult} />
+          <KruskalView r={value as unknown as KruskalWallisResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'one-way-anova' && (
-          <OneWayView r={value as unknown as OneWayResult} />
+          <OneWayView r={value as unknown as OneWayResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'rank-test' && (
-          <RankTestView r={value as unknown as RankTestResult} />
+          <RankTestView r={value as unknown as RankTestResult} id={analysis.id} />
         )}
         {value !== null && analysis.kind === 'descriptive' && (
           <DescriptiveView r={value as unknown as DescriptiveResult} />

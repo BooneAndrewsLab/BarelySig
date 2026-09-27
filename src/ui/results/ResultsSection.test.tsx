@@ -24,6 +24,7 @@ import {
 } from '@/model/table';
 
 import { App } from '../App';
+import { resetAllNumbersOpen } from './openNumbers';
 import { ResultsBridge, setResults } from '../state/results';
 import { project, store } from '../state/store';
 
@@ -76,6 +77,7 @@ const region = (name: string) => within(screen.getByRole('region', { name }));
 
 beforeEach(() => {
   runs = [];
+  resetAllNumbersOpen();
   answer = (job) => Promise.resolve(tResult(job) as unknown as Json);
   const t = createColumnTable({ title: 'Viability', groups: ['WT', 'KO', 'Het'], rows: 3 });
   tableId = t.id;
@@ -146,6 +148,9 @@ describe('results sheets', () => {
     expect(figure('P value')).toHaveTextContent('P value0.0021** · two-tailed');
     expect(figure('Difference (KO − WT)')).toHaveTextContent(/95% CI .+ to /);
     expect(figure('t statistic')).toHaveTextContent('3.674df = 4');
+    // The rest of Prism's tables are behind "All numbers", closed by default.
+    expect(sheet.queryByRole('table', { name: 'Unpaired t test' })).not.toBeInTheDocument();
+    fireEvent.click(sheet.getByRole('button', { name: 'All numbers' }));
     expect(
       within(sheet.getByRole('table', { name: 'Unpaired t test' })).getByRole('rowheader', {
         name: 'P value',
@@ -342,6 +347,7 @@ describe('results sheets', () => {
     expect(
       screen.getByText(/can’t give P < 0\.05 however different the groups are/),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'All numbers' }));
     const row = (label: string) => screen.getByRole('rowheader', { name: label }).closest('tr');
     expect(row('Exact or approximate P value?')).toHaveTextContent('Exact');
     expect(row('Mann-Whitney U')).toHaveTextContent('0');
@@ -391,6 +397,7 @@ describe('results sheets', () => {
       /^KO tends to be higher than WT within the same subjects \(P = 0\.0313\)/,
     );
     expect(screen.getByText(/counted for neither side \(Pratt’s method\)/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'All numbers' }));
     expect(
       screen.getByRole('rowheader', { name: 'Sum of signed ranks (W)' }).closest('tr'),
     ).toHaveTextContent('21');
@@ -497,6 +504,9 @@ describe('results sheets', () => {
     expect(
       within(mc).getByRole('rowheader', { name: 'WT vs. KO' }).closest('tr'),
     ).toHaveTextContent('WT vs. KO-3-5.2 to -0.8Yes*0.0151');
+    // The ANOVA table itself is behind "All numbers", closed by default.
+    expect(screen.queryByRole('table', { name: 'ANOVA table' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'All numbers' }));
     expect(
       within(screen.getByRole('table', { name: 'ANOVA table' }))
         .getByRole('rowheader', { name: 'Treatment (between columns)' })
@@ -754,6 +764,7 @@ describe('matched nested t test sheet (note 14)', () => {
     expect(
       screen.getByText(/a paired t test on the replicate means \(n = 3 replicates/),
     ).toBeInTheDocument();
+    fireEvent.click(region(name).getByRole('button', { name: 'All numbers' }));
     const row = (label: string) =>
       region(name).getByRole('rowheader', { name: label }).closest('tr');
     expect(row('Matched replicates (pairs)')).toHaveTextContent('3');
@@ -851,14 +862,17 @@ describe('two-way ANOVA sheet', () => {
       /^How the data sets differ depends on the row \(interaction P = 0\.0030\)/,
     );
     expect(
-      within(screen.getByRole('table', { name: 'Source of variation' }))
-        .getByRole('rowheader', { name: 'Interaction' })
-        .closest('tr'),
-    ).toHaveTextContent('Interaction200.0030**Yes');
-    expect(
       within(screen.getByRole('table', { name: 'Day 1' }))
         .getByRole('rowheader', { name: 'WT vs. KO' })
         .closest('tr'),
     ).toHaveTextContent('WT vs. KO-1-1.8 to -0.2Yes*0.0200');
+    // Source of variation is behind "All numbers", closed by default.
+    expect(screen.queryByRole('table', { name: 'Source of variation' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'All numbers' }));
+    expect(
+      within(screen.getByRole('table', { name: 'Source of variation' }))
+        .getByRole('rowheader', { name: 'Interaction' })
+        .closest('tr'),
+    ).toHaveTextContent('Interaction200.0030**Yes');
   });
 });
