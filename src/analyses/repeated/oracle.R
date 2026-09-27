@@ -12,6 +12,13 @@
 # are the textbook formulas (Šidák, Bonferroni, Dunnett's exact
 # probability), written out independently of the app's own copy in
 # `oneway/analysis.R`; checked against `TukeyHSD` and multcomp's Dunnett.
+#
+# #83's sphericity-free method (`sphericity = FALSE`) computes each
+# pair's diff/se/df with base R's `t.test(..., paired = TRUE)` -- a
+# different R function than either the app's or this file's own
+# `sd(d) / sqrt(n)` -- then the same textbook Tukey/Šidák/Bonferroni/
+# Dunnett formulas the pooled path already uses, independent of the
+# app's shared `bs_apply_correction`.
 
 reference <- quote({
   alpha <- 0.05
@@ -51,7 +58,7 @@ reference <- quote({
   }
   critical <- function(p) uniroot(function(c) p(c) - alpha, c(0.5, 50), tol = 1e-13)$root
 
-  repeated <- function(m, comps = "all", control = 1, test = "tukey") {
+  repeated <- function(m, comps = "all", control = 1, test = "tukey", sphericity = TRUE) {
     n <- nrow(m)
     k <- ncol(m)
     d <- data.frame(value = as.vector(t(m)), treat = factor(rep(seq_len(k), n)), subj = factor(rep(seq_len(n), each = k)))
@@ -95,45 +102,89 @@ reference <- quote({
         cbind(control, seq_len(k)[-control])
       })
       K <- nrow(pairs)
-      hsd <- if (test == "tukey") TukeyHSD(fit, "treat", conf.level = 1 - alpha)$treat else NULL
-      if (test == "dunnett") {
-        others <- pairs[, 2]
-        # One lambda per comparison sharing the control (equal n: all 1/sqrt(2)),
-        # not a scalar -- dunnett() needs the whole joint family to get
-        # P(max over the family >= c), not a single comparison's own tail.
-        lam <- rep(sqrt(n / (n + n)), length(others))
-        dunnett_crit <- critical(function(c) dunnett(c, lam, df_res))
+      if (sphericity) {
+        hsd <- if (test == "tukey") TukeyHSD(fit, "treat", conf.level = 1 - alpha)$treat else NULL
+        if (test == "dunnett") {
+          others <- pairs[, 2]
+          # One lambda per comparison sharing the control (equal n: all 1/sqrt(2)),
+          # not a scalar -- dunnett() needs the whole joint family to get
+          # P(max over the family >= c), not a single comparison's own tail.
+          lam <- rep(sqrt(n / (n + n)), length(others))
+          dunnett_crit <- critical(function(c) dunnett(c, lam, df_res))
+        }
+        lapply(seq_len(K), function(x) {
+          i <- pairs[x, 1]
+          j <- pairs[x, 2]
+          dd <- means[i] - means[j]
+          se <- sqrt(mse * (2 / n))
+          t <- abs(dd) / se
+          r <- switch(test,
+            tukey = {
+              h <- hsd[paste0(j, "-", i), ]
+              list(stat = sqrt(2) * t, lower = -h[["upr"]], upper = -h[["lwr"]], p = h[["p adj"]])
+            },
+            bonferroni = {
+              half <- qt(1 - alpha / (2 * K), df_res) * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = min(1, K * 2 * pt(t, df_res, lower.tail = FALSE)))
+            },
+            sidak = {
+              half <- qt(1 - (1 - (1 - alpha)^(1 / K)) / 2, df_res) * se
+              p1 <- 2 * pt(t, df_res, lower.tail = FALSE)
+              # -expm1(), not 1 - exp(): the naive form cancels digits when
+              # K * log1p(-p1) is small (a tiny p1), as CLAUDE.md's mvtnorm
+              # lesson warns of for a different formula with the same shape.
+              list(stat = t, lower = dd - half, upper = dd + half, p = -expm1(K * log1p(-p1)))
+            },
+            dunnett = {
+              half <- dunnett_crit * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = dunnett(t, lam, df_res))
+            }
+          )
+          list(i = i, j = j, diff = dd, se = se, df = df_res, statistic = r$stat, ci_lower = r$lower, ci_upper = r$upper, p = r$p)
+        })
+      } else {
+        # #83's "new method" (FAQ 1609): each pair's own diff/se/df, from
+        # base R's `t.test(..., paired = TRUE)` -- a different R function
+        # than the app's (or this file's pooled path's) hand computation --
+        # then the same textbook corrections above, per-pair df in place of
+        # the pooled df_res. Every row is complete (m has none dropped), so
+        # n -- and therefore "dunnett"'s lam, which depends only on n -- is
+        # the same for every pair, exactly as the pooled path's.
+        if (test == "dunnett") {
+          others <- pairs[, 2]
+          lam <- rep(sqrt(n / (n + n)), length(others))
+          dunnett_crit <- critical(function(c) dunnett(c, lam, n - 1))
+        }
+        lapply(seq_len(K), function(x) {
+          i <- pairs[x, 1]
+          j <- pairs[x, 2]
+          tt <- t.test(m[, i], m[, j], paired = TRUE)
+          dd <- unname(tt$estimate)
+          nu <- unname(tt$parameter)
+          t <- abs(unname(tt$statistic))
+          se <- abs(dd) / t
+          r <- switch(test,
+            tukey = {
+              half <- qtukey(1 - alpha, k, nu) / sqrt(2) * se
+              list(stat = sqrt(2) * t, lower = dd - half, upper = dd + half, p = ptukey(sqrt(2) * t, k, nu, lower.tail = FALSE))
+            },
+            bonferroni = {
+              half <- qt(1 - alpha / (2 * K), nu) * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = min(1, K * 2 * pt(t, nu, lower.tail = FALSE)))
+            },
+            sidak = {
+              half <- qt(1 - (1 - (1 - alpha)^(1 / K)) / 2, nu) * se
+              p1 <- 2 * pt(t, nu, lower.tail = FALSE)
+              list(stat = t, lower = dd - half, upper = dd + half, p = -expm1(K * log1p(-p1)))
+            },
+            dunnett = {
+              half <- dunnett_crit * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = dunnett(t, lam, nu))
+            }
+          )
+          list(i = i, j = j, diff = dd, se = se, df = nu, statistic = r$stat, ci_lower = r$lower, ci_upper = r$upper, p = r$p)
+        })
       }
-      lapply(seq_len(K), function(x) {
-        i <- pairs[x, 1]
-        j <- pairs[x, 2]
-        dd <- means[i] - means[j]
-        se <- sqrt(mse * (2 / n))
-        t <- abs(dd) / se
-        r <- switch(test,
-          tukey = {
-            h <- hsd[paste0(j, "-", i), ]
-            list(stat = sqrt(2) * t, lower = -h[["upr"]], upper = -h[["lwr"]], p = h[["p adj"]])
-          },
-          bonferroni = {
-            half <- qt(1 - alpha / (2 * K), df_res) * se
-            list(stat = t, lower = dd - half, upper = dd + half, p = min(1, K * 2 * pt(t, df_res, lower.tail = FALSE)))
-          },
-          sidak = {
-            half <- qt(1 - (1 - (1 - alpha)^(1 / K)) / 2, df_res) * se
-            p1 <- 2 * pt(t, df_res, lower.tail = FALSE)
-            # -expm1(), not 1 - exp(): the naive form cancels digits when
-            # K * log1p(-p1) is small (a tiny p1), as CLAUDE.md's mvtnorm
-            # lesson warns of for a different formula with the same shape.
-            list(stat = t, lower = dd - half, upper = dd + half, p = -expm1(K * log1p(-p1)))
-          },
-          dunnett = {
-            half <- dunnett_crit * se
-            list(stat = t, lower = dd - half, upper = dd + half, p = dunnett(t, lam, df_res))
-          }
-        )
-        list(i = i, j = j, diff = dd, se = se, df = df_res, statistic = r$stat, ci_lower = r$lower, ci_upper = r$upper, p = r$p)
-      })
     }
     out
   }
@@ -205,3 +256,57 @@ fixture("high-sphericity-violation",
   expr = repeated(complete_rows(g1, g2, g3, g4), comps = "none"), setup = reference,
   options = list(comparisons = "none"),
   note = "g3 swings independently of the others: a low epsilon, GG and HF P noticeably above the uncorrected one.")
+
+# --- #83: comparisons without assuming sphericity (FAQ 1609's "new method") ---------------
+
+indiv_all <- list(comparisons = "all", test = "tukey", sphericity = FALSE)
+
+fixture("individual-basic",
+  input = list(g1 = c(4.2, 3.6, 5.0, 3.9, 4.6, 4.1, 3.8, 4.4), g2 = c(5.1, 4.4, 5.9, 4.6, 5.4, 5.0, 4.5, 5.2), g3 = c(4.0, 3.4, 4.7, 3.7, 4.3, 3.9, 3.6, 4.2), g4 = c(6.2, 5.5, 7.0, 5.6, 6.5, 6.0, 5.4, 6.3)),
+  expr = repeated(complete_rows(g1, g2, g3, g4), sphericity = FALSE), setup = reference, options = indiv_all,
+  note = "Same data as #50's basic fixture, Tukey, but each pair from just its own two columns.")
+
+fixture("individual-bonferroni",
+  input = list(g1 = c(4.2, 3.6, 5.0, 3.9, 4.6, 4.1, 3.8, 4.4), g2 = c(5.1, 4.4, 5.9, 4.6, 5.4, 5.0, 4.5, 5.2), g3 = c(4.0, 3.4, 4.7, 3.7, 4.3, 3.9, 3.6, 4.2), g4 = c(6.2, 5.5, 7.0, 5.6, 6.5, 6.0, 5.4, 6.3)),
+  expr = repeated(complete_rows(g1, g2, g3, g4), test = "bonferroni", sphericity = FALSE), setup = reference,
+  options = list(comparisons = "all", test = "bonferroni", sphericity = FALSE),
+  note = "The sphericity-free method with Bonferroni instead of Tukey.")
+
+fixture("individual-sidak",
+  input = list(g1 = c(4.2, 3.6, 5.0, 3.9, 4.6, 4.1, 3.8, 4.4), g2 = c(5.1, 4.4, 5.9, 4.6, 5.4, 5.0, 4.5, 5.2), g3 = c(4.0, 3.4, 4.7, 3.7, 4.3, 3.9, 3.6, 4.2), g4 = c(6.2, 5.5, 7.0, 5.6, 6.5, 6.0, 5.4, 6.3)),
+  expr = repeated(complete_rows(g1, g2, g3, g4), test = "sidak", sphericity = FALSE), setup = reference,
+  options = list(comparisons = "all", test = "sidak", sphericity = FALSE),
+  note = "The sphericity-free method with Šidák instead of Tukey.")
+
+fixture("individual-control-dunnett",
+  input = list(g1 = c(4.2, 3.6, 5.0, 3.9, 4.6, 4.1, 3.8, 4.4), g2 = c(5.1, 4.4, 5.9, 4.6, 5.4, 5.0, 4.5, 5.2), g3 = c(4.0, 3.4, 4.7, 3.7, 4.3, 3.9, 3.6, 4.2), g4 = c(6.2, 5.5, 7.0, 5.6, 6.5, 6.0, 5.4, 6.3)),
+  expr = repeated(complete_rows(g1, g2, g3, g4), comps = "control", control = 1, test = "dunnett", sphericity = FALSE), setup = reference,
+  options = list(comparisons = "control", control = 1, test = "dunnett", sphericity = FALSE),
+  note = "The sphericity-free method against a control, Dunnett's test.")
+
+fixture("individual-dropped-row",
+  input = list(g1 = c(5.0, 4.2, NA, 3.8, 4.9, 4.4, 4.1, 4.6), g2 = c(6.1, 5.0, 6.8, NA, 5.9, 5.3, 5.5, 5.8), g3 = c(4.8, 4.0, 5.5, 3.2, 4.6, 4.1, 4.3, 4.5)),
+  expr = repeated(complete_rows(g1, g2, g3), sphericity = FALSE), setup = reference, options = indiv_all,
+  note = "Two dropped rows, sphericity-free method: each pair's own df still reflects the 6 complete rows.")
+
+fixture("individual-ties",
+  input = list(g1 = c(4.0, 4.0, 5.0, 5.0, 6.0, 6.0), g2 = c(4.5, 4.6, 5.4, 5.5, 6.3, 6.6), g3 = c(4.2, 4.1, 5.3, 5.2, 6.1, 6.0)),
+  expr = repeated(complete_rows(g1, g2, g3), test = "sidak", sphericity = FALSE), setup = reference,
+  options = list(comparisons = "all", test = "sidak", sphericity = FALSE),
+  note = "Repeated values within columns (g1 and g3 each have tied pairs): no pair's own difference is constant, so t.test(paired = TRUE) still runs.")
+
+fixture("individual-n-2",
+  input = list(g1 = c(2, 9), g2 = c(5, 13), g3 = c(6, 15)),
+  expr = repeated(complete_rows(g1, g2, g3), test = "bonferroni", sphericity = FALSE), setup = reference,
+  options = list(comparisons = "all", test = "bonferroni", sphericity = FALSE),
+  note = "The fewest rows the test can run on, sphericity-free: each pair's own df is 1.")
+
+fixture("sphericity-divergence-pooled",
+  input = list(g1 = c(1, 2, 3, 4, 5, 6, 7, 8), g2 = c(1.1, 2.2, 2.9, 4.2, 4.8, 6.3, 6.9, 8.1), g3 = c(10, 9, 12, 8, 15, 7, 20, 6), g4 = c(1.05, 2.1, 3.05, 3.9, 5.1, 5.9, 7.05, 8.2)),
+  expr = repeated(complete_rows(g1, g2, g3, g4)), setup = reference, options = all_pairs,
+  note = "Same data as high-sphericity-violation, but with comparisons on: pooled method (paired with individual, below), so g3's wide independent swings inflate every pair's SE, including g1 vs. g4 (near-identical columns).")
+
+fixture("sphericity-divergence-individual",
+  input = list(g1 = c(1, 2, 3, 4, 5, 6, 7, 8), g2 = c(1.1, 2.2, 2.9, 4.2, 4.8, 6.3, 6.9, 8.1), g3 = c(10, 9, 12, 8, 15, 7, 20, 6), g4 = c(1.05, 2.1, 3.05, 3.9, 5.1, 5.9, 7.05, 8.2)),
+  expr = repeated(complete_rows(g1, g2, g3, g4), sphericity = FALSE), setup = reference, options = indiv_all,
+  note = "Same data as sphericity-divergence-pooled: the sphericity-free method gives g1 vs. g4 (near-identical columns) a far smaller SE, since g3's independent swings don't enter that pair's own difference -- the discriminating case FAQ 1609 describes.")

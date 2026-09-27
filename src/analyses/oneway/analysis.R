@@ -163,28 +163,21 @@ bs_pairs <- function(k, comps, control) {
   }
 }
 
-bs_comparisons <- function(m, v, n, mse, df, welch, comps, control, test) {
-  if (comps == "none") return(list())
-  # Unnamed: a named number would come back from WebR as an object.
-  m <- unname(m)
-  v <- unname(v)
-  n <- unname(n)
-  k <- length(m)
-  pairs <- bs_pairs(k, comps, control)
+
+# The multiple-comparisons correction, shared by every path that has
+# already reduced a family of comparisons to one diff/se/df triple per
+# pair (item 17's #83: repeated-measures ANOVA's pairwise method feeds
+# this the same way its pooled method does, only the per-pair inputs
+# differ). `n` is each *group's* sample size (used only by "dunnett"'s
+# shared-control correlation, which depends on sizes, not variances);
+# `dfs[1]` stands in for a single family-wide df in that same branch,
+# valid because every path that reaches "dunnett" here has one df shared
+# by the whole family (the pooled residual df, or -- repeated-measures'
+# individual method -- the same n every pair shares, complete rows only).
+bs_apply_correction <- function(diff, se, dfs, k, pairs, n, control, test) {
   K <- nrow(pairs)
   i <- pairs[, 1]
   j <- pairs[, 2]
-  diff <- m[i] - m[j]
-  if (welch) {
-    # Each comparison uses only its two groups: unpooled SE, Welch's df.
-    a <- v[i] / n[i]
-    b <- v[j] / n[j]
-    se <- sqrt(a + b)
-    dfs <- (a + b)^2 / (a^2 / (n[i] - 1) + b^2 / (n[j] - 1))
-  } else {
-    se <- sqrt(mse * (1 / n[i] + 1 / n[j]))
-    dfs <- rep(df, K)
-  }
   t <- abs(diff) / se
   one <- function(x) {
     tt <- t[x]
@@ -218,7 +211,7 @@ bs_comparisons <- function(m, v, n, mse, df, welch, comps, control, test) {
   if (test == "dunnett") {
     others <- pairs[, 2]
     lam <- sqrt((1 / n[control]) / (1 / n[others] + 1 / n[control]))
-    crit <- bs_critical(function(c) bs_dunnett_p(c, lam, df))
+    crit <- bs_critical(function(c) bs_dunnett_p(c, lam, dfs[1]))
     for (x in seq_len(K)) res[[x]]$crit <- crit
   }
   lapply(seq_len(K), function(x) {
@@ -228,6 +221,31 @@ bs_comparisons <- function(m, v, n, mse, df, welch, comps, control, test) {
       ci_lower = diff[x] - r$crit * se[x], ci_upper = diff[x] + r$crit * se[x], p = r$p
     )
   })
+}
+
+bs_comparisons <- function(m, v, n, mse, df, welch, comps, control, test) {
+  if (comps == "none") return(list())
+  # Unnamed: a named number would come back from WebR as an object.
+  m <- unname(m)
+  v <- unname(v)
+  n <- unname(n)
+  k <- length(m)
+  pairs <- bs_pairs(k, comps, control)
+  K <- nrow(pairs)
+  i <- pairs[, 1]
+  j <- pairs[, 2]
+  diff <- m[i] - m[j]
+  if (welch) {
+    # Each comparison uses only its two groups: unpooled SE, Welch's df.
+    a <- v[i] / n[i]
+    b <- v[j] / n[j]
+    se <- sqrt(a + b)
+    dfs <- (a + b)^2 / (a^2 / (n[i] - 1) + b^2 / (n[j] - 1))
+  } else {
+    se <- sqrt(mse * (1 / n[i] + 1 / n[j]))
+    dfs <- rep(df, K)
+  }
+  bs_apply_correction(diff, se, dfs, k, pairs, n, control, test)
 }
 
 # From the values: y with group index g (1..k, the table's order).

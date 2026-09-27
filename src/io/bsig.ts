@@ -167,7 +167,10 @@ function optionsJson(a: AnalysisSpec): Json {
     }
     case 'repeated-measures-anova':
     case 'nested-repeated-anova':
-      return { comparisons: comparisonsJson(a.options.comparisons) };
+      return {
+        comparisons: comparisonsJson(a.options.comparisons),
+        assumeSphericity: a.options.assumeSphericity,
+      };
   }
 }
 
@@ -503,8 +506,15 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     }
     case 'repeated-measures-anova':
     case 'nested-repeated-anova': {
+      // Files from before #83 have no `assumeSphericity`: they only ever
+      // ran the pooled/traditional method.
+      const assumeSphericity =
+        opts['assumeSphericity'] === undefined
+          ? true
+          : bool(opts['assumeSphericity'], q.key('assumeSphericity'));
       const options: RepeatedMeasuresOptions = {
         comparisons: nestedComparisons(opts['comparisons'], q.key('comparisons')),
+        assumeSphericity,
       };
       return { kind, options };
     }

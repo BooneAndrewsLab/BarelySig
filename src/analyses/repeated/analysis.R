@@ -1,9 +1,12 @@
 # Repeated-measures one-way ANOVA with the Geisser-Greenhouse correction
 # (item 17, #50), reported as Prism does: a Column table paired by row,
 # n subjects x k treatments, every cell filled. Comparisons are the
-# equal-SD family only (bs_comparisons, loaded with this file, from
-# oneway/analysis.R) against the ANOVA's own residual MS and df -- FAQ
-# 1609's "traditional method" (#83 is the sphericity-free one).
+# equal-SD family (bs_apply_correction, loaded with this file, from
+# oneway/analysis.R), computed one of two ways (#83): pooled, against
+# the ANOVA's own residual MS and df (FAQ 1609's "traditional method",
+# `sphericity = TRUE`, #50's shipped default), or from just each pair's
+# own two columns, exactly a paired t test's SE and df (FAQ 1609's "new
+# method", no sphericity assumed, `sphericity = FALSE`).
 # Geisser-Greenhouse and Huynh-Feldt epsilon come from base R's own
 # `stats:::sphericity()` (the same helper `anova.mlm` calls internally
 # for `test = "Spherical"`), the one correct implementation, used
@@ -14,8 +17,31 @@
 # R's own corrected P already does internally. `stop("bs: ...")`
 # messages are shown to the user as written.
 
+# FAQ 1609's "new method" (#83): each pairwise comparison uses only its
+# own two columns of Y, exactly as an ordinary paired t test computes SE
+# and df, then the same multiple-comparisons correction
+# (bs_apply_correction) that the pooled method already uses. Every row
+# is complete (bs_repeated below refuses otherwise), so n -- and
+# therefore "dunnett"'s shared-control correlation, which depends only
+# on n -- is the same for every pair, same as the pooled method's.
+bs_repeated_pairwise <- function(Y, comps, control, test) {
+  if (comps == "none") return(list())
+  k <- ncol(Y)
+  n <- nrow(Y)
+  pairs <- bs_pairs(k, comps, control)
+  K <- nrow(pairs)
+  diff <- numeric(K)
+  se <- numeric(K)
+  for (x in seq_len(K)) {
+    d <- Y[, pairs[x, 1]] - Y[, pairs[x, 2]]
+    diff[x] <- mean(d)
+    se[x] <- sd(d) / sqrt(n)
+  }
+  bs_apply_correction(diff, se, rep(n - 1, K), k, pairs, rep(n, k), control, test)
+}
+
 # y: subject-major, length n*k (row i's k values before row i+1's).
-bs_repeated <- function(y, n, k, comps, control, test) {
+bs_repeated <- function(y, n, k, comps, control, test, sphericity) {
   if (k < 2) stop("bs: Repeated-measures ANOVA compares two or more matched groups.")
   if (n < 2) stop("bs: Repeated-measures ANOVA needs at least two complete rows.")
   Y <- matrix(y, nrow = n, ncol = k, byrow = TRUE)
@@ -61,8 +87,10 @@ bs_repeated <- function(y, n, k, comps, control, test) {
     r_squared_treatment = ss_treatment / (ss_treatment + ss_residual),
     r_squared_subjects = ss_subjects / ss_total,
     groups = lapply(seq_len(k), function(j) list(mean = col_means[j])),
-    comparisons = bs_comparisons(
-      col_means, rep(0, k), rep(n, k), ms_residual, df_residual, FALSE, comps, control, test
-    )
+    comparisons = if (isTRUE(sphericity)) {
+      bs_comparisons(col_means, rep(0, k), rep(n, k), ms_residual, df_residual, FALSE, comps, control, test)
+    } else {
+      bs_repeated_pairwise(Y, comps, control, test)
+    }
   )
 }

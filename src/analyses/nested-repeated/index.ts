@@ -131,7 +131,7 @@ export const nestedRepeated: AnalysisModule<
     const { options, rows, groups } = request;
     const c = options.comparisons;
     return {
-      code: `${code}\nbs_repeated(y, n, k, comps, control, test)`,
+      code: `${code}\nbs_repeated(y, n, k, comps, control, test, sphericity)`,
       inputs: {
         y: rows.flatMap((r) => r),
         n: rows.length,
@@ -139,6 +139,7 @@ export const nestedRepeated: AnalysisModule<
         comps: c.kind,
         control: (request.control ?? 0) + 1,
         test: c.kind === 'none' ? 'tukey' : c.test,
+        sphericity: options.assumeSphericity,
       },
       packages: [],
     };
@@ -200,6 +201,7 @@ export const nestedRepeated: AnalysisModule<
       ggP: need(r['gg_p'], 'P'),
       hfP: need(r['hf_p'], 'P'),
       comparisons: request.options.comparisons,
+      assumeSphericity: request.options.assumeSphericity,
       pairs,
       warnings: [...warnings],
     };

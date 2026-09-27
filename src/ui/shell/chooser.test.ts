@@ -205,7 +205,7 @@ describe('help me choose', () => {
     expect(pick(three)).toEqual(['nested-repeated-anova', 'Matched nested one-way ANOVA']);
     expect(three.kind === 'test' && three.spec).toEqual({
       kind: 'nested-repeated-anova',
-      options: { comparisons: { kind: 'all', test: 'tukey' } },
+      options: { comparisons: { kind: 'all', test: 'tukey' }, assumeSphericity: true },
     });
   });
 

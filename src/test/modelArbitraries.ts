@@ -135,14 +135,12 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     kind: 'nested-one-way-anova',
     options: { comparisons },
   })),
-  nestedComparisonsArb.map((comparisons): AnalysisSpec => ({
-    kind: 'repeated-measures-anova',
-    options: { comparisons },
-  })),
-  nestedComparisonsArb.map((comparisons): AnalysisSpec => ({
-    kind: 'nested-repeated-anova',
-    options: { comparisons },
-  })),
+  fc
+    .record({ comparisons: nestedComparisonsArb, assumeSphericity: fc.boolean() })
+    .map((o): AnalysisSpec => ({ kind: 'repeated-measures-anova', options: { ...o } })),
+  fc
+    .record({ comparisons: nestedComparisonsArb, assumeSphericity: fc.boolean() })
+    .map((o): AnalysisSpec => ({ kind: 'nested-repeated-anova', options: { ...o } })),
   fc
     .record({
       comparisons: fc.oneof(

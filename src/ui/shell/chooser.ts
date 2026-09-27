@@ -164,6 +164,7 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
         spec: {
           kind: 'nested-repeated-anova',
           options: {
+            ...DEFAULT_OPTIONS['nested-repeated-anova'],
             comparisons:
               c.kind === 'all'
                 ? DEFAULT_OPTIONS['nested-repeated-anova'].comparisons

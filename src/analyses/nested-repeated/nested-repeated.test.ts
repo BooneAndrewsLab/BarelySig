@@ -38,6 +38,7 @@ function requestFor(f: Fixture): NestedRepeatedRequest {
             test: test as 'dunnett' | 'bonferroni' | 'sidak',
           }
         : { kind: 'all', test: test as 'tukey' | 'bonferroni' | 'sidak' };
+  const assumeSphericity = o['sphericity'] === undefined ? true : o['sphericity'] !== false;
   const columns = keys.map((k) => f.input[k] ?? []);
   const n = Math.max(0, ...columns.map((c) => c.length));
   const rows: number[][] = [];
@@ -47,7 +48,7 @@ function requestFor(f: Fixture): NestedRepeatedRequest {
   }
   return {
     groups,
-    options: { comparisons },
+    options: { comparisons, assumeSphericity },
     rows,
     control: comparisons.kind === 'control' ? controlIndex : null,
     droppedReplicates: 0,
@@ -111,7 +112,7 @@ describe('prepare', () => {
       id: asId('a_1'),
       title: 'matched nested ANOVA',
       kind: 'nested-repeated-anova',
-      options: { comparisons: { kind: 'all', test: 'tukey' }, ...options },
+      options: { comparisons: { kind: 'all', test: 'tukey' }, assumeSphericity: true, ...options },
       input: {
         kind: 'table',
         table: table.id,

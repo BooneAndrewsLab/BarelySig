@@ -35,6 +35,7 @@ function requestFor(f: Fixture): RepeatedMeasuresRequest {
             test: test as 'dunnett' | 'bonferroni' | 'sidak',
           }
         : { kind: 'all', test: test as 'tukey' | 'bonferroni' | 'sidak' };
+  const assumeSphericity = o['sphericity'] === undefined ? true : o['sphericity'] !== false;
   const columns = keys.map((k) => f.input[k] ?? []);
   const n = Math.max(0, ...columns.map((c) => c.length));
   const rows: number[][] = [];
@@ -46,7 +47,7 @@ function requestFor(f: Fixture): RepeatedMeasuresRequest {
   }
   return {
     groups,
-    options: { comparisons },
+    options: { comparisons, assumeSphericity },
     rows,
     control: comparisons.kind === 'control' ? controlIndex : null,
     droppedRows,
@@ -60,6 +61,13 @@ describe('repeated-measures one-way ANOVA, against the R oracle', () => {
     const tests = new Set(fixtures.map((f) => f.options?.['test']));
     for (const t of ['tukey', 'dunnett', 'sidak', 'bonferroni']) expect(tests).toContain(t);
     expect(fixtures.some((f) => f.options?.['comparisons'] === 'none')).toBe(true);
+  });
+
+  it('covers the sphericity-free method (#83) with every comparison test', () => {
+    const individual = fixtures.filter((f) => f.options?.['sphericity'] === false);
+    const tests = new Set(individual.map((f) => f.options?.['test']));
+    for (const t of ['tukey', 'dunnett', 'sidak', 'bonferroni']) expect(tests).toContain(t);
+    expect(individual.length).toBeGreaterThan(0);
   });
 
   it.each(fixtures.map((f) => [f.id, f] as const))(
@@ -81,7 +89,7 @@ describe('repeated-measures one-way ANOVA, against the R oracle', () => {
       engine.run(
         repeatedMeasures.job({
           groups: [{ id: 'a', title: 'A' }],
-          options: { comparisons: { kind: 'none' } },
+          options: { comparisons: { kind: 'none' }, assumeSphericity: true },
           rows: [[1], [3]],
           control: null,
           droppedRows: 0,
@@ -99,7 +107,7 @@ describe('repeated-measures one-way ANOVA, against the R oracle', () => {
             { id: 'b', title: 'B' },
             { id: 'c', title: 'C' },
           ],
-          options: { comparisons: { kind: 'none' } },
+          options: { comparisons: { kind: 'none' }, assumeSphericity: true },
           rows: [[1, 2, 3]],
           control: null,
           droppedRows: 0,

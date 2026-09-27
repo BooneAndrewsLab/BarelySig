@@ -168,11 +168,18 @@ export interface TwoWayOptions {
 /**
  * Repeated-measures one-way ANOVA (item 17, #50): a Column table paired
  * by row, with the Geisser-Greenhouse correction. Comparisons are the
- * equal-SD family only (FAQ 1609's "traditional method", against the
- * ANOVA's own residual); no Welch-style variant (#83 is the other method).
+ * equal-SD family only (`NestedComparisons`): Tukey, Dunnett, Šidák or
+ * Bonferroni, computed one of two ways (FAQ 1609, item 17's #83 follow-up,
+ * `assumeSphericity`) -- against the ANOVA's own pooled residual MS and df
+ * ("the traditional method", default, matching #50's shipped behaviour),
+ * or each pairwise comparison from just its own two groups, exactly the
+ * SE and df an ordinary paired t test would give ("the new method", no
+ * sphericity assumed). No Welch-style variant either way.
  */
 export interface RepeatedMeasuresOptions {
   readonly comparisons: NestedComparisons;
+  /** True: the pooled/traditional method (default). False: FAQ 1609's method that doesn't assume sphericity. */
+  readonly assumeSphericity: boolean;
 }
 
 /**
@@ -200,12 +207,15 @@ export const DEFAULT_OPTIONS: {
   't-test': { paired: false, welch: false, tails: 'two' },
   'nested-t-test': { tails: 'two', matched: false },
   'nested-one-way-anova': { comparisons: { kind: 'all', test: 'tukey' } },
-  'nested-repeated-anova': { comparisons: { kind: 'all', test: 'tukey' } },
+  'nested-repeated-anova': { comparisons: { kind: 'all', test: 'tukey' }, assumeSphericity: true },
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },
   'kruskal-wallis': { comparisons: { kind: 'all' }, corrected: true },
   'two-way-anova': { family: 'within-rows', comparisons: { kind: 'all', test: 'tukey' } },
-  'repeated-measures-anova': { comparisons: { kind: 'all', test: 'tukey' } },
+  'repeated-measures-anova': {
+    comparisons: { kind: 'all', test: 'tukey' },
+    assumeSphericity: true,
+  },
   friedman: { comparisons: { kind: 'all' }, corrected: true },
   normality: {},
   'paired-normality': {},

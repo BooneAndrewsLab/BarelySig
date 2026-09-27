@@ -60,6 +60,8 @@ export interface NestedRepeatedResult {
   readonly ggP: number;
   readonly hfP: number;
   readonly comparisons: RepeatedMeasuresOptions['comparisons'];
+  /** Which method computed the comparisons above: pooled (true) or FAQ 1609's per-pair method (false). */
+  readonly assumeSphericity: boolean;
   readonly pairs: readonly PairComparison[];
   readonly warnings: readonly string[];
 }

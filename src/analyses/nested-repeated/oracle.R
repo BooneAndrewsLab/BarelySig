@@ -11,6 +11,12 @@
 # named as replicate means (what `prepare()` actually feeds `bs_repeated`),
 # smaller and more ragged than repeated's own Column-table fixtures, since
 # a Nested table's matched replicates are typically few.
+#
+# #83's sphericity-free method (`sphericity = FALSE`) is exactly
+# `repeated/oracle.R`'s own (that file carries the full standard set of
+# fixtures for it, plus the discriminating sphericity-divergence case);
+# this file adds only enough to confirm the same R, reused here, threads
+# the option through correctly on replicate means.
 
 reference <- quote({
   alpha <- 0.05
@@ -50,7 +56,7 @@ reference <- quote({
   }
   critical <- function(p) uniroot(function(c) p(c) - alpha, c(0.5, 50), tol = 1e-13)$root
 
-  repeated <- function(m, comps = "all", control = 1, test = "tukey") {
+  repeated <- function(m, comps = "all", control = 1, test = "tukey", sphericity = TRUE) {
     n <- nrow(m)
     k <- ncol(m)
     d <- data.frame(value = as.vector(t(m)), treat = factor(rep(seq_len(k), n)), subj = factor(rep(seq_len(n), each = k)))
@@ -94,39 +100,77 @@ reference <- quote({
         cbind(control, seq_len(k)[-control])
       })
       K <- nrow(pairs)
-      hsd <- if (test == "tukey") TukeyHSD(fit, "treat", conf.level = 1 - alpha)$treat else NULL
-      if (test == "dunnett") {
-        others <- pairs[, 2]
-        lam <- rep(sqrt(n / (n + n)), length(others))
-        dunnett_crit <- critical(function(c) dunnett(c, lam, df_res))
+      if (sphericity) {
+        hsd <- if (test == "tukey") TukeyHSD(fit, "treat", conf.level = 1 - alpha)$treat else NULL
+        if (test == "dunnett") {
+          others <- pairs[, 2]
+          lam <- rep(sqrt(n / (n + n)), length(others))
+          dunnett_crit <- critical(function(c) dunnett(c, lam, df_res))
+        }
+        lapply(seq_len(K), function(x) {
+          i <- pairs[x, 1]
+          j <- pairs[x, 2]
+          dd <- means[i] - means[j]
+          se <- sqrt(mse * (2 / n))
+          t <- abs(dd) / se
+          r <- switch(test,
+            tukey = {
+              h <- hsd[paste0(j, "-", i), ]
+              list(stat = sqrt(2) * t, lower = -h[["upr"]], upper = -h[["lwr"]], p = h[["p adj"]])
+            },
+            bonferroni = {
+              half <- qt(1 - alpha / (2 * K), df_res) * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = min(1, K * 2 * pt(t, df_res, lower.tail = FALSE)))
+            },
+            sidak = {
+              half <- qt(1 - (1 - (1 - alpha)^(1 / K)) / 2, df_res) * se
+              p1 <- 2 * pt(t, df_res, lower.tail = FALSE)
+              list(stat = t, lower = dd - half, upper = dd + half, p = -expm1(K * log1p(-p1)))
+            },
+            dunnett = {
+              half <- dunnett_crit * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = dunnett(t, lam, df_res))
+            }
+          )
+          list(i = i, j = j, diff = dd, se = se, df = df_res, statistic = r$stat, ci_lower = r$lower, ci_upper = r$upper, p = r$p)
+        })
+      } else {
+        # #83's "new method" (FAQ 1609): as `repeated/oracle.R`'s own copy.
+        if (test == "dunnett") {
+          others <- pairs[, 2]
+          lam <- rep(sqrt(n / (n + n)), length(others))
+          dunnett_crit <- critical(function(c) dunnett(c, lam, n - 1))
+        }
+        lapply(seq_len(K), function(x) {
+          i <- pairs[x, 1]
+          j <- pairs[x, 2]
+          tt <- t.test(m[, i], m[, j], paired = TRUE)
+          dd <- unname(tt$estimate)
+          nu <- unname(tt$parameter)
+          t <- abs(unname(tt$statistic))
+          se <- abs(dd) / t
+          r <- switch(test,
+            tukey = {
+              half <- qtukey(1 - alpha, k, nu) / sqrt(2) * se
+              list(stat = sqrt(2) * t, lower = dd - half, upper = dd + half, p = ptukey(sqrt(2) * t, k, nu, lower.tail = FALSE))
+            },
+            bonferroni = {
+              half <- qt(1 - alpha / (2 * K), nu) * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = min(1, K * 2 * pt(t, nu, lower.tail = FALSE)))
+            },
+            sidak = {
+              half <- qt(1 - (1 - (1 - alpha)^(1 / K)) / 2, nu) * se
+              p1 <- 2 * pt(t, nu, lower.tail = FALSE)
+              list(stat = t, lower = dd - half, upper = dd + half, p = -expm1(K * log1p(-p1)))
+            },
+            dunnett = {
+              half <- dunnett_crit * se
+              list(stat = t, lower = dd - half, upper = dd + half, p = dunnett(t, lam, nu))
+            }
+          )
+          list(i = i, j = j, diff = dd, se = se, df = nu, statistic = r$stat, ci_lower = r$lower, ci_upper = r$upper, p = r$p)
+        })
       }
-      lapply(seq_len(K), function(x) {
-        i <- pairs[x, 1]
-        j <- pairs[x, 2]
-        dd <- means[i] - means[j]
-        se <- sqrt(mse * (2 / n))
-        t <- abs(dd) / se
-        r <- switch(test,
-          tukey = {
-            h <- hsd[paste0(j, "-", i), ]
-            list(stat = sqrt(2) * t, lower = -h[["upr"]], upper = -h[["lwr"]], p = h[["p adj"]])
-          },
-          bonferroni = {
-            half <- qt(1 - alpha / (2 * K), df_res) * se
-            list(stat = t, lower = dd - half, upper = dd + half, p = min(1, K * 2 * pt(t, df_res, lower.tail = FALSE)))
-          },
-          sidak = {
-            half <- qt(1 - (1 - (1 - alpha)^(1 / K)) / 2, df_res) * se
-            p1 <- 2 * pt(t, df_res, lower.tail = FALSE)
-            list(stat = t, lower = dd - half, upper = dd + half, p = -expm1(K * log1p(-p1)))
-          },
-          dunnett = {
-            half <- dunnett_crit * se
-            list(stat = t, lower = dd - half, upper = dd + half, p = dunnett(t, lam, df_res))
-          }
-        )
-        list(i = i, j = j, diff = dd, se = se, df = df_res, statistic = r$stat, ci_lower = r$lower, ci_upper = r$upper, p = r$p)
-      })
     }
     out
   }
@@ -208,3 +252,25 @@ fixture("bonferroni-sidak",
   expr = repeated(complete_rows(g1, g2, g3), test = "sidak"), setup = reference,
   options = list(comparisons = "all", test = "sidak"),
   note = "Šidák instead of Tukey; Bonferroni is exercised by repeated's own fixtures for the shared code.")
+
+fixture("individual-basic",
+  input = list(
+    g1 = c(9.8, 10.4, 11.1, 10.0, 9.6),
+    g2 = c(12.1, 12.9, 13.4, 12.4, 11.9),
+    g3 = c(15.0, 15.6, 16.2, 15.2, 14.8)
+  ),
+  expr = repeated(complete_rows(g1, g2, g3), sphericity = FALSE), setup = reference,
+  options = list(comparisons = "all", test = "tukey", sphericity = FALSE),
+  note = "#83's sphericity-free method on replicate means: same data as three-groups-few-replicates.")
+
+fixture("individual-control-dunnett",
+  input = list(
+    g1 = c(20.1, 21.4, 19.8, 20.6),
+    g2 = c(24.2, 25.0, 23.6, 24.5),
+    g3 = c(20.5, 21.0, 20.2, 20.8),
+    g4 = c(28.1, 29.0, 27.6, 28.6)
+  ),
+  expr = repeated(complete_rows(g1, g2, g3, g4), comps = "control", control = 1, test = "dunnett", sphericity = FALSE),
+  setup = reference,
+  options = list(comparisons = "control", control = 1, test = "dunnett", sphericity = FALSE),
+  note = "#83's sphericity-free method against a control, Dunnett's test: same data as four-groups-dunnett.")
