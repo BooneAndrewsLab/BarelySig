@@ -435,6 +435,24 @@ the target).
   n ≥ 20 as `normality`'s are. Wired into every touch point (note 13's
   lesson): the results view, margin notes, `.bsig`, property tests, the
   guide (a new "The paired case" section in `10-normality.md`).
+- Two-way ANOVA from unbalanced summary data (#51, note 20): Prism's
+  "analysis of unweighted means" (Fisher and van Belle, 1993) for
+  summary data (mean, SD, n) with unequal n per cell, which `prepare`
+  used to refuse outright. Only the row, column and interaction SS/DF/
+  MS/F/P are the approximation (harmonic-mean-weighted, from the
+  textbook formula); the residual, cell table and every multiple
+  comparison are exact regardless of balance, reusing the already-
+  validated `bs_twoway_comparisons` unchanged. `TwoWayResult` gained
+  `approximate: boolean`; the results view's method line and the guide
+  say so when it's set, and recommend the individual values for an
+  exact result. Validated against a written-out reference independent
+  of `analysis.R` (harmonic mean, unweighted means, pooled residual),
+  cross-checked a second way (a balanced regression on the cell means
+  themselves, scaled by the harmonic mean) and against a reduction
+  check that the new formula matches the existing exact path bit-for-
+  bit when balanced. No follow-ups filed: #52 (empty-cell comparisons)
+  is untouched since summary-data entry already requires every cell
+  filled before this code runs.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling

@@ -238,6 +238,13 @@ describe('two-way ANOVA readings', () => {
       'There is no evidence that the rows, averaged over the data sets, differ (P = 0.2000). The data sets, averaged over the rows, differ (P = 0.0100). Tukey’s comparisons between data sets, averaged over rows: 2 of 3 pairs differ after adjusting for the number of comparisons.',
     );
   });
+
+  it('says when unequal n from summary data made the result approximate', () => {
+    expect(twoWayMethod({ ...base, model: 'full', from: 'summary', approximate: true })).toMatch(
+      /With unequal n per cell, summary data give only an approximate result \(Prism’s analysis of unweighted means, Fisher and van Belle, 1993\); enter the individual values for an exact one\.$/,
+    );
+    expect(twoWayMethod({ ...base, approximate: false })).not.toMatch(/approximate result/);
+  });
 });
 
 describe('normality readings', () => {

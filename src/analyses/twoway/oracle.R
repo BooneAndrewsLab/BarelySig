@@ -65,7 +65,8 @@ reference <- quote({
       cells = lapply(seq_len(R), function(i) lapply(seq_len(C), function(j) {
         v <- y[r == i & c == j]
         list(n = length(v), mean = if (length(v)) mean(v) else NA, sd = if (length(v) > 1) sd(v) else NA)
-      }))
+      })),
+      approximate = FALSE
     )
     out$comparisons <- list()
     out$comparisons_note <- NA
@@ -125,6 +126,63 @@ reference <- quote({
     raw <- function(m, s, k) if (k == 1) m else as.numeric(scale(seq_len(k))) * s + m
     y <- unlist(Map(raw, means, sds, ns))
     twoway(y, rep(r, ns), rep(c, ns), ...)
+  }
+
+  # Unbalanced summary data (#51, item 18): Prism's "analysis of unweighted
+  # means" (Fisher and van Belle, 1993), written out directly from the
+  # textbook (harmonic-mean-weighted row/column/interaction effects), not
+  # from BarelySig's own analysis.R. Only the row, column and interaction
+  # terms are this approximation; the residual, cell table and every
+  # comparison are computed from the same reconstructed-raw-data + emmeans
+  # machinery `from_summary`/`comparisons` already use for the exact case,
+  # since those never depended on the design being balanced.
+  unweighted_means <- function(means, sds, ns, r, c, family = "none", comps = "none", control = 1, test = "tukey") {
+    R <- max(r)
+    C <- max(c)
+    m <- matrix(NA_real_, R, C)
+    s <- matrix(NA_real_, R, C)
+    n <- matrix(NA_real_, R, C)
+    for (i in seq_along(means)) {
+      m[r[i], c[i]] <- means[i]
+      s[r[i], c[i]] <- sds[i]
+      n[r[i], c[i]] <- ns[i]
+    }
+    N <- sum(n)
+    df_res <- N - R * C
+    ss_res <- sum((n - 1) * s^2)
+    ms_res <- ss_res / df_res
+    nh <- (R * C) / sum(1 / n)
+    grand <- mean(m)
+    row_mean <- rowMeans(m)
+    col_mean <- colMeans(m)
+    ss_row <- C * nh * sum((row_mean - grand)^2)
+    ss_col <- R * nh * sum((col_mean - grand)^2)
+    resid <- m - outer(row_mean, col_mean, "+") + grand
+    ss_int <- nh * sum(resid^2)
+    sst <- ss_row + ss_col + ss_int + ss_res
+    term <- function(ss, df) {
+      f <- (ss / df) / ms_res
+      list(ss = ss, df = df, ms = ss / df, f = f, p = pf(f, df, df_res, lower.tail = FALSE), percent = 100 * ss / sst)
+    }
+    out <- list(
+      model = "full", why = NA, rows = R, columns = C, n_total = N,
+      interaction = term(ss_int, (R - 1) * (C - 1)),
+      row = term(ss_row, R - 1), column = term(ss_col, C - 1),
+      residual = list(ss = ss_res, df = df_res, ms = ms_res),
+      total = list(ss = sst, df = N - 1),
+      cells = lapply(seq_len(R), function(i) lapply(seq_len(C), function(j) list(n = n[i, j], mean = m[i, j], sd = s[i, j]))),
+      approximate = TRUE
+    )
+    out$comparisons <- list()
+    out$comparisons_note <- NA
+    if (comps != "none") {
+      raw <- function(mn, sd, k) if (k == 1) mn else as.numeric(scale(seq_len(k))) * sd + mn
+      y <- unlist(Map(raw, means, sds, ns))
+      d <- data.frame(y = y, rf = factor(rep(r, ns), levels = seq_len(R)), cf = factor(rep(c, ns), levels = seq_len(C)))
+      fit <- lm(y ~ rf * cf, data = d, contrasts = list(rf = "contr.sum", cf = "contr.sum"))
+      out$comparisons <- comparisons(fit, n, family, comps, control, test)
+    }
+    out
   }
 })
 
@@ -262,3 +320,83 @@ fixture("summary-balanced",
   expr = from_summary(means, sds, ns, ri, ci, "main-columns", "all", test = "tukey"), setup = reference, packages = "emmeans",
   options = c(opts("main-columns", "all", test = "tukey"), list(from = "summary")),
   note = "Balanced summary data (every n the same): exact.")
+
+# Unbalanced summary data (#51, item 18): Prism's approximate "analysis of
+# unweighted means". `unweighted_check` is a second, independent route to
+# the same row/column/interaction SS: a balanced regression of the cell
+# means themselves (one row per cell, so it's exactly balanced, Type I
+# sum-to-zero SS = Type III there), scaled by the harmonic mean nh —
+# a different computation (lm + anova on the means) from `unweighted_means`'s
+# direct sum-of-squares formulas, so it can catch a mistake in either.
+unweighted_check <- quote({
+  R <- max(ri)
+  C <- max(ci)
+  m <- matrix(NA_real_, R, C)
+  n_ <- matrix(NA_real_, R, C)
+  for (i in seq_along(means)) {
+    m[ri[i], ci[i]] <- means[i]
+    n_[ri[i], ci[i]] <- ns[i]
+  }
+  nh <- (R * C) / sum(1 / n_)
+  d <- data.frame(mn = as.vector(t(m)), rf = factor(rep(seq_len(R), each = C)), cf = factor(rep(seq_len(C), R)))
+  fit <- lm(mn ~ rf * cf, data = d, contrasts = list(rf = "contr.sum", cf = "contr.sum"))
+  tab <- anova(fit)
+  close(tab["rf", "Sum Sq"] * nh, expected$row$ss) &&
+    close(tab["cf", "Sum Sq"] * nh, expected$column$ss) &&
+    close(tab["rf:cf", "Sum Sq"] * nh, expected$interaction$ss, tol = 1e-6)
+})
+
+fixture("summary-unbalanced-almost-balanced",
+  input = list(
+    means = c(12.3, 15.1, 13.0, 14.2, 16.8, 13.9), sds = c(1.8, 2.2, 1.5, 2.0, 1.7, 1.6),
+    ns = c(4, 4, 4, 4, 4, 5), ri = c(1, 1, 1, 2, 2, 2), ci = c(1, 2, 3, 1, 2, 3)
+  ),
+  expr = unweighted_means(means, sds, ns, ri, ci, "main-columns", "all", test = "tukey"),
+  setup = reference, packages = "emmeans",
+  options = c(opts("main-columns", "all", test = "tukey"), list(from = "summary")),
+  check = unweighted_check,
+  note = "Almost balanced (one cell with an extra replicate): Prism says the approximation is a good one here.")
+
+fixture("summary-unbalanced-every-cell-different",
+  input = list(
+    means = c(10.2, 12.9, 9.8, 14.1), sds = c(1.2, 1.6, 1.0, 1.8),
+    ns = c(3, 5, 4, 7), ri = c(1, 1, 2, 2), ci = c(1, 2, 1, 2)
+  ),
+  expr = unweighted_means(means, sds, ns, ri, ci),
+  setup = reference,
+  options = list(from = "summary"),
+  check = unweighted_check,
+  note = "Every cell a different n: the harmonic mean weights every term.")
+
+fixture("summary-unbalanced-with-singleton",
+  input = list(
+    means = c(20.1, 24.3, 19.5, 26.0, 21.2, 23.8), sds = c(2.1, 0, 1.8, 2.4, 1.9, 2.0),
+    ns = c(3, 1, 4, 3, 5, 2), ri = c(1, 1, 2, 2, 3, 3), ci = c(1, 2, 1, 2, 1, 2)
+  ),
+  expr = unweighted_means(means, sds, ns, ri, ci, "within-rows", "all", test = "sidak"),
+  setup = reference, packages = "emmeans",
+  options = c(opts("within-rows", "all", test = "sidak"), list(from = "summary")),
+  check = unweighted_check,
+  note = "A cell with n = 1 (SD 0, no scatter of its own) mixed with replicated cells: it contributes 0 to the pooled residual.")
+
+# Consistency, not a fixture: on balanced data the unbalanced-summary
+# formula must reduce to exactly what the exact balanced path computes
+# (design note 18) — the harmonic mean equals the common n and the
+# unweighted means equal the weighted ones, so both paths see the same
+# grand/row/column means.
+local({
+  means <- c(12.3, 15.1, 13.0, 14.2, 16.8, 13.9)
+  sds <- c(1.8, 2.2, 1.5, 2.0, 1.7, 1.9)
+  ns <- c(4, 4, 4, 4, 4, 4)
+  ri <- c(1, 1, 1, 2, 2, 2)
+  ci <- c(1, 2, 3, 1, 2, 3)
+  eval(reference)
+  exact <- from_summary(means, sds, ns, ri, ci, "none", "none")
+  approx <- unweighted_means(means, sds, ns, ri, ci, "none", "none")
+  stopifnot(
+    isTRUE(all.equal(exact$row$ss, approx$row$ss, tolerance = 1e-9)),
+    isTRUE(all.equal(exact$column$ss, approx$column$ss, tolerance = 1e-9)),
+    isTRUE(all.equal(exact$interaction$ss, approx$interaction$ss, tolerance = 1e-9)),
+    isTRUE(all.equal(exact$residual$ss, approx$residual$ss, tolerance = 1e-9))
+  )
+})

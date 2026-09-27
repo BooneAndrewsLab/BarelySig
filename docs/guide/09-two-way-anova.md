@@ -44,9 +44,12 @@ recommends, and each P is **adjusted** for the comparisons in its family,
 so the 5% chance of a false “significant” result applies to the family
 as a whole.
 
-**From summary data** (mean, SD or SEM or %CV, and n) the ANOVA runs when
-every cell has the same n. With different n it asks for the individual
-values.
+**From summary data** (mean, SD or SEM or %CV, and n) the ANOVA is exact
+when every cell has the same n. With different n it still runs, using
+Prism's own "analysis of unweighted means" (Fisher and van Belle,
+_Biostatistics_, 1993) — but Prism says, and so do we, that this is only
+_approximately_ correct; enter the individual values instead when you
+can.
 
 ## Which model
 
@@ -95,8 +98,12 @@ Prism runs this as “Two-way ANOVA (or mixed model)”. BarelySig uses
 Prism’s Type III sums of squares and its choices of model, and differs
 where Prism does more:
 
-- **Summary data with different n per cell:** Prism uses an approximate
-  method; BarelySig asks for the values instead.
+- **Summary data with different n per cell:** BarelySig uses the same
+  approximate method Prism does (unweighted means); the row, column and
+  interaction lines are approximate, but the residual, cell means and
+  every multiple comparison are exact regardless, since they never
+  depended on the cells being balanced. The results say when this
+  approximation was used.
 - **Comparisons with an empty cell** aren’t available.
 - **Main effects with unequal n:** Prism doesn’t say whether it compares
   least-squares or weighted means; BarelySig uses least-squares means.
@@ -104,7 +111,9 @@ where Prism does more:
 The numbers are checked against R’s `drop1` with sum-to-zero contrasts,
 the car package’s `Anova` and the emmeans package, on cases with missing
 values, an empty cell, one value per cell, unbalanced data, zero spread
-in a cell and a very small P.
+in a cell and a very small P. The unweighted-means approximation is
+checked against a formula written out directly from the textbook method
+(harmonic mean of the cell sizes), independent of BarelySig’s own code.
 
 ## On a graph
 
