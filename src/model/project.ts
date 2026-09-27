@@ -60,11 +60,16 @@ export interface TTestOptions {
 
 /**
  * Nested t test (item 13): a REML mixed model over a Nested table's two
- * groups and their biological replicates. No paired or Welch variant:
- * the model already separates between- and within-replicate variance.
+ * groups and their biological replicates. No Welch variant: the model
+ * already separates between- and within-replicate variance.
  */
 export interface NestedTTestOptions {
   readonly tails: 'two' | 'one';
+  /**
+   * Replicate n is the same experiment in both groups (note 14): a paired t
+   * test on the replicate means, as Lord et al. 2020 compute a SuperPlot's P.
+   */
+  readonly matched: boolean;
 }
 
 /**
@@ -154,7 +159,7 @@ export const DEFAULT_OPTIONS: {
 } = {
   descriptive: {},
   't-test': { paired: false, welch: false, tails: 'two' },
-  'nested-t-test': { tails: 'two' },
+  'nested-t-test': { tails: 'two', matched: false },
   'nested-one-way-anova': { comparisons: { kind: 'all', test: 'tukey' } },
   'rank-test': { paired: false, tails: 'two', zeros: 'wilcoxon' },
   'one-way-anova': { welch: false, comparisons: { kind: 'all', test: 'tukey' } },

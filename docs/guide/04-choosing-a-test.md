@@ -28,17 +28,17 @@ reruns by itself.
 
 ## What each table offers
 
-| Test                                        | Table   | Use it to                                              |
-| ------------------------------------------- | ------- | ------------------------------------------------------ |
-| [Descriptive statistics](11-descriptive.md) | Column  | Describe each group: n, mean, SD, SEM, CI, median      |
-| [Normality tests](10-normality.md)          | Column  | Check for clear departures from a bell shape           |
-| [t test](05-t-tests.md)                     | Column  | Compare the means of two groups                        |
-| [Mann-Whitney / Wilcoxon](06-rank-tests.md) | Column  | Compare two groups by ranks                            |
-| [One-way ANOVA](07-one-way-anova.md)        | Column  | Compare the means of three or more groups              |
-| [Kruskal-Wallis](08-kruskal-wallis.md)      | Column  | Compare three or more groups by ranks                  |
-| [Two-way ANOVA](09-two-way-anova.md)        | Grouped | Two factors at once, and whether they interact         |
-| [Nested t test](17-nested-tables.md)        | Nested  | Compare two groups, weighing each biological replicate |
-| [Nested one-way ANOVA](17-nested-tables.md) | Nested  | Compare three or more groups the same way              |
+| Test                                        | Table   | Use it to                                                                                               |
+| ------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| [Descriptive statistics](11-descriptive.md) | Column  | Describe each group: n, mean, SD, SEM, CI, median                                                       |
+| [Normality tests](10-normality.md)          | Column  | Check for clear departures from a bell shape                                                            |
+| [t test](05-t-tests.md)                     | Column  | Compare the means of two groups                                                                         |
+| [Mann-Whitney / Wilcoxon](06-rank-tests.md) | Column  | Compare two groups by ranks                                                                             |
+| [One-way ANOVA](07-one-way-anova.md)        | Column  | Compare the means of three or more groups                                                               |
+| [Kruskal-Wallis](08-kruskal-wallis.md)      | Column  | Compare three or more groups by ranks                                                                   |
+| [Two-way ANOVA](09-two-way-anova.md)        | Grouped | Two factors at once, and whether they interact                                                          |
+| [Nested t test](17-nested-tables.md)        | Nested  | Compare two groups, weighing each biological replicate; or matched, when each replicate ran both groups |
+| [Nested one-way ANOVA](17-nested-tables.md) | Nested  | Compare three or more groups the same way                                                               |
 
 Tests that rank or pair the values need the individual values; from
 summary data (mean, SD, n) only the unpaired t test, one-way ANOVA,
@@ -68,9 +68,12 @@ while **Help me choose** is selected, and the dialog says so.
 Some cases skip the questions:
 
 - A **Grouped table** goes straight to two-way ANOVA.
-- A **Nested table** goes straight to the nested t test (two groups) or
-  nested one-way ANOVA (three or more): the biological replicates
-  already say how the data are structured, so there is nothing to ask.
+- A **Nested table** asks one question: is "Replicate 1" (or whatever
+  you named it) the same experiment in every group? No: the nested t
+  test (two groups) or nested one-way ANOVA (three or more). Yes: the
+  **matched** nested t test for two groups; three or more matched groups
+  need a repeated-measures ANOVA, which BarelySig doesn't have yet. It
+  never asks about the distribution: the test works on replicate means.
 - **Summary data** gets the unpaired t test (two groups) or one-way
   ANOVA (three or more), the only tests that work from mean, SD and n.
 - **One group:** there is nothing to compare; use descriptive statistics.

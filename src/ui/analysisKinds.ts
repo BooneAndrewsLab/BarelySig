@@ -28,7 +28,7 @@ export function testName(spec: AnalysisSpec): string {
           ? 'Welch’s t test'
           : 'Unpaired t test';
     case 'nested-t-test':
-      return 'Nested t test';
+      return spec.options.matched ? 'Matched nested t test' : 'Nested t test';
     case 'rank-test':
       return spec.options.paired ? 'Wilcoxon test' : 'Mann-Whitney test';
     case 'one-way-anova':

@@ -1,0 +1,55 @@
+{
+  "input": {
+    "a_value": [
+      5.0099999999999998, 5.1200000000000001, 4.9500000000000002, 7.4000000000000004,
+      7.5199999999999996, 6.0999999999999996, 6.0199999999999996, 6.21, 5.9800000000000004,
+      8.3000000000000007, 4.4400000000000004, 4.5199999999999996, 4.3899999999999997,
+      9.0500000000000007, 9.1099999999999994
+    ],
+    "a_replicate": [1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 5, 5, 5, 6, 6],
+    "b_value": [
+      15.02, 15.1, 17.440000000000001, 17.370000000000001, 17.510000000000002, 17.399999999999999,
+      16.120000000000001, 18.309999999999999, 18.25, 14.470000000000001, 14.4, 14.52,
+      19.079999999999998, 19.02, 19.120000000000001
+    ],
+    "b_replicate": [1, 1, 2, 2, 2, 2, 3, 4, 4, 5, 5, 5, 6, 6, 6]
+  },
+  "expected": {
+    "t": 839.28710528722047,
+    "df": 5,
+    "p_two": 4.5576870606097089e-14,
+    "difference": 10.005416666666665,
+    "se_difference": 0.011921327759757034,
+    "ci_lower": 9.9747719180707666,
+    "ci_upper": 10.036061415262564,
+    "mean_a": 6.7323611111111115,
+    "mean_b": 16.737777777777779,
+    "n_rep_a": 6,
+    "n_rep_b": 6,
+    "n_values_a": 15,
+    "n_values_b": 15,
+    "sd_difference": 0.029201170067881217,
+    "pairing_r": 0.99993170942101228,
+    "pairing_p": 3.4976227638183783e-9
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    same <- function(x, y, tol = 1e-09) stopifnot(isTRUE(all.equal(unname(x), unname(y), \n        tolerance = tol)))\n    replicate_means <- function(value, replicate) {\n        sapply(sort(unique(replicate)), function(r) sum(value[replicate == r])/sum(replicate == \n            r))\n    }\n    matched <- function(a_value, a_replicate, b_value, b_replicate) {\n        ma <- replicate_means(a_value, a_replicate)\n        mb <- replicate_means(b_value, b_replicate)\n        n <- length(ma)\n        d <- mb - ma\n        sd_d <- sqrt(sum((d - mean(d))^2)/(n - 1))\n        se <- sd_d/sqrt(n)\n        t <- mean(d)/se\n        half <- qt(0.975, n - 1) * se\n        r <- if (n > 2) {\n            sum((ma - mean(ma)) * (mb - mean(mb)))/sqrt(sum((ma - mean(ma))^2) * \n                sum((mb - mean(mb))^2))\n        }\n        else NA_real_\n        list(t = t, df = n - 1, p_two = 2 * pt(-abs(t), n - 1), difference = mean(d), \n            se_difference = se, ci_lower = mean(d) - half, ci_upper = mean(d) + half, \n            mean_a = mean(ma), mean_b = mean(mb), n_rep_a = n, n_rep_b = n, n_values_a = length(a_value), \n            n_values_b = length(b_value), sd_difference = sd_d, pairing_r = r, pairing_p = if (n > \n                2) pt(r * sqrt((n - 2)/(1 - r^2)), n - 2, lower.tail = FALSE) else NA_real_)\n    }\n}",
+    "call": "matched(a_value, a_replicate, b_value, b_replicate)",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0"
+      },
+      "code": "{\n    ma <- as.numeric(tapply(a_value, a_replicate, mean))\n    mb <- as.numeric(tapply(b_value, b_replicate, mean))\n    r <- t.test(mb, ma, paired = TRUE)\n    same(expected$t, r$statistic)\n    same(expected$df, r$parameter)\n    same(expected$p_two, r$p.value)\n    same(c(expected$ci_lower, expected$ci_upper), as.numeric(r$conf.int))\n    if (length(ma) > 2) {\n        ct <- cor.test(ma, mb, alternative = \"greater\")\n        same(expected$pairing_r, as.numeric(ct$estimate))\n        same(expected$pairing_p, ct$p.value)\n    }\n    TRUE\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Six matched replicates of 1 to 4 values each, and a very consistent difference of about 10: a very small P that must keep its magnitude.",
+  "options": {
+    "tails": "two",
+    "matched": true
+  }
+}

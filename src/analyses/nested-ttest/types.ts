@@ -2,6 +2,10 @@
  * Nested t test (item 13, #66): a REML mixed model (note 13), not a plain
  * t test on averaged replicates. Group A is the first data set, B the
  * second; the difference is B - A, as the other t tests report it.
+ *
+ * Matched (note 14, #70): replicate n is the same experiment in both
+ * groups, so the replicates pair up; a paired t test on the replicate
+ * means, as Lord et al. 2020 compute a SuperPlot's P.
  */
 import type { NestedTTestOptions } from '@/model/project';
 
@@ -22,6 +26,8 @@ export interface NestedTTestRequest {
   readonly data: { readonly a: NestedGroupData; readonly b: NestedGroupData };
   /** Replicates dropped for having no usable value, per group, for "Data analyzed". */
   readonly droppedReplicates: { readonly a: number; readonly b: number };
+  /** Matched only: replicates with values in one group but not the other, left out of both. */
+  readonly unmatched: readonly string[];
 }
 
 export interface NestedTTestGroup extends Named {
@@ -33,7 +39,7 @@ export interface NestedTTestGroup extends Named {
   readonly mean: number;
 }
 
-export interface NestedTTestResult {
+interface Common {
   readonly tails: 'two' | 'one';
   readonly a: NestedTTestGroup;
   readonly b: NestedTTestGroup;
@@ -49,10 +55,27 @@ export interface NestedTTestResult {
   readonly seDifference: number;
   readonly ciLower: number;
   readonly ciUpper: number;
-  /** SD of replicate means around their group mean (the between-replicate variance component). */
-  readonly betweenReplicateSd: number;
-  /** SD of individual values around their own replicate's mean (the within-replicate/residual component). */
-  readonly withinReplicateSd: number;
   readonly droppedReplicates: NestedTTestRequest['droppedReplicates'];
   readonly warnings: readonly string[];
 }
+
+/** Results saved before note 14 have no `design`: they are 'nested'. */
+export type NestedTTestResult = Common &
+  (
+    | {
+        readonly design: 'nested';
+        /** SD of replicate means around their group mean (the between-replicate variance component). */
+        readonly betweenReplicateSd: number;
+        /** SD of individual values around their own replicate's mean (the within-replicate/residual component). */
+        readonly withinReplicateSd: number;
+      }
+    | {
+        readonly design: 'matched';
+        /** SD of the per-replicate differences of means (B - A). */
+        readonly sdDifference: number;
+        /** Prism's "was the pairing effective?": Pearson r of the replicate means, one-tailed P; null below 3 pairs. */
+        readonly pairingR: number | null;
+        readonly pairingP: number | null;
+        readonly unmatched: readonly string[];
+      }
+  );

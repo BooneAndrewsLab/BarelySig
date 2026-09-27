@@ -6,6 +6,7 @@ import type { DescriptiveResult } from '@/analyses/descriptive/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { OneWayResult } from '@/analyses/oneway/types';
 import type { NormalityResult } from '@/analyses/normality/types';
+import type { NestedTTestResult } from '@/analyses/nested-ttest/types';
 import type { MannWhitneyResult, WilcoxonResult } from '@/analyses/ranktest/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { TwoWayResult } from '@/analyses/twoway/types';
@@ -13,7 +14,14 @@ import { applyEdit } from '@/model/edits';
 import type { Json } from '@/model/json';
 import { createProject } from '@/model/project';
 import type { Job } from '@/model/recompute';
-import { type Table, createColumnTable, createGroupedTable } from '@/model/table';
+import {
+  type NestedTable,
+  type Table,
+  createColumnTable,
+  createGroupedTable,
+  createNestedTable,
+  newRows,
+} from '@/model/table';
 
 import { App } from '../App';
 import { ResultsBridge, setResults } from '../state/results';
@@ -607,6 +615,76 @@ describe('results sheets', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
     expect(screen.queryByRole('heading', { level: 2, name: 'KO vs WT' })).not.toBeInTheDocument();
     expect(screen.getByText(/^Deleted “KO vs WT”\. Undo brings it back/)).toBeInTheDocument();
+  });
+});
+
+describe('matched nested t test sheet (note 14)', () => {
+  it('asks whether the replicates are matched and reports the paired test on their means', async () => {
+    const t = createNestedTable({
+      title: 'Speed',
+      groups: ['Control', 'Drug'],
+      replicates: 3,
+      replicateTitles: ['Day 1', 'Day 2', 'Day 3'],
+    });
+    let p = applyEdit(createProject('P'), { op: 'addTable', table: t });
+    p = applyEdit(p, { op: 'insertRows', table: t.id, at: 0, rows: newRows(2) });
+    const rows = (p.tables.get(t.id) as NestedTable).rows;
+    p = applyEdit(p, {
+      op: 'setCells',
+      table: t.id,
+      cells: t.dataSets.flatMap((d, g) =>
+        [0, 1, 2].flatMap((s) =>
+          rows.map((r, i) => ({ dataSet: d.id, subcolumn: s, row: r.id, value: 10 * s + i + g })),
+        ),
+      ),
+    });
+    act(() => {
+      store.load(p);
+    });
+    const r: NestedTTestResult = {
+      design: 'matched',
+      tails: 'two',
+      a: { id: 'a', title: 'Control', nReplicates: 3, nValues: 6, mean: 10.5 },
+      b: { id: 'b', title: 'Drug', nReplicates: 3, nValues: 6, mean: 11.5 },
+      t: 12.3,
+      df: 2,
+      pTwo: 0.0065,
+      pOne: 0.00325,
+      p: 0.0065,
+      difference: 1,
+      seDifference: 0.0813,
+      ciLower: 0.65,
+      ciUpper: 1.35,
+      sdDifference: 0.1408,
+      pairingR: 0.999,
+      pairingP: 0.012,
+      unmatched: [],
+      droppedReplicates: { a: 0, b: 0 },
+      warnings: [],
+    };
+    answer = (job) => {
+      expect(job.analysis).toMatchObject({ options: { matched: true } });
+      return Promise.resolve(r as unknown as Json);
+    };
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Analyze…/ }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /^Nested t test/ }));
+    fireEvent.click(
+      within(dialog).getByRole('radio', { name: /^Matched: “Day 1” is the same experiment/ }),
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Analyze' }));
+    const name = 'Matched nested t test of Speed';
+    expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
+    await screen.findByText(/^The mean of Drug is higher than the mean of Control \(P = 0\.0065\)/);
+    expect(
+      screen.getByText(/a paired t test on the replicate means \(n = 3 replicates/),
+    ).toBeInTheDocument();
+    const table = region(name).getByRole('table');
+    const row = (label: string) =>
+      within(table).getByRole('rowheader', { name: label }).closest('tr');
+    expect(row('Matched replicates (pairs)')).toHaveTextContent('3');
+    expect(row('SD of the differences between replicate means')).toHaveTextContent('0.1408');
   });
 });
 

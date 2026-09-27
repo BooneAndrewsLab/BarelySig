@@ -192,8 +192,9 @@ function nestedDroppedText(dropped: number): string {
 
 function NestedTTestView({ r }: { readonly r: NestedTTestResult }) {
   const tails = r.tails === 'two' ? 'Two-tailed' : 'One-tailed';
+  const matched = r.design === 'matched';
   const test: Section = [
-    'Nested t test',
+    matched ? 'Matched nested t test (paired t test on the replicate means)' : 'Nested t test',
     [
       ['P value', pValue(r.p)],
       ['P value summary', stars(r.p)],
@@ -207,34 +208,59 @@ function NestedTTestView({ r }: { readonly r: NestedTTestResult }) {
     [
       'How big is the difference?',
       [
-        [`Mean of ${r.a.title}`, sig(r.a.mean)],
-        [`Mean of ${r.b.title}`, sig(r.b.mean)],
+        [`Mean of ${r.a.title}${matched ? ' (of its replicate means)' : ''}`, sig(r.a.mean)],
+        [`Mean of ${r.b.title}${matched ? ' (of its replicate means)' : ''}`, sig(r.b.mean)],
         [
-          `Difference between means (${r.b.title} − ${r.a.title}) ± SE`,
+          `${matched ? 'Mean of the differences' : 'Difference between means'} (${r.b.title} − ${r.a.title}) ± SE`,
           `${sig(r.difference)} ± ${sig(r.seDifference)}`,
         ],
         ['95% confidence interval', interval(r.ciLower, r.ciUpper)],
       ],
     ],
-    [
-      'How much comes from replicate to replicate, versus within one?',
-      [
-        ['Between-replicate SD', sig(r.betweenReplicateSd)],
-        ['Within-replicate SD', sig(r.withinReplicateSd)],
-      ],
-    ],
+    r.design === 'matched'
+      ? [
+          'How consistent is the difference from experiment to experiment?',
+          [
+            ['SD of the differences between replicate means', sig(r.sdDifference)],
+            ...(r.pairingR === null || r.pairingP === null
+              ? []
+              : ([
+                  ['Correlation of replicate means between groups (r)', sig(r.pairingR)],
+                  ['Was the matching effective? (P, one-tailed)', pValue(r.pairingP)],
+                ] satisfies Row[])),
+          ],
+        ]
+      : [
+          'How much comes from replicate to replicate, versus within one?',
+          [
+            ['Between-replicate SD', sig(r.betweenReplicateSd)],
+            ['Within-replicate SD', sig(r.withinReplicateSd)],
+          ],
+        ],
     [
       'Data analyzed',
-      [
-        [
-          `Replicates, ${r.a.title}`,
-          `${String(r.a.nReplicates)} (${String(r.a.nValues)} values${nestedDroppedText(r.droppedReplicates.a)})`,
-        ],
-        [
-          `Replicates, ${r.b.title}`,
-          `${String(r.b.nReplicates)} (${String(r.b.nValues)} values${nestedDroppedText(r.droppedReplicates.b)})`,
-        ],
-      ],
+      matched
+        ? [
+            [
+              'Matched replicates (pairs)',
+              `${String(r.a.nReplicates)}${nestedDroppedText(r.droppedReplicates.a)}`,
+            ],
+            [`Values, ${r.a.title}`, String(r.a.nValues)],
+            [`Values, ${r.b.title}`, String(r.b.nValues)],
+            ...(r.unmatched.length
+              ? ([['Left out: values in one group only', r.unmatched.join(', ')]] satisfies Row[])
+              : []),
+          ]
+        : [
+            [
+              `Replicates, ${r.a.title}`,
+              `${String(r.a.nReplicates)} (${String(r.a.nValues)} values${nestedDroppedText(r.droppedReplicates.a)})`,
+            ],
+            [
+              `Replicates, ${r.b.title}`,
+              `${String(r.b.nReplicates)} (${String(r.b.nValues)} values${nestedDroppedText(r.droppedReplicates.b)})`,
+            ],
+          ],
     ],
   ];
   return (

@@ -233,7 +233,8 @@ run on both control and treated") is a per-table concept
   replicates run under both conditions) is out of scope for this note —
   filed as a follow-up once the unpaired case ships, since it changes the
   random-effects structure (crossed, not purely nested) rather than being
-  a small addition.
+  a small addition. Done in note 14 (#70), as a paired t test on the replicate
+  means.
 
 ## As built
 
@@ -302,5 +303,5 @@ Still different: the paper's P values come from a **paired** t test on
 the replicate means (the same three experiments under both
 conditions); ours are the unpaired nested mixed model. Where days
 differ a lot but the trend is consistent (its panel C) the paired test
-finds the difference and the unpaired one can’t: #70.
+finds the difference and the unpaired one can’t: #70, note 14.
 

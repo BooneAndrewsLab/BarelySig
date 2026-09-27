@@ -373,7 +373,7 @@ describe('SuperPlot graphs of a Nested table (item 13)', () => {
         id: asId('a_nt'),
         title: 'nested t',
         kind: 'nested-t-test',
-        options: { tails: 'two' },
+        options: { tails: 'two', matched: false },
         input: { kind: 'table', table: t.id, dataSets: [ctrl.id, treated.id] },
       },
     });

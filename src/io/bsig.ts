@@ -145,7 +145,7 @@ function optionsJson(a: AnalysisSpec): Json {
     case 't-test':
       return { paired: a.options.paired, welch: a.options.welch, tails: a.options.tails };
     case 'nested-t-test':
-      return { tails: a.options.tails };
+      return { tails: a.options.tails, matched: a.options.matched };
     case 'rank-test':
       return { paired: a.options.paired, tails: a.options.tails, zeros: a.options.zeros };
     case 'one-way-anova':
@@ -446,7 +446,10 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       const tailsPath: Path = q.key('tails');
       const tails = str(opts['tails'], tailsPath);
       if (tails !== 'one' && tails !== 'two') tailsPath.fail('should be "one" or "two"');
-      const options: NestedTTestOptions = { tails };
+      // Files from before note 14 have no `matched`: their tests were unmatched.
+      const matched =
+        opts['matched'] === undefined ? false : bool(opts['matched'], q.key('matched'));
+      const options: NestedTTestOptions = { tails, matched };
       return { kind, options };
     }
     case 'one-way-anova': {

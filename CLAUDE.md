@@ -363,6 +363,16 @@ the target).
   can't tell from a malformed index), and `ResultsSection.tsx`'s
   per-kind view is a plain conditional chain, not an exhaustive switch,
   so a missing case compiled clean and rendered nothing.
+- SuperPlot redrawn against Lord et al. 2020, Fig. 1 "Even better"
+  (note 13, as revised): replicates coloured *and* shaped, small pale
+  cells, large replicate means on top of mean ± SEM of the replicate
+  means, beeswarmed apart. Matched replicates (note 14, #70): the nested
+  t test's "Matched" option is a paired t test on the replicate means
+  (the paper's test); a REML model with a random experiment effect was
+  far too conservative in simulation (`scripts/sim/nested-calibration.R`).
+  Split out: #71 (matched nested ANOVA, after #50), #72 (the unmatched
+  REML test is conservative when replicates hardly differ — Prism's
+  method; needs the user's decision).
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
@@ -456,6 +466,11 @@ the target).
   `<img>` is decoded on the main thread too (0.6 s); only a raster picture
   painted in a worker took it all off the page (note 11). Time it in a
   production build (dev renders twice under StrictMode).
+- **Simulate a test's false-positive rate before choosing it:** a REML
+  mixed model looked like the principled matched nested test and equals
+  the paired t on means on textbook data, but said P < 0.05 in 0–2% of
+  null experiments with three replicates (note 14). Twenty lines of R
+  settled what an argument couldn't.
 - **Text a user reads about statistics is part of correctness:** P shown
   as Prism does and never contradicting its asterisks, "in either
   direction" for two-tailed, the one-tailed caveat, "no evidence of a

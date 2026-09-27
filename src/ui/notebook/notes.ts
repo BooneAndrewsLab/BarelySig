@@ -137,8 +137,15 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           kicker,
           title,
           text: [
-            'Fits a model where each biological replicate contributes its own mean, then asks whether the two groups differ more than the replicates within each group would explain by chance.',
-            'A replicate run more times counts for more, but not simply by averaging it in equally: replicates with fewer values still count, just less.',
+            ...(o.matched
+              ? [
+                  'Each replicate is the same experiment in both groups, so it compares the groups within each experiment: a paired t test on the replicate means.',
+                  'A day when everything read high doesn’t hide the effect, as long as the difference goes the same way every time. A replicate with values in only one group is left out.',
+                ]
+              : [
+                  'Fits a model where each biological replicate contributes its own mean, then asks whether the two groups differ more than the replicates within each group would explain by chance.',
+                  'A replicate run more times counts for more, but not simply by averaging it in equally: replicates with fewer values still count, just less.',
+                ]),
             ...(o.tails === 'one' ? [ONE_TAILED] : []),
             NS,
           ],

@@ -1,13 +1,15 @@
 /**
  * Nested t test (item 13, #66): a REML mixed model over a Nested table's
- * groups and their biological replicates.
+ * groups and their biological replicates; or, matched (note 14, #70), a
+ * paired t test on the replicate means.
  */
 import type { EngineJob } from '@/engine/engine';
 import type { Plain } from '@/engine/convert';
-import { type RawGroupData, nestedGroups } from '@/model/selectors';
+import { type NestedGroup, type RawGroupData, nestedGroups } from '@/model/selectors';
+import type { NestedTable } from '@/model/table';
 
 import type { AnalysisModule, Prepared } from '../module';
-import { need, object } from '../values';
+import { need, num, object } from '../values';
 import code from './analysis.R?raw';
 import type { NestedGroupData, NestedTTestRequest, NestedTTestResult } from './types';
 
@@ -23,6 +25,29 @@ function usable(replicates: readonly RawGroupData[]): {
     data: { replicates: kept.map((r) => r.values) },
     dropped: replicates.length - kept.length,
   };
+}
+
+/**
+ * Matched replicates (note 14): replicate n is the same experiment in both groups, so a
+ * replicate is used only when it has values in both — as a paired test drops a row with a
+ * missing value on either side. Empty in both: dropped and counted; in one only: unmatched.
+ */
+function matchedPairs(table: NestedTable, ga: NestedGroup, gb: NestedGroup) {
+  const a: (readonly number[])[] = [];
+  const b: (readonly number[])[] = [];
+  const unmatched: string[] = [];
+  let dropped = 0;
+  ga.replicates.forEach((ra, i) => {
+    const va = ra.values;
+    const vb = gb.replicates[i]?.values ?? [];
+    if (va.length > 0 && vb.length > 0) {
+      a.push(va);
+      b.push(vb);
+    } else if (va.length > 0 || vb.length > 0) {
+      unmatched.push(table.replicateTitles?.[i] ?? `Replicate ${String(i + 1)}`);
+    } else dropped += 1;
+  });
+  return { a: { replicates: a }, b: { replicates: b }, unmatched, dropped };
 }
 
 export const nestedTTest: AnalysisModule<'nested-t-test', NestedTTestRequest, NestedTTestResult> = {
@@ -53,6 +78,29 @@ export const nestedTTest: AnalysisModule<'nested-t-test', NestedTTestRequest, Ne
     }
     const [ga, gb] = nestedGroups(table, ids);
     if (!ga || !gb) return { ok: false, reason: 'Choose two groups.' };
+    if (options.matched) {
+      const m = matchedPairs(table, ga, gb);
+      if (m.a.replicates.length < 2) {
+        const left = m.unmatched.length
+          ? ` (${m.unmatched.join(', ')} ${m.unmatched.length === 1 ? 'has' : 'have'} values in one group only)`
+          : '';
+        return {
+          ok: false,
+          reason: `A matched nested t test needs at least two replicates with values in both groups; there ${m.a.replicates.length === 1 ? 'is' : 'are'} ${String(m.a.replicates.length)}${left}.`,
+        };
+      }
+      return {
+        ok: true,
+        request: {
+          a: { id: ga.id, title: ga.title },
+          b: { id: gb.id, title: gb.title },
+          options,
+          data: { a: m.a, b: m.b },
+          droppedReplicates: { a: m.dropped, b: m.dropped },
+          unmatched: m.unmatched,
+        },
+      };
+    }
     const a = usable(ga.replicates);
     const b = usable(gb.replicates);
     const short = [
@@ -73,6 +121,7 @@ export const nestedTTest: AnalysisModule<'nested-t-test', NestedTTestRequest, Ne
         options,
         data: { a: a.data, b: b.data },
         droppedReplicates: { a: a.dropped, b: b.dropped },
+        unmatched: [],
       },
     };
   },
@@ -85,14 +134,14 @@ export const nestedTTest: AnalysisModule<'nested-t-test', NestedTTestRequest, Ne
     const a = flat(request.data.a);
     const b = flat(request.data.b);
     return {
-      code: `${code}\nbs_nested_ttest(a_value, a_replicate, b_value, b_replicate)`,
+      code: `${code}\n${request.options.matched ? 'bs_nested_ttest_matched' : 'bs_nested_ttest'}(a_value, a_replicate, b_value, b_replicate)`,
       inputs: {
         a_value: a.value,
         a_replicate: a.replicate,
         b_value: b.value,
         b_replicate: b.replicate,
       },
-      packages: ['nlme'],
+      packages: request.options.matched ? [] : ['nlme'],
     };
   },
 
@@ -106,7 +155,7 @@ export const nestedTTest: AnalysisModule<'nested-t-test', NestedTTestRequest, Ne
       nValues: need(r[`n_values_${k}`], 'values'),
       mean: need(r[`mean_${k}`], 'mean'),
     });
-    return {
+    const common = {
       tails: request.options.tails,
       a: group('a'),
       b: group('b'),
@@ -119,10 +168,24 @@ export const nestedTTest: AnalysisModule<'nested-t-test', NestedTTestRequest, Ne
       seDifference: need(r['se_difference'], 'SE'),
       ciLower: need(r['ci_lower'], 'CI'),
       ciUpper: need(r['ci_upper'], 'CI'),
-      betweenReplicateSd: need(r['between_replicate_sd'], 'between-replicate SD'),
-      withinReplicateSd: need(r['within_replicate_sd'], 'within-replicate SD'),
       droppedReplicates: request.droppedReplicates,
       warnings: [...warnings],
+    };
+    if (request.options.matched) {
+      return {
+        ...common,
+        design: 'matched',
+        sdDifference: need(r['sd_difference'], 'SD of differences'),
+        pairingR: num(r['pairing_r']),
+        pairingP: num(r['pairing_p']),
+        unmatched: request.unmatched,
+      };
+    }
+    return {
+      ...common,
+      design: 'nested',
+      betweenReplicateSd: need(r['between_replicate_sd'], 'between-replicate SD'),
+      withinReplicateSd: need(r['within_replicate_sd'], 'within-replicate SD'),
     };
   },
 };

@@ -21,6 +21,7 @@ import {
   type KruskalWallisOptions,
   type NestedComparisons,
   type NestedOneWayOptions,
+  type NestedTTestOptions,
   type OneWayOptions,
   type RankTestOptions,
   TWO_WAY_FAMILIES,
@@ -245,6 +246,53 @@ function TTestFields(props: {
           </p>
         </fieldset>
       )}
+      <TailsChoice
+        tails={o.tails}
+        onChange={(tails) => {
+          set({ ...o, tails });
+        }}
+      />
+    </>
+  );
+}
+
+/** A nested t test: separate or matched replicates (note 14), and tails. */
+function NestedTTestFields(props: {
+  readonly o: NestedTTestOptions;
+  /** What the first replicate is called, e.g. "Day 1". */
+  readonly first: string;
+  readonly set: (o: NestedTTestOptions) => void;
+}) {
+  const { o, set } = props;
+  return (
+    <>
+      <fieldset>
+        <legend>How were the replicates run?</legend>
+        <Radio
+          name="matched"
+          checked={!o.matched}
+          onPick={() => {
+            set({ ...o, matched: false });
+          }}
+        >
+          Separately: each group’s replicates are different experiments
+        </Radio>
+        <Radio
+          name="matched"
+          checked={o.matched}
+          onPick={() => {
+            set({ ...o, matched: true });
+          }}
+        >
+          Matched: “{props.first}” is the same experiment in both groups (same day, same batch of
+          cells)
+        </Radio>
+        <p className="hint">
+          {o.matched
+            ? 'A paired t test on the replicate means, as in the SuperPlots paper (Lord et al. 2020). A replicate with values in only one group is left out.'
+            : 'A mixed model, as Prism’s nested t test: it weighs each replicate by how many values it has.'}
+        </p>
+      </fieldset>
       <TailsChoice
         tails={o.tails}
         onChange={(tails) => {
@@ -756,14 +804,16 @@ function Chooser(props: {
   const [answers, setAnswers] = useState<ChooserAnswers>({ matched: null, gaussian: null });
   const { table } = props;
   const sizes = props.picked.map((id) => {
+    if (table.type === 'nested') return 1;
     if (table.type !== 'column') return 0;
     const g = columnGroup(table, id);
     return g.kind === 'raw' ? g.values.length : (g.n ?? 0);
   });
   const context = { tableType: table.type, summary: table.format.kind === 'summary', sizes };
   const s = suggest(answers, context);
-  const asksMatched = table.type === 'column' && !context.summary && sizes.length >= 2;
-  const asksGaussian = asksMatched && !(answers.matched === true && sizes.length > 2);
+  const nested = table.type === 'nested';
+  const asksMatched = (table.type === 'column' || nested) && !context.summary && sizes.length >= 2;
+  const asksGaussian = asksMatched && !nested && !(answers.matched === true && sizes.length > 2);
   return (
     <fieldset className="chooser">
       <legend>Which test?</legend>
@@ -772,7 +822,32 @@ function Chooser(props: {
           ? 'A Grouped table: two factors, the rows and the data sets.'
           : `${String(sizes.length)} ${sizes.length === 1 ? 'group' : 'groups'} chosen below${context.summary ? ', entered as summary data (mean, SD, n)' : ''}.`}
       </p>
-      {asksMatched && (
+      {asksMatched && nested && (
+        <div role="radiogroup" aria-label="Same experiments in every group?">
+          <p className="question">
+            Is “{table.replicateTitles?.[0] ?? 'Replicate 1'}” the same experiment in every group?
+          </p>
+          <Radio
+            name="matched"
+            checked={answers.matched === false}
+            onPick={() => {
+              setAnswers({ ...answers, matched: false });
+            }}
+          >
+            No: each group’s replicates were run separately
+          </Radio>
+          <Radio
+            name="matched"
+            checked={answers.matched === true}
+            onPick={() => {
+              setAnswers({ ...answers, matched: true });
+            }}
+          >
+            Yes: each replicate ran every group side by side (same day, same batch of cells)
+          </Radio>
+        </div>
+      )}
+      {asksMatched && !nested && (
         <div role="radiogroup" aria-label="Same subjects in every group?">
           <p className="question">Are the same subjects in every group?</p>
           <Radio
@@ -1091,10 +1166,11 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           />
         )}
         {!choosing && kind === 'nested-t-test' && (
-          <TailsChoice
-            tails={options['nested-t-test'].tails}
-            onChange={(tails) => {
-              set('nested-t-test', { tails });
+          <NestedTTestFields
+            o={options['nested-t-test']}
+            first={(table.type === 'nested' ? table.replicateTitles?.[0] : null) ?? 'Replicate 1'}
+            set={(o) => {
+              set('nested-t-test', o);
             }}
           />
         )}

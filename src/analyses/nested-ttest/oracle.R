@@ -194,3 +194,136 @@ fixture(
   tolerance = 1e-4,
   note = "Four replicates in A, three in B, all different sizes: the general, realistic case."
 )
+
+# --- matched replicates (note 14, #70) -----------------------------------
+# Replicate n is the same experiment in both groups; the app pairs them
+# (prepare() lines them up) and runs a paired t test on the replicate
+# means, as Lord et al. 2020 compute a SuperPlot's P. The reference is
+# the textbook paired t (mean difference over its standard error, n - 1
+# df) and the textbook test of a Pearson r, from each replicate's own
+# average; `check` holds it to R's t.test(paired = TRUE) and cor.test().
+
+reference_matched <- quote({
+  same <- function(x, y, tol = 1e-9) stopifnot(isTRUE(all.equal(unname(x), unname(y), tolerance = tol)))
+
+  replicate_means <- function(value, replicate) {
+    sapply(sort(unique(replicate)), function(r) sum(value[replicate == r]) / sum(replicate == r))
+  }
+
+  matched <- function(a_value, a_replicate, b_value, b_replicate) {
+    ma <- replicate_means(a_value, a_replicate)
+    mb <- replicate_means(b_value, b_replicate)
+    n <- length(ma)
+    d <- mb - ma
+    sd_d <- sqrt(sum((d - mean(d))^2) / (n - 1))
+    se <- sd_d / sqrt(n)
+    t <- mean(d) / se
+    half <- qt(0.975, n - 1) * se
+    r <- if (n > 2) {
+      sum((ma - mean(ma)) * (mb - mean(mb))) / sqrt(sum((ma - mean(ma))^2) * sum((mb - mean(mb))^2))
+    } else NA_real_
+    list(
+      t = t, df = n - 1, p_two = 2 * pt(-abs(t), n - 1),
+      difference = mean(d), se_difference = se,
+      ci_lower = mean(d) - half, ci_upper = mean(d) + half,
+      mean_a = mean(ma), mean_b = mean(mb),
+      n_rep_a = n, n_rep_b = n,
+      n_values_a = length(a_value), n_values_b = length(b_value),
+      sd_difference = sd_d,
+      pairing_r = r,
+      pairing_p = if (n > 2) pt(r * sqrt((n - 2) / (1 - r^2)), n - 2, lower.tail = FALSE) else NA_real_
+    )
+  }
+})
+
+check_matched <- quote({
+  ma <- as.numeric(tapply(a_value, a_replicate, mean))
+  mb <- as.numeric(tapply(b_value, b_replicate, mean))
+  r <- t.test(mb, ma, paired = TRUE)
+  same(expected$t, r$statistic)
+  same(expected$df, r$parameter)
+  same(expected$p_two, r$p.value)
+  same(c(expected$ci_lower, expected$ci_upper), as.numeric(r$conf.int))
+  if (length(ma) > 2) {
+    ct <- cor.test(ma, mb, alternative = "greater")
+    same(expected$pairing_r, as.numeric(ct$estimate))
+    same(expected$pairing_p, ct$p.value)
+  }
+  TRUE
+})
+
+matched_options <- list(tails = "two", matched = TRUE)
+
+fixture(
+  "matched-consistent-trend",
+  input = list(
+    a_value = c(41.2, 44.0, 39.5, 42.8, 40.1, 31.5, 33.0, 30.2, 32.6, 20.4, 22.1, 19.8, 21.5, 23.0, 20.9),
+    a_replicate = c(1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3),
+    b_value = c(30.1, 31.8, 28.9, 29.5, 22.0, 21.4, 23.3, 12.9, 14.1, 13.5, 12.2),
+    b_replicate = c(1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3)
+  ),
+  expr = matched(a_value, a_replicate, b_value, b_replicate),
+  setup = reference_matched,
+  check = check_matched,
+  options = matched_options,
+  note = "Lord et al. 2020, Fig. 1C in small: the days differ a lot, but Drug is lower on every day. Matching the days finds it; different numbers of cells per replicate."
+)
+
+fixture(
+  "matched-random-run",
+  input = list(
+    a_value = c(41.2, 44.0, 39.5, 31.5, 33.0, 30.2, 20.4, 22.1, 19.8),
+    a_replicate = c(1, 1, 1, 2, 2, 2, 3, 3, 3),
+    b_value = c(22.3, 20.1, 21.8, 13.1, 12.4, 14.0, 29.2, 30.5, 28.8),
+    b_replicate = c(1, 1, 1, 2, 2, 2, 3, 3, 3)
+  ),
+  expr = matched(a_value, a_replicate, b_value, b_replicate),
+  setup = reference_matched,
+  check = check_matched,
+  options = matched_options,
+  note = "Lord et al. 2020, Fig. 1D in small: the difference changes direction from day to day, so matching finds no consistent effect; the pairing correlation is negative."
+)
+
+fixture(
+  "matched-two-replicates",
+  input = list(
+    a_value = c(10.2, 11.0, 10.6, 14.1, 13.7),
+    a_replicate = c(1, 1, 1, 2, 2),
+    b_value = c(12.5, 12.9, 16.8, 17.4, 16.9, 17.0),
+    b_replicate = c(1, 1, 2, 2, 2, 2)
+  ),
+  expr = matched(a_value, a_replicate, b_value, b_replicate),
+  setup = reference_matched,
+  check = check_matched,
+  options = matched_options,
+  note = "Two matched replicates, the fewest possible (df = 1); too few to test whether the matching was effective (no r)."
+)
+
+fixture(
+  "matched-ragged-small-p",
+  input = list(
+    a_value = c(
+      5.01, 5.12, 4.95,
+      7.40, 7.52,
+      6.10, 6.02, 6.21, 5.98,
+      8.30,
+      4.44, 4.52, 4.39,
+      9.05, 9.11
+    ),
+    a_replicate = c(1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 5, 5, 5, 6, 6),
+    b_value = c(
+      15.02, 15.10,
+      17.44, 17.37, 17.51, 17.40,
+      16.12,
+      18.31, 18.25,
+      14.47, 14.40, 14.52,
+      19.08, 19.02, 19.12
+    ),
+    b_replicate = c(1, 1, 2, 2, 2, 2, 3, 4, 4, 5, 5, 5, 6, 6, 6)
+  ),
+  expr = matched(a_value, a_replicate, b_value, b_replicate),
+  setup = reference_matched,
+  check = check_matched,
+  options = matched_options,
+  note = "Six matched replicates of 1 to 4 values each, and a very consistent difference of about 10: a very small P that must keep its magnitude."
+)

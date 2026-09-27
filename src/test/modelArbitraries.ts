@@ -7,6 +7,7 @@ import {
   type Analysis,
   type AnalysisSpec,
   type Comparisons,
+  type NestedComparisons,
   type Project,
   TWO_WAY_FAMILIES,
   DEFAULT_OPTIONS,
@@ -111,6 +112,24 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
   fc
     .record({ family: fc.constantFrom(...TWO_WAY_FAMILIES), comparisons })
     .map((o): AnalysisSpec => ({ kind: 'two-way-anova', options: { ...o } })),
+  fc
+    .record({ tails, matched: fc.boolean() })
+    .map((o): AnalysisSpec => ({ kind: 'nested-t-test', options: { ...o } })),
+  fc
+    .oneof(
+      fc.constant<NestedComparisons>({ kind: 'none' }),
+      fc.constantFrom(...EQUAL_SD_ALL).map((test): NestedComparisons => ({ kind: 'all', test })),
+      fc
+        .record({
+          control: fc.string({ minLength: 1, maxLength: 6 }).map(asId),
+          test: fc.constantFrom(...EQUAL_SD_CONTROL),
+        })
+        .map((c): NestedComparisons => ({ kind: 'control', control: c.control, test: c.test })),
+    )
+    .map((comparisons): AnalysisSpec => ({
+      kind: 'nested-one-way-anova',
+      options: { comparisons },
+    })),
 );
 
 export type Shape =

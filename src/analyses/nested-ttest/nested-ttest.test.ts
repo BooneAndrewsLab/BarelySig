@@ -38,17 +38,21 @@ function requestFor(f: Fixture): NestedTTestRequest {
   return {
     a: { id: 'a', title: 'A' },
     b: { id: 'b', title: 'B' },
-    options: { tails: 'two' },
+    options: { tails: 'two', matched: f.options?.['matched'] === true },
     data: { a, b },
     droppedReplicates: { a: 0, b: 0 },
+    unmatched: [],
   };
 }
 
 describe('nested t test, against the R oracle', () => {
   const fixtures = loadFixtures('nested-ttest');
 
-  it('covers balanced, unbalanced, and edge cases', () => {
+  it('covers balanced, unbalanced, and edge cases, separate and matched', () => {
     expect(fixtures.length).toBeGreaterThanOrEqual(5);
+    expect(fixtures.filter((f) => f.options?.['matched'] === true).length).toBeGreaterThanOrEqual(
+      3,
+    );
   });
 
   it.each(fixtures.map((f) => [f.id, f] as const))(
@@ -70,8 +74,12 @@ describe('nested t test, against the R oracle', () => {
       ]);
       expect(r.a.nReplicates).toBe(raw['n_rep_a']);
       expect(r.b.nReplicates).toBe(raw['n_rep_b']);
-      expect(r.betweenReplicateSd).toBe(raw['between_replicate_sd']);
-      expect(r.withinReplicateSd).toBe(raw['within_replicate_sd']);
+      if (r.design === 'matched') {
+        expect(r.sdDifference).toBe(raw['sd_difference']);
+      } else {
+        expect(r.betweenReplicateSd).toBe(raw['between_replicate_sd']);
+        expect(r.withinReplicateSd).toBe(raw['within_replicate_sd']);
+      }
     },
     60_000,
   );
@@ -93,11 +101,28 @@ describe('what R refuses, in plain words', () => {
       await refusal({
         a: { id: 'a', title: 'A' },
         b: { id: 'b', title: 'B' },
-        options: { tails: 'two' },
+        options: { tails: 'two', matched: false },
         data: { a: { replicates: [[1, 2]] }, b: { replicates: [[3, 4], [5]] } },
         droppedReplicates: { a: 0, b: 0 },
+        unmatched: [],
       }),
     ).toMatch(/^Each group needs at least two replicates/);
+  }, 60_000);
+
+  it('matched: needs the differences to vary', async () => {
+    expect(
+      await refusal({
+        a: { id: 'a', title: 'A' },
+        b: { id: 'b', title: 'B' },
+        options: { tails: 'two', matched: true },
+        data: {
+          a: { replicates: [[1, 2], [5], [9, 11]] },
+          b: { replicates: [[3, 4], [7], [12, 12]] },
+        },
+        droppedReplicates: { a: 0, b: 0 },
+        unmatched: [],
+      }),
+    ).toMatch(/^Every replicate's mean differs by exactly the same amount/);
   }, 60_000);
 });
 
@@ -131,7 +156,7 @@ describe('prepare', () => {
       id: asId('a_1'),
       title: 'nested t',
       kind: 'nested-t-test',
-      options: { tails: 'two', ...options },
+      options: { tails: 'two', matched: false, ...options },
       input: {
         kind: 'table',
         table: table.id,
@@ -190,6 +215,37 @@ describe('prepare', () => {
     ]);
     expect(nestedTTest.prepare(s.analysis(), s.p)).toMatchObject({
       reason: expect.stringMatching(/G0 has 1 replicate/) as string,
+    });
+  });
+
+  it('matched: pairs replicates by position, leaving out one with values in one group only', () => {
+    const s = setup([
+      [[1, 2], [3, 4], [], [9]],
+      [[5, 6], [], [], [10, 11]],
+    ]);
+    const r = nestedTTest.prepare(s.analysis({ matched: true }), s.p);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.request.data.a.replicates).toEqual([[1, 2], [9]]);
+    expect(r.request.data.b.replicates).toEqual([
+      [5, 6],
+      [10, 11],
+    ]);
+    expect(r.request.unmatched).toEqual(['Replicate 2']);
+    expect(r.request.droppedReplicates).toEqual({ a: 1, b: 1 });
+  });
+
+  it('matched: refuses fewer than two matched replicates, naming the unmatched ones', () => {
+    const s = setup([
+      [
+        [1, 2],
+        [3, 4],
+      ],
+      [[5, 6], []],
+    ]);
+    expect(nestedTTest.prepare(s.analysis({ matched: true }), s.p)).toMatchObject({
+      reason: expect.stringMatching(
+        /there is 1 \(Replicate 2 has values in one group only\)/,
+      ) as string,
     });
   });
 });

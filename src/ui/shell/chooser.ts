@@ -7,7 +7,7 @@ import { DEFAULT_OPTIONS, type UserAnalysisSpec } from '@/model/project';
 import type { TableType } from '@/model/table';
 
 export interface ChooserAnswers {
-  /** Same subjects in every group (each row one subject): paired or matched. */
+  /** Same subjects in every group (each row one subject), or, in a Nested table, the same experiments: paired or matched. */
   readonly matched: boolean | null;
   /** Values from a bell-shaped (Gaussian) distribution: yes, no, or not sure. */
   readonly gaussian: 'yes' | 'no' | 'unsure' | null;
@@ -59,12 +59,30 @@ export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
     };
   }
   if (ctx.tableType === 'nested') {
-    return k === 2
+    // Matched: replicate n is the same experiment in every group (note 14).
+    if (a.matched === null) return { kind: 'ask', question: 'matched' };
+    if (k === 2) {
+      return a.matched
+        ? {
+            kind: 'test',
+            spec: {
+              kind: 'nested-t-test',
+              options: { ...DEFAULT_OPTIONS['nested-t-test'], matched: true },
+            },
+            name: 'Matched nested t test',
+            why: 'Each replicate is the same experiment in both groups, so the test compares the groups within each experiment: a paired t test on the replicate means, as the SuperPlots paper (Lord et al. 2020) does. A day when everything read high then doesn’t hide a difference that goes the same way every time.',
+          }
+        : {
+            kind: 'test',
+            spec: { kind: 'nested-t-test', options: DEFAULT_OPTIONS['nested-t-test'] },
+            name: 'Nested t test',
+            why: 'A Nested table has biological replicates within each group: the nested t test weighs each replicate by how many values it has, rather than treating every individual value as its own independent sample.',
+          };
+    }
+    return a.matched
       ? {
-          kind: 'test',
-          spec: { kind: 'nested-t-test', options: DEFAULT_OPTIONS['nested-t-test'] },
-          name: 'Nested t test',
-          why: 'A Nested table has biological replicates within each group: the nested t test weighs each replicate by how many values it has, rather than treating every individual value as its own independent sample.',
+          kind: 'none',
+          why: 'Three or more groups with matched replicates call for a repeated-measures ANOVA on the replicate means, which BarelySig doesn’t have yet (issues #50, #71). Nested one-way ANOVA ignores the matching; compare two groups at a time with the matched nested t test meanwhile, and account for the number of comparisons.',
         }
       : {
           kind: 'test',

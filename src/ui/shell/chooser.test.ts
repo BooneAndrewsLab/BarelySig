@@ -84,16 +84,28 @@ describe('which test?', () => {
     expect(pick(suggest(ans(null, null), column([5])))).toEqual(['none']);
   });
 
-  it('suggests the nested tests for a Nested table, asking neither matching nor distribution', () => {
-    expect(pick(suggest(ans(null, null), nested([2, 2])))).toEqual([
+  it('asks a Nested table whether the replicates are matched, never about the distribution', () => {
+    expect(suggest(ans(null, null), nested([2, 2]))).toEqual({ kind: 'ask', question: 'matched' });
+    expect(pick(suggest(ans(false, null), nested([2, 2])))).toEqual([
       'nested-t-test',
       'Nested t test',
     ]);
-    expect(pick(suggest(ans(null, null), nested([2, 2, 2])))).toEqual([
+    expect(pick(suggest(ans(false, null), nested([2, 2, 2])))).toEqual([
       'nested-one-way-anova',
       'Nested one-way ANOVA',
     ]);
     expect(pick(suggest(ans(null, null), nested([2])))).toEqual(['none']);
+  });
+
+  it('suggests the matched nested t test for matched replicates, and nothing yet for three groups', () => {
+    const s = suggest(ans(true, null), nested([2, 2]));
+    expect(pick(s)).toEqual(['nested-t-test', 'Matched nested t test']);
+    expect(s.kind === 'test' && s.spec).toEqual({
+      kind: 'nested-t-test',
+      options: { tails: 'two', matched: true },
+    });
+    const three = suggest(ans(true, null), nested([2, 2, 2]));
+    expect(three.kind === 'none' && three.why).toMatch(/#71/);
   });
 
   it('knows when a Mann-Whitney test can reach P < 0.05 (never with 7 values or fewer)', () => {

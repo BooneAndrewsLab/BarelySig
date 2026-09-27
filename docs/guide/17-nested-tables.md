@@ -53,6 +53,40 @@ The results report:
   compared with the within-replicate SD is a sign that which day or
   animal you used matters more than which individual thing you measured.
 
+## Matched replicates: the same experiment in both groups
+
+Often each replicate is **one experiment that ran both groups side by
+side**: on Day 1 you imaged control and drug-treated cells, on Day 2
+again, and so on. Then "Day 1" in Control and "Day 1" in Drug belong
+together, and the fairest comparison is within each day. In the
+Analyze dialog, under **How were the replicates run?**, choose
+**Matched**.
+
+The test is then a **paired t test on the replicate means**, which is
+what the SuperPlots paper (Lord et al. 2020) uses. Days that differ a
+lot from each other stop hiding the effect, as long as the difference
+goes the same way every day. Days that disagree about the direction
+give a large P. Replicates pair up by position: the first replicate of
+one group with the first of the other. A replicate with values in only
+one group has nothing to pair with and is left out, and the results
+list it.
+
+The results report t, df (the number of pairs minus 1) and P; the mean
+of the differences, with its SE and 95% CI; the SD of the differences;
+and, with three or more pairs, whether the matching was effective: how
+closely the replicate means of one group follow those of the other.
+
+Why a test on the replicate means, when the unmatched test fits a
+model? We simulated both. A mixed model with a random experiment
+effect said "P < 0.05" in 0–2% of experiments with no real difference,
+where a good test says it in 5%, so it would miss real effects too.
+The paired t test on the means was right on 5%. It gives every
+replicate the same weight, however many cells it has, so keep those
+numbers similar where you can.
+
+Three or more groups with matched replicates need a repeated-measures
+ANOVA on the replicate means, which BarelySig doesn't have yet.
+
 ## Comparing three or more groups: nested one-way ANOVA
 
 Choose **nested one-way ANOVA** instead of the nested t test when
@@ -92,9 +126,10 @@ Is replicate 1 in Control the _same_ experiment as replicate 1 in
 Treated (same day, same batch of cells)? Then the replicate means pair
 up, and a trend that holds within every experiment shows as the same
 colour moving the same way in every group — even when the days differ
-a lot from each other. (The nested tests don't use that pairing yet:
-they treat the experiments in each group as separate ones, so a
-consistent trend over very different days can still come out "ns".)
+a lot from each other. Choose the **matched** nested t test for such
+data (above): the unmatched test treats the experiments in each group
+as separate ones, so a consistent trend over very different days can
+come out "ns".
 
 Turn the colouring off (or on for an existing graph) in the format
 panel's **Plot** section, "Colour points by biological replicate

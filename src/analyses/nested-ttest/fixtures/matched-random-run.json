@@ -1,0 +1,52 @@
+{
+  "input": {
+    "a_value": [
+      41.200000000000003, 44, 39.5, 31.5, 33, 30.199999999999999, 20.399999999999999,
+      22.100000000000001, 19.800000000000001
+    ],
+    "a_replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+    "b_value": [
+      22.300000000000001, 20.100000000000001, 21.800000000000001, 13.1, 12.4, 14,
+      29.199999999999999, 30.5, 28.800000000000001
+    ],
+    "b_replicate": [1, 1, 1, 2, 2, 2, 3, 3, 3]
+  },
+  "expected": {
+    "t": -1.0632581089078215,
+    "df": 2,
+    "p_two": 0.39906068950603291,
+    "difference": -9.9444444444444446,
+    "se_difference": 9.3528037652676606,
+    "ci_lower": -50.186311095884385,
+    "ci_upper": 30.297422206995499,
+    "mean_a": 31.300000000000001,
+    "mean_b": 21.355555555555554,
+    "n_rep_a": 3,
+    "n_rep_b": 3,
+    "n_values_a": 9,
+    "n_values_b": 9,
+    "sd_difference": 16.199531314665087,
+    "pairing_r": -0.51506876952931191,
+    "pairing_p": 0.67223362082068805
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    same <- function(x, y, tol = 1e-09) stopifnot(isTRUE(all.equal(unname(x), unname(y), \n        tolerance = tol)))\n    replicate_means <- function(value, replicate) {\n        sapply(sort(unique(replicate)), function(r) sum(value[replicate == r])/sum(replicate == \n            r))\n    }\n    matched <- function(a_value, a_replicate, b_value, b_replicate) {\n        ma <- replicate_means(a_value, a_replicate)\n        mb <- replicate_means(b_value, b_replicate)\n        n <- length(ma)\n        d <- mb - ma\n        sd_d <- sqrt(sum((d - mean(d))^2)/(n - 1))\n        se <- sd_d/sqrt(n)\n        t <- mean(d)/se\n        half <- qt(0.975, n - 1) * se\n        r <- if (n > 2) {\n            sum((ma - mean(ma)) * (mb - mean(mb)))/sqrt(sum((ma - mean(ma))^2) * \n                sum((mb - mean(mb))^2))\n        }\n        else NA_real_\n        list(t = t, df = n - 1, p_two = 2 * pt(-abs(t), n - 1), difference = mean(d), \n            se_difference = se, ci_lower = mean(d) - half, ci_upper = mean(d) + half, \n            mean_a = mean(ma), mean_b = mean(mb), n_rep_a = n, n_rep_b = n, n_values_a = length(a_value), \n            n_values_b = length(b_value), sd_difference = sd_d, pairing_r = r, pairing_p = if (n > \n                2) pt(r * sqrt((n - 2)/(1 - r^2)), n - 2, lower.tail = FALSE) else NA_real_)\n    }\n}",
+    "call": "matched(a_value, a_replicate, b_value, b_replicate)",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0"
+      },
+      "code": "{\n    ma <- as.numeric(tapply(a_value, a_replicate, mean))\n    mb <- as.numeric(tapply(b_value, b_replicate, mean))\n    r <- t.test(mb, ma, paired = TRUE)\n    same(expected$t, r$statistic)\n    same(expected$df, r$parameter)\n    same(expected$p_two, r$p.value)\n    same(c(expected$ci_lower, expected$ci_upper), as.numeric(r$conf.int))\n    if (length(ma) > 2) {\n        ct <- cor.test(ma, mb, alternative = \"greater\")\n        same(expected$pairing_r, as.numeric(ct$estimate))\n        same(expected$pairing_p, ct$p.value)\n    }\n    TRUE\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Lord et al. 2020, Fig. 1D in small: the difference changes direction from day to day, so matching finds no consistent effect; the pairing correlation is negative.",
+  "options": {
+    "tails": "two",
+    "matched": true
+  }
+}

@@ -19,3 +19,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 11 | [Drawing graphs off the main thread](11-graph-worker.md) | #62 |
 | 12 | [Group labels that would overlap](12-label-overlap.md) | #61 |
 | 13 | [Nested tables and SuperPlots](13-nested-tables-superplots.md) | #63–#69 |
+| 14 | [Matched replicates in a Nested table](14-matched-nested.md) | #70 |
