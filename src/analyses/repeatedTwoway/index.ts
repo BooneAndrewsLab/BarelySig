@@ -1,16 +1,21 @@
 /**
  * Repeated-measures two-way ANOVA, one factor repeated (item 22, #81),
- * from a Grouped table's replicates.
+ * from a Grouped table's replicates, and its comparisons (item 24, #85).
  */
 import type { EngineJob } from '@/engine/engine';
 import type { Plain } from '@/engine/convert';
 import { groupedMatchedSubjects } from '@/model/selectors';
 
 import type { AnalysisModule, Prepared } from '../module';
+import onewayCode from '../oneway/analysis.R?raw';
+import type { PairComparison } from '../oneway/types';
 import type { Named } from '../ttest/types';
-import { need, object } from '../values';
-import code from './analysis.R?raw';
+import { need, num, object } from '../values';
+import ownCode from './analysis.R?raw';
 import type { RepeatedTwoWayRequest, RepeatedTwoWayResult, RepeatedTwoWayTerm } from './types';
+
+/** The one-way code carries the comparison tests (`bs_comparisons`) this file uses. */
+const code = `${onewayCode}\n${ownCode}`;
 
 function plain(v: Plain | undefined, what: string): { ss: number; df: number; ms: number } {
   const o = object(v ?? null, what);
@@ -108,6 +113,22 @@ export const repeatedTwoway: AnalysisModule<
           'Repeated-measures two-way ANOVA needs more complete subjects than levels of the between-subjects factor.',
       };
     }
+    // Whichever levels the chosen family compares (note 24): between-subjects
+    // levels for `main-between`/`simple`, repeated levels for `main-repeated`.
+    const betweenNamed = options.repeatedFactor === 'column' ? rows : columns;
+    const repeatedNamed = options.repeatedFactor === 'column' ? columns : rows;
+    const c = options.comparisons;
+    let control: number | null = null;
+    if (c.kind === 'control') {
+      const controlNamed = options.family === 'main-repeated' ? repeatedNamed : betweenNamed;
+      control = controlNamed.findIndex((n) => n.id === c.control);
+      if (control < 0) {
+        return {
+          ok: false,
+          reason: 'The control level isn’t among the levels compared. Choose it again.',
+        };
+      }
+    }
     return {
       ok: true,
       request: {
@@ -116,6 +137,7 @@ export const repeatedTwoway: AnalysisModule<
         options,
         subjects: matched.subjects,
         droppedSubjects: matched.droppedSubjects,
+        control,
       },
     };
   },
@@ -124,14 +146,19 @@ export const repeatedTwoway: AnalysisModule<
     const { subjects, options } = request;
     const p = options.repeatedFactor === 'column' ? request.rows.length : request.columns.length;
     const q = options.repeatedFactor === 'column' ? request.columns.length : request.rows.length;
+    const c = options.comparisons;
     return {
-      code: `${code}\nbs_repeated_twoway(y, level, n, p, q)`,
+      code: `${code}\nbs_repeated_twoway(y, level, n, p, q, family, comps, control, test)`,
       inputs: {
         y: subjects.flatMap((s) => s.values),
         level: subjects.map((s) => s.level + 1),
         n: subjects.length,
         p,
         q,
+        family: options.family,
+        comps: c.kind,
+        control: (request.control ?? 0) + 1,
+        test: c.kind === 'none' ? 'tukey' : c.test,
       },
       packages: [],
     };
@@ -139,10 +166,41 @@ export const repeatedTwoway: AnalysisModule<
 
   parse(value: Plain, request, warnings): RepeatedTwoWayResult {
     const r = object(value, 'repeated-measures two-way ANOVA');
+    const { options } = request;
+    // Whichever levels the chosen family compares (note 24): see `prepare` above.
+    const betweenNamed = options.repeatedFactor === 'column' ? request.rows : request.columns;
+    const repeatedNamed = options.repeatedFactor === 'column' ? request.columns : request.rows;
+    const comparedNamed = options.family === 'main-repeated' ? repeatedNamed : betweenNamed;
+    const group = (i: Plain | undefined): Named => {
+      const g = comparedNamed[need(i, 'group') - 1];
+      if (!g) throw new Error('repeated-measures two-way ANOVA: comparison of an unknown level');
+      return g;
+    };
+    const families = (Array.isArray(r['families']) ? r['families'] : []).map((v) => {
+      const f = object(v, 'family');
+      const level = num(f['level']);
+      const lvl = level !== null ? (repeatedNamed[level - 1] ?? null) : null;
+      const pairs: PairComparison[] = (Array.isArray(f['pairs']) ? f['pairs'] : []).map((pv) => {
+        const c = object(pv, 'comparison');
+        return {
+          a: group(c['i']),
+          b: group(c['j']),
+          diff: need(c['diff'], 'difference'),
+          se: need(c['se'], 'SE'),
+          df: need(c['df'], 'df'),
+          statistic: need(c['statistic'], 'statistic'),
+          ciLower: need(c['ci_lower'], 'CI'),
+          ciUpper: need(c['ci_upper'], 'CI'),
+          p: need(c['p'], 'P'),
+        };
+      });
+      return { label: lvl?.title ?? null, level: lvl, pairs };
+    });
     return {
       rows: request.rows,
       columns: request.columns,
       options: request.options,
+      families,
       betweenLevels: need(r['p'], 'p'),
       repeatedLevels: need(r['q'], 'q'),
       n: need(r['n'], 'n'),

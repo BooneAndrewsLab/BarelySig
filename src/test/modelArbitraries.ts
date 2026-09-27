@@ -9,6 +9,7 @@ import {
   type Comparisons,
   type NestedComparisons,
   type Project,
+  REPEATED_TWO_WAY_FAMILIES,
   TWO_WAY_FAMILIES,
   DEFAULT_OPTIONS,
   EQUAL_SD_ALL,
@@ -129,7 +130,11 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     .record({ family: fc.constantFrom(...TWO_WAY_FAMILIES), comparisons })
     .map((o): AnalysisSpec => ({ kind: 'two-way-anova', options: { ...o } })),
   fc
-    .record({ repeatedFactor: fc.constantFrom('row' as const, 'column' as const) })
+    .record({
+      repeatedFactor: fc.constantFrom('row' as const, 'column' as const),
+      family: fc.constantFrom(...REPEATED_TWO_WAY_FAMILIES),
+      comparisons: nestedComparisonsArb,
+    })
     .map((o): AnalysisSpec => ({ kind: 'repeated-two-way-anova', options: { ...o } })),
   fc.constant<AnalysisSpec>({
     kind: 'repeated-two-way-anova-both',

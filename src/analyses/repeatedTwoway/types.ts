@@ -1,9 +1,10 @@
 /**
- * Repeated-measures two-way ANOVA, one factor repeated (item 22, #81):
- * request and result.
+ * Repeated-measures two-way ANOVA, one factor repeated (item 22, #81),
+ * and its comparisons (item 24, #85): request and result.
  */
 import type { RepeatedTwoWayOptions } from '@/model/project';
 
+import type { PairComparison } from '../oneway/types';
 import type { Named } from '../ttest/types';
 
 export interface RepeatedTwoWayRequest {
@@ -15,6 +16,12 @@ export interface RepeatedTwoWayRequest {
   /** One entry per kept subject: its between-level index (0-based) and its values, repeated-level order. */
   readonly subjects: readonly { readonly level: number; readonly values: readonly number[] }[];
   readonly droppedSubjects: number;
+  /**
+   * The control's position (0-based) among whichever levels the chosen
+   * family compares (between-subjects levels for `main-between` and
+   * `simple`, repeated levels for `main-repeated`); null otherwise.
+   */
+  readonly control: number | null;
 }
 
 /** SS/df/MS, and F/P where the term is tested (the descriptive `subjects` term has neither). */
@@ -53,5 +60,17 @@ export interface RepeatedTwoWayResult {
   readonly repeatedHfP: number;
   readonly interactionGgP: number;
   readonly interactionHfP: number;
+  /**
+   * Comparisons (item 24, #85): one family for `main-between`/
+   * `main-repeated` (`level` null, no natural level to group by, same as
+   * `TwoWayResult`'s `main-columns`/`main-rows`), one per repeated level
+   * for `simple` (`level` names it). Empty when `options.comparisons.kind`
+   * is `'none'`.
+   */
+  readonly families: readonly {
+    readonly label: string | null;
+    readonly level: Named | null;
+    readonly pairs: readonly PairComparison[];
+  }[];
   readonly warnings: readonly string[];
 }

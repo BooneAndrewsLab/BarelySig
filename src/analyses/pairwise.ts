@@ -16,6 +16,7 @@ import type { NestedTTestResult } from './nested-ttest/types';
 import type { OneWayResult } from './oneway/types';
 import type { RankTestResult } from './ranktest/types';
 import type { RepeatedMeasuresResult } from './repeated/types';
+import type { RepeatedTwoWayResult } from './repeatedTwoway/types';
 import type { TTestResult } from './ttest/types';
 import type { TwoWayResult } from './twoway/types';
 
@@ -42,6 +43,7 @@ export const BRACKET_KINDS: ReadonlySet<AnalysisKind> = new Set<AnalysisKind>([
   'kruskal-wallis',
   'two-way-anova',
   'repeated-measures-anova',
+  'repeated-two-way-anova',
   'friedman',
 ]);
 
@@ -125,13 +127,26 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
       }
       break;
     }
+    case 'repeated-two-way-anova': {
+      const table = project?.tables.get(analysis.input.table);
+      if (!table || analysis.options.family !== 'simple') return [];
+      const rows = table.rows.map((r) => r.id as string);
+      const c = analysis.options.comparisons;
+      const pair = (a: string, b: string): Pair => ({ key: pairKey(analysis.id, a, b), a, b });
+      // `simple`'s families are between-subjects levels within one
+      // repeated level: the same cell-id shape two-way's own
+      // `within-rows`/`within-columns` already use (note 24).
+      return analysis.options.repeatedFactor === 'column'
+        ? ids.flatMap((d) => among(rows, c).map(([a, b]) => pair(cellId(a, d), cellId(b, d))))
+        : rows.flatMap((r) => among(ids, c).map(([a, b]) => pair(cellId(r, a), cellId(r, b))));
+    }
     case 'descriptive':
     case 'normality':
     case 'paired-normality':
     case 'graph-summary':
-    case 'repeated-two-way-anova':
     case 'repeated-two-way-anova-both':
-      // No comparisons yet (design notes 22 and 23's follow-up issues).
+      // No comparisons yet (design note 23's follow-up issue); both-factors-
+      // repeated has no between-subjects stratum, a different problem.
       return [];
   }
 }
@@ -186,11 +201,24 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
         }),
       );
     }
+    case 'repeated-two-way-anova': {
+      const r = value as unknown as RepeatedTwoWayResult;
+      const o = r.options;
+      if (o.family !== 'simple') return [];
+      return r.families.flatMap((f): Comparison[] => {
+        const lvl = f.level;
+        if (!lvl) return [];
+        return f.pairs.map((c) => {
+          const a = o.repeatedFactor === 'column' ? cellId(c.a.id, lvl.id) : cellId(lvl.id, c.a.id);
+          const b = o.repeatedFactor === 'column' ? cellId(c.b.id, lvl.id) : cellId(lvl.id, c.b.id);
+          return { key: pairKey(analysis.id, a, b), a, b, p: c.p };
+        });
+      });
+    }
     case 'descriptive':
     case 'normality':
     case 'paired-normality':
     case 'graph-summary':
-    case 'repeated-two-way-anova':
     case 'repeated-two-way-anova-both':
       return [];
   }

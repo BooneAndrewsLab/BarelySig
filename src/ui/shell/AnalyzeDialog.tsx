@@ -23,6 +23,8 @@ import {
   type NestedTTestOptions,
   type OneWayOptions,
   type RankTestOptions,
+  REPEATED_TWO_WAY_FAMILIES,
+  type RepeatedTwoWayFamily,
   type RepeatedTwoWayOptions,
   TWO_WAY_FAMILIES,
   type TTestOptions,
@@ -750,33 +752,146 @@ const FAMILY_LABEL: Readonly<Record<TwoWayFamily, string>> = {
   'all-cells': 'Compare every cell with every other cell',
 };
 
+const REPEATED_TWO_WAY_FAMILY_LABEL: Readonly<Record<RepeatedTwoWayFamily, string>> = {
+  'main-between':
+    'Compare the between-subjects groups, averaged over the repeated levels (main effect)',
+  'main-repeated':
+    'Compare the repeated levels, averaged over the between-subjects groups (main effect)',
+  simple: 'Within each repeated level, compare the between-subjects groups (simple effects)',
+};
+
 function RepeatedTwoWayFields(props: {
   readonly o: RepeatedTwoWayOptions;
+  readonly columns: readonly { readonly id: Id; readonly title: string }[];
+  readonly rows: readonly { readonly id: Id; readonly title: string }[];
   readonly set: (o: RepeatedTwoWayOptions) => void;
 }) {
   const { o, set } = props;
+  const c = o.comparisons;
+  const between = o.repeatedFactor === 'column' ? props.rows : props.columns;
+  const repeated = o.repeatedFactor === 'column' ? props.columns : props.rows;
+  const levels = o.family === 'main-repeated' ? repeated : between;
+  const first = levels[0]?.id ?? ('' as Id);
+  const tests: readonly (AllPairsTest | ControlTest)[] =
+    c.kind === 'control' ? EQUAL_SD_CONTROL : EQUAL_SD_ALL;
   return (
-    <fieldset>
-      <legend>Which factor is repeated</legend>
-      <Radio
-        name="repeated-factor"
-        checked={o.repeatedFactor === 'column'}
-        onPick={() => {
-          set({ repeatedFactor: 'column' });
-        }}
-      >
-        The data sets — matched by subcolumn within each row
-      </Radio>
-      <Radio
-        name="repeated-factor"
-        checked={o.repeatedFactor === 'row'}
-        onPick={() => {
-          set({ repeatedFactor: 'row' });
-        }}
-      >
-        The rows — matched by subcolumn within each data set
-      </Radio>
-    </fieldset>
+    <>
+      <fieldset>
+        <legend>Which factor is repeated</legend>
+        <Radio
+          name="repeated-factor"
+          checked={o.repeatedFactor === 'column'}
+          onPick={() => {
+            set({ ...o, repeatedFactor: 'column' });
+          }}
+        >
+          The data sets — matched by subcolumn within each row
+        </Radio>
+        <Radio
+          name="repeated-factor"
+          checked={o.repeatedFactor === 'row'}
+          onPick={() => {
+            set({ ...o, repeatedFactor: 'row' });
+          }}
+        >
+          The rows — matched by subcolumn within each data set
+        </Radio>
+      </fieldset>
+      <fieldset>
+        <legend>Multiple comparisons</legend>
+        <Radio
+          name="repeated-compare"
+          checked={c.kind === 'none'}
+          onPick={() => {
+            set({ ...o, comparisons: { kind: 'none' } });
+          }}
+        >
+          Only the ANOVA table
+        </Radio>
+        {REPEATED_TWO_WAY_FAMILIES.map((fam) => (
+          <Radio
+            key={fam}
+            name="repeated-compare"
+            checked={c.kind !== 'none' && o.family === fam}
+            onPick={() => {
+              const control = c.kind === 'control';
+              const lv = fam === 'main-repeated' ? repeated : between;
+              set({
+                ...o,
+                family: fam,
+                comparisons: control
+                  ? { kind: 'control', control: lv[0]?.id ?? ('' as Id), test: 'dunnett' }
+                  : { kind: 'all', test: c.kind === 'all' ? c.test : 'tukey' },
+              });
+            }}
+          >
+            {REPEATED_TWO_WAY_FAMILY_LABEL[fam]}
+          </Radio>
+        ))}
+        {c.kind !== 'none' && (
+          <>
+            <label className="option">
+              <select
+                aria-label="Which pairs"
+                value={c.kind === 'control' ? 'control' : 'all'}
+                onChange={(e) => {
+                  set({
+                    ...o,
+                    comparisons:
+                      e.currentTarget.value === 'control'
+                        ? { kind: 'control', control: first, test: 'dunnett' }
+                        : { kind: 'all', test: 'tukey' },
+                  });
+                }}
+              >
+                <option value="all">Every pair</option>
+                <option value="control">Each against a control</option>
+              </select>
+            </label>
+            {c.kind === 'control' && (
+              <label className="option">
+                Control{' '}
+                <select
+                  value={c.control}
+                  onChange={(e) => {
+                    set({ ...o, comparisons: { ...c, control: e.currentTarget.value as Id } });
+                  }}
+                >
+                  {levels.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.title || '(untitled)'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="option">
+              Test{' '}
+              <select
+                aria-label="Multiple comparisons test"
+                value={c.test}
+                onChange={(e) => {
+                  const test = e.currentTarget.value;
+                  set({
+                    ...o,
+                    comparisons:
+                      c.kind === 'all'
+                        ? { kind: 'all', test: test as (typeof EQUAL_SD_ALL)[number] }
+                        : { ...c, test: test as (typeof EQUAL_SD_CONTROL)[number] },
+                  });
+                }}
+              >
+                {tests.map((t) => (
+                  <option key={t} value={t}>
+                    {TEST_LABEL[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+      </fieldset>
+    </>
   );
 }
 
@@ -1304,6 +1419,11 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
           {kind === 'repeated-two-way-anova' && (
             <RepeatedTwoWayFields
               o={options['repeated-two-way-anova']}
+              columns={table.dataSets.filter((d) => picked.includes(d.id))}
+              rows={table.rows.map((r, i) => ({
+                id: r.id,
+                title: r.title ?? `Row ${String(i + 1)}`,
+              }))}
               set={(o) => {
                 set('repeated-two-way-anova', o);
               }}

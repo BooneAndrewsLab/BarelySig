@@ -26,8 +26,7 @@ of [two-way ANOVA](09-two-way-anova.md).
 ## Running it
 
 Click **Analyze…**, then **Repeated-measures two-way ANOVA**, tick the
-data sets, and choose which factor is repeated. There are no multiple
-comparisons yet — only the ANOVA table.
+data sets, and choose which factor is repeated.
 
 The results give three tested terms:
 
@@ -43,3 +42,26 @@ The results give three tested terms:
 A fourth row, **subjects**, is descriptive only (it's the error term
 the between-subjects factor is tested against) — Prism doesn't report a
 P for it either.
+
+## Multiple comparisons
+
+Three families to choose from, each compared against its own error
+term — a comparison from one family and a comparison from another can
+legitimately disagree, even for the same two groups, because they use
+different error terms:
+
+- **Compare the between-subjects groups** (averaged over the repeated
+  levels): uses the between-subjects error (subjects within groups),
+  the same error the ANOVA's own between-subjects F test uses.
+- **Compare the repeated levels** (averaged over the between-subjects
+  groups): uses the pooled within-subject error, assuming sphericity —
+  the same assumption the ANOVA's own repeated-factor test makes.
+- **Within each repeated level, compare the between-subjects groups**
+  (simple effects): uses the split-plot's combined error term (part
+  between-subjects, part within-subject), the classical formula for
+  this exact comparison, with its own (usually fractional) degrees of
+  freedom.
+
+Every family offers Tukey, Dunnett (against a control), Šidák or
+Bonferroni, and reports the _adjusted_ P — never a raw one — with the
+test named alongside it.

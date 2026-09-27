@@ -9,12 +9,50 @@
 # Greenhouse-Geisser/Huynh-Feldt epsilon (shared by the repeated main
 # effect and the interaction, both within-subject terms) comes from base
 # R's own `stats:::sphericity()`, exactly as `repeated/analysis.R`
-# already uses it for the one-way case. No comparisons yet (a follow-up
-# issue). `stop("bs: ...")` messages are shown to the user as written.
+# already uses it for the one-way case. Comparisons (item 24, #85) are
+# the equal-SD family (`bs_comparisons`, loaded with this file from
+# oneway/analysis.R), one of three families each against its own error
+# term: `main-between` (MS(subjects) / q, the between-subjects stratum
+# scaled back down since a subject's own mean is itself a mean of q
+# values), `main-repeated` (MS(residual), pooled -- the "traditional"
+# method, #83's own precedent), or `simple` (the between factor's levels
+# within one repeated level at a time -- the classical split-plot
+# "quasi-F" combined error, MS' = (MS(subjects) + (q - 1) MS(residual)) /
+# q with Satterthwaite df; see design note 24 for why this is hand-
+# derived rather than reaching for emmeans, which is biased for this
+# design's own marginal families whenever between-level sizes are
+# unequal). `stop("bs: ...")` messages are shown to the user as written.
+
+# Comparisons after repeated-measures two-way ANOVA (item 24, #85): see
+# the file header for the three families and their error terms. `Y` is
+# the subject x repeated-level matrix, `level` each subject's
+# between-level (1..p), `n_a` the between-level sizes.
+bs_repeated_twoway_comparisons <- function(Y, level, n_a, p, q, ms_subjects, df_subjects,
+                                           ms_residual, df_residual, family, comps, control, test) {
+  if (comps == "none") return(list())
+  fam <- function(means, sizes, mse, df, lvl) {
+    list(
+      level = lvl,
+      pairs = bs_comparisons(means, rep(0, length(means)), sizes, mse, df, FALSE, comps, control, test)
+    )
+  }
+  m <- rowMeans(Y)
+  switch(family,
+    "main-between" = list(fam(unname(tapply(m, level, mean)), n_a, ms_subjects / q, df_subjects, NA_integer_)),
+    "main-repeated" = list(fam(unname(colMeans(Y)), rep(nrow(Y), q), ms_residual, df_residual, NA_integer_)),
+    "simple" = {
+      mse <- (ms_subjects + (q - 1) * ms_residual) / q
+      dfp <- mse^2 / ((ms_subjects / q)^2 / df_subjects + ((q - 1) * ms_residual / q)^2 / df_residual)
+      lapply(seq_len(q), function(b) fam(unname(tapply(Y[, b], level, mean)), n_a, mse, dfp, b))
+    },
+    stop("bs: Unknown family of comparisons.")
+  )
+}
 
 # y: subject-major, length n*q (subject i's q values before subject i+1's).
 # level: each subject's between-level, 1..p.
-bs_repeated_twoway <- function(y, level, n, p, q) {
+bs_repeated_twoway <- function(y, level, n, p, q, family = "main-between", comps = "none",
+                                control = 1, test = "tukey") {
   if (p < 2 || q < 2) {
     stop("bs: Repeated-measures two-way ANOVA needs at least two levels of each factor.")
   }
@@ -87,6 +125,10 @@ bs_repeated_twoway <- function(y, level, n, p, q) {
     repeated_gg_p = pf(f_repeated, df_repeated * gg, df_residual * gg, lower.tail = FALSE),
     repeated_hf_p = pf(f_repeated, df_repeated * hf, df_residual * hf, lower.tail = FALSE),
     interaction_gg_p = pf(f_interaction, df_interaction * gg, df_residual * gg, lower.tail = FALSE),
-    interaction_hf_p = pf(f_interaction, df_interaction * hf, df_residual * hf, lower.tail = FALSE)
+    interaction_hf_p = pf(f_interaction, df_interaction * hf, df_residual * hf, lower.tail = FALSE),
+    families = bs_repeated_twoway_comparisons(
+      Y, level, n_a, p, q, ms_subjects, df_subjects, ms_residual, df_residual,
+      family, comps, control, test
+    )
   )
 }

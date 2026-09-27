@@ -1,7 +1,8 @@
 /**
  * Repeated-measures two-way ANOVA, one factor repeated (item 22, #81),
- * run in the app's WebR on every fixture the R oracle wrote (CLAUDE.md,
- * Correctness), and how it reads a Grouped table.
+ * and its comparisons (item 24, #85), run in the app's WebR on every
+ * fixture the R oracle wrote (CLAUDE.md, Correctness), and how it reads
+ * a Grouped table.
  */
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -11,7 +12,11 @@ import { asId } from '@/model/ids';
 import type { Cell } from '@/model/missing';
 import {
   type Analysis,
+  type EQUAL_SD_ALL,
+  type EQUAL_SD_CONTROL,
+  type NestedComparisons,
   type Project,
+  type RepeatedTwoWayFamily,
   type RepeatedTwoWayOptions,
   createProject,
 } from '@/model/project';
@@ -47,13 +52,33 @@ function requestFor(f: Fixture): RepeatedTwoWayRequest {
     id: `c${String(i + 1)}`,
     title: `C${String(i + 1)}`,
   }));
-  const repeatedFactor = f.options?.['repeatedFactor'] === 'row' ? 'row' : 'column';
+  const o = f.options ?? {};
+  const repeatedFactor = o['repeatedFactor'] === 'row' ? 'row' : 'column';
+  const family = (o['family'] as RepeatedTwoWayFamily | undefined) ?? 'simple';
+  const test = typeof o['test'] === 'string' ? o['test'] : 'tukey';
+  const controlIndex = typeof o['control'] === 'number' ? o['control'] - 1 : null;
+  // Whichever levels the fixture's family compares (see index.ts's own logic).
+  const betweenNamed = repeatedFactor === 'column' ? rows : columns;
+  const repeatedNamed = repeatedFactor === 'column' ? columns : rows;
+  const comparedIds = (family === 'main-repeated' ? repeatedNamed : betweenNamed).map((x) => x.id);
+  const comparisons: NestedComparisons =
+    o['comparisons'] === 'control'
+      ? {
+          kind: 'control',
+          control: asId(comparedIds[controlIndex ?? 0] ?? comparedIds[0] ?? 'r1'),
+          test: test as (typeof EQUAL_SD_CONTROL)[number],
+        }
+      : o['comparisons'] === 'all'
+        ? { kind: 'all', test: test as (typeof EQUAL_SD_ALL)[number] }
+        : { kind: 'none' };
+  const options: RepeatedTwoWayOptions = { repeatedFactor, family, comparisons };
   return {
     rows,
     columns,
-    options: { repeatedFactor },
+    options,
     subjects,
     droppedSubjects: 0,
+    control: comparisons.kind === 'control' ? controlIndex : null,
   };
 }
 
@@ -79,22 +104,12 @@ describe('repeated-measures two-way ANOVA, against the R oracle', () => {
     '%s',
     async (_id, f) => {
       const request = requestFor(f);
-      const p = request.rows.length;
-      const q = request.columns.length;
-      const out = await engine.run({
-        code: `${repeatedTwoway.code}\nbs_repeated_twoway(y, level, n, p, q)`,
-        inputs: {
-          y: request.subjects.flatMap((s) => s.values),
-          level: request.subjects.map((s) => s.level + 1),
-          n: request.subjects.length,
-          p,
-          q,
-        },
-        packages: [],
-      });
+      const out = await engine.run(repeatedTwoway.job(request));
       expect(mismatches(out.value, f.expected, f.tolerance)).toEqual([]);
       const r = repeatedTwoway.parse(out.value, request, out.warnings);
       expect(r.between.f).toBeGreaterThan(0);
+      const raw = out.value as Record<string, unknown>;
+      expect(r.families.length).toBe((raw['families'] as unknown[]).length);
     },
     120_000,
   );
@@ -131,7 +146,12 @@ describe('prepare', () => {
       id: asId('a_1'),
       title: 'repeated two-way',
       kind: 'repeated-two-way-anova',
-      options: { repeatedFactor: 'column', ...options },
+      options: {
+        repeatedFactor: 'column',
+        family: 'simple',
+        comparisons: { kind: 'none' },
+        ...options,
+      },
       input: { kind: 'table', table: table.id, dataSets: table.dataSets.map((d) => d.id) },
     });
     return { p, analysis, table };
@@ -218,7 +238,7 @@ describe('prepare', () => {
         id: asId('a_1'),
         title: 'repeated two-way',
         kind: 'repeated-two-way-anova',
-        options: { repeatedFactor: 'column' },
+        options: { repeatedFactor: 'column', family: 'simple', comparisons: { kind: 'none' } },
         input: { kind: 'table', table: table.id, dataSets: table.dataSets.map((d) => d.id) },
       },
       p,

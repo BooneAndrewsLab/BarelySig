@@ -881,10 +881,27 @@ const FAMILY_TITLE: Readonly<Record<string, string>> = {
   'all-cells': 'Compare cell means regardless of rows and data sets',
 };
 
+/** Title for the families grid, depending on which factor is repeated (note 24). */
+function repeatedFamilyTitle(r: RepeatedTwoWayResult): string {
+  const between = r.options.repeatedFactor === 'column' ? 'rows' : 'data sets';
+  const repeated = r.options.repeatedFactor === 'column' ? 'data sets' : 'rows';
+  switch (r.options.family) {
+    case 'main-between':
+      return `Compare the ${between}, averaged over the ${repeated} (main effect)`;
+    case 'main-repeated':
+      return `Compare the ${repeated}, averaged over the ${between} (main effect)`;
+    case 'simple':
+      return `Within each ${repeated.replace(/s$/, '')}, compare the ${between} (simple effects)`;
+  }
+}
+
 function RepeatedTwoWayView({ r, id }: { readonly r: RepeatedTwoWayResult; readonly id: Id }) {
   const between = r.options.repeatedFactor === 'column' ? 'Row factor' : 'Data set factor';
   const repeated = r.options.repeatedFactor === 'column' ? 'Data set factor' : 'Row factor';
   const f = (t: RepeatedTwoWayTerm) => (t.f !== null && t.df > 0 ? sig(t.f) : '');
+  const c = r.options.comparisons;
+  const test = c.kind === 'none' ? '' : (COMPARISON_TEST[c.test] ?? c.test);
+  const qName = c.kind !== 'none' && c.test === 'tukey' ? 'q' : 't';
   return (
     <>
       <Headline
@@ -902,6 +919,33 @@ function RepeatedTwoWayView({ r, id }: { readonly r: RepeatedTwoWayResult; reado
           value in some but not every {r.options.repeatedFactor === 'column' ? 'data set' : 'row'}{' '}
           left out.
         </p>
+      )}
+      {r.families.length > 0 && (
+        <div className="results-grid">
+          <h2 className="results-subhead">{repeatedFamilyTitle(r)}</h2>
+          {r.families.map((fam, i) => (
+            <Grid
+              key={i}
+              label={fam.label ?? 'Multiple comparisons'}
+              head={[
+                `${test} multiple comparisons${fam.label ? `: ${fam.label}` : ''}`,
+                'Mean diff.',
+                '95.00% CI of diff.',
+                'Significant?',
+                'Summary',
+                'Adjusted P value',
+              ]}
+              rows={fam.pairs.map((x) => [
+                `${x.a.title} vs. ${x.b.title}`,
+                sig(x.diff),
+                interval(x.ciLower, x.ciUpper),
+                x.p < 0.05 ? 'Yes' : 'No',
+                stars(x.p),
+                pValue(x.p),
+              ])}
+            />
+          ))}
+        </div>
       )}
       <AllNumbers id={id}>
         <Grid
@@ -969,7 +1013,32 @@ function RepeatedTwoWayView({ r, id }: { readonly r: RepeatedTwoWayResult; reado
             ],
           ]}
         />
+        {r.families.length > 0 && (
+          <Grid
+            label="Test details"
+            head={['Test details', 'Mean diff.', 'SE of diff.', qName, 'DF']}
+            rows={r.families.flatMap((fam) =>
+              fam.pairs.map((x) => [
+                `${fam.label ? `${fam.label}: ` : ''}${x.a.title} vs. ${x.b.title}`,
+                sig(x.diff),
+                sig(x.se),
+                sig(x.statistic),
+                dfText(x.df),
+              ]),
+            )}
+          />
+        )}
       </AllNumbers>
+      {r.families.length > 0 && (
+        <p className="legend">
+          Asterisks: {STAR_SCHEME}. Mean diff. is the first minus the second.{' '}
+          {r.options.family === 'main-between'
+            ? 'Uses the between-subjects error term (subjects within groups).'
+            : r.options.family === 'main-repeated'
+              ? 'Uses the pooled within-subject error term, assuming sphericity (as the ANOVA’s own repeated-factor test does).'
+              : 'Uses the split-plot’s combined error term (part between-subjects, part within-subject), with Satterthwaite degrees of freedom.'}
+        </p>
+      )}
     </>
   );
 }

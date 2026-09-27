@@ -188,14 +188,39 @@ export interface RepeatedMeasuresOptions {
 }
 
 /**
+ * Comparisons after repeated-measures two-way ANOVA (note 24, #85): which
+ * levels to compare, and against which error term (a different stratum
+ * per family, note 24's own reason for splitting this off from note 22).
+ * `main-between` and `main-repeated` compare marginal means (one family,
+ * no natural "level" to group by, same as `TwoWayOptions`'
+ * `main-columns`/`main-rows`); `simple` compares the between-subjects
+ * factor's levels within one repeated level at a time (one family per
+ * repeated level, the same shape as `within-rows`/`within-columns`).
+ */
+export const REPEATED_TWO_WAY_FAMILIES = ['main-between', 'main-repeated', 'simple'] as const;
+export type RepeatedTwoWayFamily = (typeof REPEATED_TWO_WAY_FAMILIES)[number];
+
+/**
  * Repeated-measures two-way ANOVA, one factor repeated (note 22, #81): a
  * Grouped table, subject = subcolumn position, matched across the
- * repeated factor's levels; the other factor is between-subjects. No
- * comparisons yet (a follow-up issue); nothing else to choose.
+ * repeated factor's levels; the other factor is between-subjects.
+ * Comparisons (note 24, #85) are the equal-SD family only
+ * (`NestedComparisons`): no Welch-style variant in any family, since
+ * every family's error term already comes from the ANOVA's own fitted
+ * decomposition, not raw per-group variances.
  */
 export interface RepeatedTwoWayOptions {
   /** Which Grouped-table factor is matched by subcolumn position; the other is between-subjects. */
   readonly repeatedFactor: 'row' | 'column';
+  readonly family: RepeatedTwoWayFamily;
+  /**
+   * `control`'s `Id` refers to whichever factor's levels the chosen
+   * family compares: a between-subjects level for `main-between` and
+   * `simple`, a repeated level for `main-repeated` (the same
+   * context-dependent-`Id` convention `TwoWayOptions.comparisons.control`
+   * already uses).
+   */
+  readonly comparisons: NestedComparisons;
 }
 
 /**
@@ -241,7 +266,11 @@ export const DEFAULT_OPTIONS: {
     assumeSphericity: true,
   },
   friedman: { comparisons: { kind: 'all' }, corrected: true },
-  'repeated-two-way-anova': { repeatedFactor: 'column' },
+  'repeated-two-way-anova': {
+    repeatedFactor: 'column',
+    family: 'simple',
+    comparisons: { kind: 'all', test: 'tukey' },
+  },
   'repeated-two-way-anova-both': {},
   normality: {},
   'paired-normality': {},

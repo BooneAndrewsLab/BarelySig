@@ -421,9 +421,20 @@ export function twoWayReading(r: TwoWayResult): string {
   return parts.join(' ');
 }
 
+const REPEATED_TWO_WAY_FAMILY_TEXT: Readonly<Record<string, string>> = {
+  'main-between': 'the between-subjects factor, averaged over the repeated levels',
+  'main-repeated': 'the repeated factor, averaged over the between-subjects groups',
+  simple: 'the between-subjects factor within each repeated level (simple effects)',
+};
+
 export function repeatedTwoWayMethod(r: RepeatedTwoWayResult): string {
   const which = r.options.repeatedFactor === 'column' ? 'data sets' : 'rows';
-  return `Repeated-measures two-way ANOVA, ${which} matched by subcolumn. Geisser-Greenhouse corrected (epsilon = ${sig(r.ggEpsilon)}), for the repeated factor and the interaction; the between-subjects factor needs no such correction.`;
+  const c = r.options.comparisons;
+  const comps =
+    c.kind === 'none'
+      ? ''
+      : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons of ${REPEATED_TWO_WAY_FAMILY_TEXT[r.options.family] ?? ''}${c.kind === 'control' ? ', against the control' : ''}, with P values adjusted within each family.`;
+  return `Repeated-measures two-way ANOVA, ${which} matched by subcolumn. Geisser-Greenhouse corrected (epsilon = ${sig(r.ggEpsilon)}), for the repeated factor and the interaction; the between-subjects factor needs no such correction.${comps}`;
 }
 
 export function repeatedTwoWayReading(r: RepeatedTwoWayResult): string {
@@ -444,6 +455,14 @@ export function repeatedTwoWayReading(r: RepeatedTwoWayResult): string {
   };
   effect(r.between.p, 'between-subjects factor’s levels');
   effect(r.repeatedGgP, 'repeated factor’s levels');
+  const c = r.options.comparisons;
+  const pairs = r.families.flatMap((fam) => fam.pairs);
+  if (c.kind !== 'none' && pairs.length > 0) {
+    const sigCount = pairs.filter((x) => x.p < 0.05).length;
+    parts.push(
+      `${COMPARISON_TEST[c.test] ?? c.test} comparisons: ${String(sigCount)} of ${String(pairs.length)} ${pairs.length === 1 ? 'pair differs' : 'pairs differ'} after adjusting for the number of comparisons.`,
+    );
+  }
   return parts.join(' ');
 }
 

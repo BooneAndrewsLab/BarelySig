@@ -47,6 +47,7 @@ import {
   type PointSymbol,
   type Project,
   type RankTestOptions,
+  REPEATED_TWO_WAY_FAMILIES,
   type RepeatedMeasuresOptions,
   type RepeatedTwoWayOptions,
   STYLE_NUMBERS,
@@ -173,7 +174,11 @@ function optionsJson(a: AnalysisSpec): Json {
         assumeSphericity: a.options.assumeSphericity,
       };
     case 'repeated-two-way-anova':
-      return { repeatedFactor: a.options.repeatedFactor };
+      return {
+        repeatedFactor: a.options.repeatedFactor,
+        family: a.options.family,
+        comparisons: comparisonsJson(a.options.comparisons),
+      };
     case 'repeated-two-way-anova-both':
       return {};
   }
@@ -537,11 +542,22 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       return { kind, options };
     }
     case 'repeated-two-way-anova': {
+      // Files from before #85 have neither `family` nor `comparisons`:
+      // they only ever ran the ANOVA table.
+      const family =
+        opts['family'] === undefined
+          ? 'simple'
+          : oneOf(opts['family'], q.key('family'), REPEATED_TWO_WAY_FAMILIES);
       const options: RepeatedTwoWayOptions = {
         repeatedFactor: oneOf(opts['repeatedFactor'], q.key('repeatedFactor'), [
           'row',
           'column',
         ] as const),
+        family,
+        comparisons:
+          opts['comparisons'] === undefined
+            ? { kind: 'none' }
+            : nestedComparisons(opts['comparisons'], q.key('comparisons')),
       };
       return { kind, options };
     }

@@ -251,7 +251,7 @@ the target).
 
 ## Status (2026-09-27)
 
-Session-by-session narrative lives in `docs/design/NN-*.md` (notes 01–21)
+Session-by-session narrative lives in `docs/design/NN-*.md` (notes 01–24)
 and in git/GitHub history — this section tracks current state only, not
 how it got here.
 
@@ -269,7 +269,9 @@ how it got here.
   Grouped-table descriptives, paired-normality, unbalanced two-way ANOVA,
   matched nested one-way ANOVA, repeated-measures comparisons without
   assuming sphericity (FAQ 1609's second method, #83), exact Friedman P
-  for small tables (#82) — notes 09–21).
+  for small tables (#82), repeated-measures two-way ANOVA (one factor
+  repeated, #81, then both factors repeated, #84) with its own multiple
+  comparisons (#85) — notes 09–24).
 - **Open issues:**
   - #36 — the user's release steps (above)
   - #44 — real clipboard captures (needs the sibling apps)
@@ -281,7 +283,10 @@ how it got here.
   - #72 — keep the conservative REML unmatched nested test, or switch to
     Prism's method? Needs the user's decision
   - #74 — SuperPlot over a violin with replicates joined, Phase 2
-  - #81 — two-way repeated-measures ANOVA
+  - comparisons for both-factors-repeated two-way ANOVA (#84's own
+    follow-up, no between-subjects stratum exists there)
+  - comparing repeated levels within one between-subjects group at a
+    time, a fourth repeated-two-way comparisons family (#85's follow-up)
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
