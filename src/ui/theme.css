@@ -882,31 +882,123 @@ select {
 }
 
 .reading {
-  margin: 4px 0 6px;
+  margin: 0;
   font-size: 16px;
   line-height: 1.5;
-  max-width: 68ch;
+}
+
+/* The reading across the section, the numbers it rests on beside it. */
+.headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 32px;
+  padding: 16px 18px 16px 20px;
+  border-radius: 10px;
+  background: var(--bs-ground);
+}
+
+.headline .reading {
+  flex: 1 1 38ch;
+  max-width: 76ch;
+}
+
+.figures {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 0 auto;
+}
+
+.figure {
+  min-width: 112px;
+  max-width: 26ch;
+  padding: 10px 14px 11px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.figure dt {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.figure dd {
+  margin: 0;
+}
+
+.figure-value {
+  margin-top: 2px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.figure-detail {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-3);
 }
 
 .method {
-  margin: 0 0 16px;
+  margin: 10px 2px 16px;
   color: var(--ink-2);
 }
 
+/* Prism's tables as cards: label/value tables side by side, tables with
+   columns across the whole row. */
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.results-grid > :not(.kv) {
+  grid-column: 1 / -1;
+}
+
+.results-grid + .legend {
+  margin-top: 14px;
+}
+
 .results-table {
-  border-collapse: collapse;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--sheet);
   border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
   font-variant-numeric: tabular-nums;
-  min-width: min(560px, 100%);
 }
 
 .results-table th,
 .results-table td {
-  padding: 5px 12px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--rule);
   text-align: left;
   vertical-align: top;
+}
+
+.results-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.results-table tbody tr:hover > * {
+  background: #faf9f8;
+}
+
+.results-table.kv thead th {
+  text-align: left;
 }
 
 .results-table th[scope='row'] {
@@ -920,15 +1012,14 @@ select {
 }
 
 .results-table thead th {
+  padding-block: 8px;
   text-align: right;
   font-weight: 600;
   background: var(--header);
 }
 
-.results-table tr.section th {
-  padding-top: 12px;
-  font-weight: 600;
-  background: var(--header);
+.results-table thead th:first-child {
+  text-align: left;
 }
 
 .results-scroll {
@@ -1477,7 +1568,7 @@ button.danger:hover:not(:disabled) {
 /* A heading between results tables (two-way comparisons, note 06). */
 .results-subhead {
   font-size: 1em;
-  margin: 18px 0 6px;
+  margin: 8px 0 0;
 }
 
 /* The "Which test?" questions and their suggestion (note 06). */
@@ -1882,15 +1973,6 @@ textarea.page-desc {
 
 .nb-body {
   min-width: 0;
-}
-
-/* The plain reading on top of a result, as mockup C's callout. */
-.nb-section .reading {
-  max-width: 90ch;
-  margin: 0 0 10px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--bs-ground);
 }
 
 .nb-note {

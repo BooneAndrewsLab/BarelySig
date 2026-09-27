@@ -113,6 +113,18 @@ The notebook groups by that instead.
    stack; bundling Archivo (the wordmark's face, used in the mockup) is a
    separate decision.
 
+10. **Width (2026-09-26).** The page fills the main panel (up to
+    1920 px) instead of stopping at 1120 px with 780 px sections, which
+    left half a wide screen empty. An analysis section uses the width
+    rather than stretching a column of text: the reading sits in a band
+    across the section with its **key numbers** beside it (the P it goes
+    by with its asterisks, the difference with its CI or the number of
+    significant pairs, the statistic; two-way: one P per term), the
+    reading kept to about 76 characters a line; Prism's label/value
+    tables become cards side by side, and tables with columns run across
+    the section. The key numbers repeat values from the tables, never
+    new ones, so Prism's layout below stays complete (#57 builds on this).
+
 ## Prism parity
 
 Prism has no notebook view; its navigator is what this replaces. What a

@@ -36,6 +36,7 @@ import {
   nestedTTestReading,
   normalityReading,
   oneWayMethod,
+  oneWayP,
   oneWayReading,
   rankTestMethod,
   rankTestReading,
@@ -53,28 +54,74 @@ interface Props {
 type Row = readonly [label: string, value: string];
 type Section = readonly [title: string, rows: readonly Row[]];
 
+/** Prism's label/value tables, each a card of the results grid. */
 function Sections({ sections }: { readonly sections: readonly Section[] }) {
-  return (
-    <table className="results-table">
-      {sections.map(([title, rows]) => (
-        <tbody key={title}>
-          <tr className="section">
-            <th colSpan={2} scope="colgroup">
-              {title}
+  return sections.map(([title, rows]) => (
+    <table key={title} className="results-table kv" aria-label={title}>
+      <thead>
+        <tr>
+          <th colSpan={2} scope="colgroup">
+            {title}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([label, value]) => (
+          <tr key={label}>
+            <th scope="row" title={explain(label)}>
+              {label}
             </th>
+            <td>{value}</td>
           </tr>
-          {rows.map(([label, value]) => (
-            <tr key={label}>
-              <th scope="row" title={explain(label)}>
-                {label}
-              </th>
-              <td>{value}</td>
-            </tr>
-          ))}
-        </tbody>
-      ))}
+        ))}
+      </tbody>
     </table>
+  ));
+}
+
+/** A key number beside the reading: what it is, its value, and a qualifier. */
+interface Figure {
+  readonly label: string;
+  readonly value: string;
+  readonly detail?: string;
+}
+
+/** The plain reading with the few numbers it rests on, across the section. */
+function Headline(props: { readonly reading: string; readonly figures?: readonly Figure[] }) {
+  const figures = props.figures ?? [];
+  return (
+    <div className="headline">
+      <p className="reading">{props.reading}</p>
+      {figures.length > 0 && (
+        <dl className="figures" aria-label="Key numbers">
+          {figures.map((f) => (
+            <div key={f.label} className="figure">
+              <dt title={f.label}>{f.label}</dt>
+              <dd className="figure-value">{f.value}</dd>
+              {f.detail && <dd className="figure-detail">{f.detail}</dd>}
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
   );
+}
+
+const tailsText = (tails: 'two' | 'one') => (tails === 'two' ? 'two-tailed' : 'one-tailed');
+
+/** The P a reading goes by, with its asterisks and anything else that qualifies it. */
+function pFigure(label: string, p: number, ...qualifiers: string[]): Figure {
+  return { label, value: pValue(p), detail: [stars(p), ...qualifiers].join(' · ') };
+}
+
+/** How many pairwise comparisons came out significant: "2 of 3". */
+function pairsFigure(test: string, pairs: readonly { readonly p: number }[], adjusted: boolean) {
+  const hits = pairs.filter((x) => x.p < 0.05).length;
+  return {
+    label: `${test} comparisons`,
+    value: `${String(hits)} of ${String(pairs.length)}`,
+    detail: `significant, ${adjusted ? 'adjusted' : 'individual'} P < 0.05`,
+  } satisfies Figure;
 }
 
 const yesNo = (p: number) => (p < 0.05 ? 'Yes' : 'No');
@@ -175,9 +222,22 @@ function TTestView({ r }: { readonly r: TTestResult }) {
   }
   return (
     <>
-      <p className="reading">{tTestReading(r)}</p>
+      <Headline
+        reading={tTestReading(r)}
+        figures={[
+          pFigure('P value', r.p, tailsText(r.tails)),
+          {
+            label: `${r.pairing ? 'Mean of differences' : 'Difference'} (${r.b.title} − ${r.a.title})`,
+            value: sig(r.difference),
+            detail: `95% CI ${interval(r.ciLower, r.ciUpper)}`,
+          },
+          { label: 't statistic', value: sig(Math.abs(r.t)), detail: `df = ${dfText(r.df)}` },
+        ]}
+      />
       <p className="method">{tTestMethod(r)}</p>
-      <Sections sections={sections} />
+      <div className="results-grid">
+        <Sections sections={sections} />
+      </div>
       <p className="legend">Asterisks: {STAR_SCHEME}.</p>
     </>
   );
@@ -265,9 +325,22 @@ function NestedTTestView({ r }: { readonly r: NestedTTestResult }) {
   ];
   return (
     <>
-      <p className="reading">{nestedTTestReading(r)}</p>
+      <Headline
+        reading={nestedTTestReading(r)}
+        figures={[
+          pFigure('P value', r.p, tailsText(r.tails)),
+          {
+            label: `${matched ? 'Mean of the differences' : 'Difference'} (${r.b.title} − ${r.a.title})`,
+            value: sig(r.difference),
+            detail: `95% CI ${interval(r.ciLower, r.ciUpper)}`,
+          },
+          { label: 't statistic', value: sig(Math.abs(r.t)), detail: `df = ${dfText(r.df)}` },
+        ]}
+      />
       <p className="method">{nestedTTestMethod(r)}</p>
-      <Sections sections={sections} />
+      <div className="results-grid">
+        <Sections sections={sections} />
+      </div>
       <p className="legend">Asterisks: {STAR_SCHEME}.</p>
     </>
   );
@@ -364,9 +437,24 @@ function RankTestView({ r }: { readonly r: RankTestResult }) {
   }
   return (
     <>
-      <p className="reading">{rankTestReading(r)}</p>
+      <Headline
+        reading={rankTestReading(r)}
+        figures={[
+          pFigure('P value', r.p, r.exact ? 'exact' : 'approximate', tailsText(r.tails)),
+          {
+            label: `Hodges-Lehmann (${r.b.title} − ${r.a.title})`,
+            value: sig(r.hodgesLehmann),
+            detail: `${levelText(r.ci.level)} CI ${interval(r.ci.lower, r.ci.upper)}`,
+          },
+          r.test === 'mann-whitney'
+            ? { label: 'Mann-Whitney U', value: sig(r.u) }
+            : { label: 'Sum of signed ranks (W)', value: sig(r.w) },
+        ]}
+      />
       <p className="method">{rankTestMethod(r)}</p>
-      <Sections sections={sections} />
+      <div className="results-grid">
+        <Sections sections={sections} />
+      </div>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. A rank test’s confidence level can’t be exactly 95%; the level
         shown is the one achieved.
@@ -445,42 +533,44 @@ function NormalityView({ r }: { readonly r: NormalityResult }) {
   const passed = (p: number) => (p > 0.05 ? 'Yes' : 'No');
   return (
     <>
-      <p className="reading">{normalityReading(r)}</p>
+      <Headline reading={normalityReading(r)} />
       <p className="method">
         D’Agostino-Pearson omnibus K² test and Shapiro-Wilk test (Royston), each group on its own, α
         = 0.05.
       </p>
-      <Grid
-        label="D’Agostino & Pearson test"
-        head={['D’Agostino & Pearson test', ...head.slice(1)]}
-        rows={[
-          row('K2', (g) => (g.dagostino.ran ? sig(g.dagostino.k2) : (notRun(g.dagostino) ?? ''))),
-          row('P value', (g) => (g.dagostino.ran ? pValue(g.dagostino.p) : '—')),
-          row('Passed normality test (α = 0.05)?', (g) =>
-            g.dagostino.ran ? passed(g.dagostino.p) : '—',
-          ),
-          row('P value summary', (g) => (g.dagostino.ran ? stars(g.dagostino.p) : '—')),
-        ]}
-      />
-      <Grid
-        label="Shapiro-Wilk test"
-        head={['Shapiro-Wilk test', ...head.slice(1)]}
-        rows={[
-          row('W', (g) =>
-            g.shapiroWilk.ran ? sig(g.shapiroWilk.w) : (notRun(g.shapiroWilk) ?? ''),
-          ),
-          row('P value', (g) => (g.shapiroWilk.ran ? pValue(g.shapiroWilk.p) : '—')),
-          row('Passed normality test (α = 0.05)?', (g) =>
-            g.shapiroWilk.ran ? passed(g.shapiroWilk.p) : '—',
-          ),
-          row('P value summary', (g) => (g.shapiroWilk.ran ? stars(g.shapiroWilk.p) : '—')),
-        ]}
-      />
-      <Grid
-        label="Number of values"
-        head={['Number of values', ...head.slice(1)]}
-        rows={[row('n', (g) => `${String(g.n)}${droppedText(g.dropped)}`)]}
-      />
+      <div className="results-grid">
+        <Grid
+          label="D’Agostino & Pearson test"
+          head={['D’Agostino & Pearson test', ...head.slice(1)]}
+          rows={[
+            row('K2', (g) => (g.dagostino.ran ? sig(g.dagostino.k2) : (notRun(g.dagostino) ?? ''))),
+            row('P value', (g) => (g.dagostino.ran ? pValue(g.dagostino.p) : '—')),
+            row('Passed normality test (α = 0.05)?', (g) =>
+              g.dagostino.ran ? passed(g.dagostino.p) : '—',
+            ),
+            row('P value summary', (g) => (g.dagostino.ran ? stars(g.dagostino.p) : '—')),
+          ]}
+        />
+        <Grid
+          label="Shapiro-Wilk test"
+          head={['Shapiro-Wilk test', ...head.slice(1)]}
+          rows={[
+            row('W', (g) =>
+              g.shapiroWilk.ran ? sig(g.shapiroWilk.w) : (notRun(g.shapiroWilk) ?? ''),
+            ),
+            row('P value', (g) => (g.shapiroWilk.ran ? pValue(g.shapiroWilk.p) : '—')),
+            row('Passed normality test (α = 0.05)?', (g) =>
+              g.shapiroWilk.ran ? passed(g.shapiroWilk.p) : '—',
+            ),
+            row('P value summary', (g) => (g.shapiroWilk.ran ? stars(g.shapiroWilk.p) : '—')),
+          ]}
+        />
+        <Grid
+          label="Number of values"
+          head={['Number of values', ...head.slice(1)]}
+          rows={[row('n', (g) => `${String(g.n)}${droppedText(g.dropped)}`)]}
+        />
+      </div>
       <p className="legend">
         “Passed” means P &gt; 0.05: no clear departure from a Gaussian distribution, not proof of
         one. Asterisks: {STAR_SCHEME}.
@@ -506,66 +596,75 @@ function KruskalView({ r }: { readonly r: KruskalWallisResult }) {
   const adjusted = r.corrected;
   return (
     <>
-      <p className="reading">{kruskalReading(r)}</p>
-      <p className="method">{kruskalMethod(r)}</p>
-      <Sections sections={sections} />
-      <Grid
-        label="Data summary"
-        head={['Data summary', 'n', 'Median', 'Sum of ranks', 'Mean rank']}
-        rows={r.groups.map((g) => [
-          `${g.title}${droppedText(g.dropped)}`,
-          String(g.n),
-          sig(g.median),
-          sig(g.rankSum),
-          sig(g.meanRank),
-        ])}
+      <Headline
+        reading={kruskalReading(r)}
+        figures={[
+          pFigure('P value', r.p, r.exact ? 'exact' : 'approximate'),
+          { label: 'Kruskal-Wallis statistic', value: sig(r.h) },
+          ...(r.pairs.length ? [pairsFigure('Dunn’s', r.pairs, adjusted)] : []),
+        ]}
       />
-      {r.pairs.length > 0 && (
-        <>
-          <Grid
-            label="Multiple comparisons"
-            head={[
-              `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
-              'Mean rank diff.',
-              'Significant?',
-              'Summary',
-              adjusted ? 'Adjusted P value' : 'Individual P value',
-            ]}
-            rows={r.pairs.map((x) => [
-              `${x.a.title} vs. ${x.b.title}`,
-              sig(x.diff),
-              x.p < 0.05 ? 'Yes' : 'No',
-              stars(x.p),
-              pValue(x.p),
-            ])}
-          />
-          <Grid
-            label="Test details"
-            head={[
-              'Test details',
-              'Mean rank 1',
-              'Mean rank 2',
-              'Mean rank diff.',
-              'n1',
-              'n2',
-              'Z',
-            ]}
-            rows={r.pairs.map((x) => {
-              const g1 = r.groups.find((g) => g.id === x.a.id);
-              const g2 = r.groups.find((g) => g.id === x.b.id);
-              return [
+      <p className="method">{kruskalMethod(r)}</p>
+      <div className="results-grid">
+        <Sections sections={sections} />
+        <Grid
+          label="Data summary"
+          head={['Data summary', 'n', 'Median', 'Sum of ranks', 'Mean rank']}
+          rows={r.groups.map((g) => [
+            `${g.title}${droppedText(g.dropped)}`,
+            String(g.n),
+            sig(g.median),
+            sig(g.rankSum),
+            sig(g.meanRank),
+          ])}
+        />
+        {r.pairs.length > 0 && (
+          <>
+            <Grid
+              label="Multiple comparisons"
+              head={[
+                `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
+                'Mean rank diff.',
+                'Significant?',
+                'Summary',
+                adjusted ? 'Adjusted P value' : 'Individual P value',
+              ]}
+              rows={r.pairs.map((x) => [
                 `${x.a.title} vs. ${x.b.title}`,
-                sig(g1?.meanRank ?? null),
-                sig(g2?.meanRank ?? null),
                 sig(x.diff),
-                String(g1?.n ?? ''),
-                String(g2?.n ?? ''),
-                sig(x.z),
-              ];
-            })}
-          />
-        </>
-      )}
+                x.p < 0.05 ? 'Yes' : 'No',
+                stars(x.p),
+                pValue(x.p),
+              ])}
+            />
+            <Grid
+              label="Test details"
+              head={[
+                'Test details',
+                'Mean rank 1',
+                'Mean rank 2',
+                'Mean rank diff.',
+                'n1',
+                'n2',
+                'Z',
+              ]}
+              rows={r.pairs.map((x) => {
+                const g1 = r.groups.find((g) => g.id === x.a.id);
+                const g2 = r.groups.find((g) => g.id === x.b.id);
+                return [
+                  `${x.a.title} vs. ${x.b.title}`,
+                  sig(g1?.meanRank ?? null),
+                  sig(g2?.meanRank ?? null),
+                  sig(x.diff),
+                  String(g1?.n ?? ''),
+                  String(g2?.n ?? ''),
+                  sig(x.z),
+                ];
+              })}
+            />
+          </>
+        )}
+      </div>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals.{' '}
         {r.exact
@@ -604,106 +703,117 @@ function TwoWayView({ r }: { readonly r: TwoWayResult }) {
     );
   return (
     <>
-      <p className="reading">{twoWayReading(r)}</p>
+      <Headline
+        reading={twoWayReading(r)}
+        figures={terms.map(([name, t]) => pFigure(name, t.p, `${sig(t.percent)}% of variation`))}
+      />
       <p className="method">{twoWayMethod(r)}</p>
-      <Grid
-        label="Source of variation"
-        head={[
-          'Source of variation',
-          '% of total variation',
-          'P value',
-          'P value summary',
-          'Significant?',
-        ]}
-        rows={terms.map(([name, t]) => [name, sig(t.percent), pValue(t.p), stars(t.p), yesNo(t.p)])}
-      />
-      <Grid
-        label="ANOVA table"
-        head={['ANOVA table', 'SS (Type III)', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
-        rows={[
-          ...terms.map(([name, t]) => [
+      <div className="results-grid">
+        <Grid
+          label="Source of variation"
+          head={[
+            'Source of variation',
+            '% of total variation',
+            'P value',
+            'P value summary',
+            'Significant?',
+          ]}
+          rows={terms.map(([name, t]) => [
             name,
-            sig(t.ss),
-            dfText(t.df),
-            sig(t.ms),
-            `F (${dfText(t.df)}, ${dfText(r.residual.df)}) = ${sig(t.f)}`,
-            pPhrase(t.p),
-          ]),
-          ['Residual', sig(r.residual.ss), dfText(r.residual.df), sig(r.residual.ms), '', ''],
-          ['Total', sig(r.total.ss), dfText(r.total.df), '', '', ''],
-        ]}
-      />
-      <Grid
-        label="Cell means"
-        head={['Mean (n)', ...r.columns.map((x) => x.title)]}
-        rows={r.rows.map((row, i) => [
-          row.title,
-          ...r.columns.map((_, j) => {
-            const cell = r.cells[i]?.[j];
-            return cell && cell.n > 0 ? `${sig(cell.mean)} (${String(cell.n)})` : '—';
-          }),
-        ])}
-      />
-      <Sections
-        sections={[
-          [
-            'Data summary',
+            sig(t.percent),
+            pValue(t.p),
+            stars(t.p),
+            yesNo(t.p),
+          ])}
+        />
+        <Grid
+          label="ANOVA table"
+          head={['ANOVA table', 'SS (Type III)', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+          rows={[
+            ...terms.map(([name, t]) => [
+              name,
+              sig(t.ss),
+              dfText(t.df),
+              sig(t.ms),
+              `F (${dfText(t.df)}, ${dfText(r.residual.df)}) = ${sig(t.f)}`,
+              pPhrase(t.p),
+            ]),
+            ['Residual', sig(r.residual.ss), dfText(r.residual.df), sig(r.residual.ms), '', ''],
+            ['Total', sig(r.total.ss), dfText(r.total.df), '', '', ''],
+          ]}
+        />
+        <Grid
+          label="Cell means"
+          head={['Mean (n)', ...r.columns.map((x) => x.title)]}
+          rows={r.rows.map((row, i) => [
+            row.title,
+            ...r.columns.map((_, j) => {
+              const cell = r.cells[i]?.[j];
+              return cell && cell.n > 0 ? `${sig(cell.mean)} (${String(cell.n)})` : '—';
+            }),
+          ])}
+        />
+        <Sections
+          sections={[
             [
-              ['Number of data sets (column factor)', String(r.columns.length)],
-              ['Number of rows (row factor)', String(r.rows.length)],
-              ['Number of values', String(r.nTotal)],
-              ...(notes.length ? ([['Left out', notes.join('; ')]] as Row[]) : []),
+              'Data summary',
+              [
+                ['Number of data sets (column factor)', String(r.columns.length)],
+                ['Number of rows (row factor)', String(r.rows.length)],
+                ['Number of values', String(r.nTotal)],
+                ...(notes.length ? ([['Left out', notes.join('; ')]] as Row[]) : []),
+              ],
             ],
-          ],
-        ]}
-      />
-      {r.comparisonsNote && (
-        <p className="status-banner info">
-          {r.comparisonsNote === 'empty-cell'
-            ? 'Multiple comparisons aren’t available when a cell has no values (the model without interaction gives means that depend on its fit); fill in the cell, or compare fewer groups.'
-            : 'Comparisons within rows, within data sets or between cells need more than one value per cell. Compare the main effects instead (Prism does the same).'}
-        </p>
-      )}
-      {r.families.length > 0 && (
-        <>
-          <h2 className="results-subhead">{FAMILY_TITLE[r.options.family]}</h2>
-          {r.families.map((f, i) => (
+          ]}
+        />
+        {r.comparisonsNote && (
+          <p className="status-banner info">
+            {r.comparisonsNote === 'empty-cell'
+              ? 'Multiple comparisons aren’t available when a cell has no values (the model without interaction gives means that depend on its fit); fill in the cell, or compare fewer groups.'
+              : 'Comparisons within rows, within data sets or between cells need more than one value per cell. Compare the main effects instead (Prism does the same).'}
+          </p>
+        )}
+        {r.families.length > 0 && (
+          <>
+            <h2 className="results-subhead">{FAMILY_TITLE[r.options.family]}</h2>
+            {r.families.map((f, i) => (
+              <Grid
+                key={i}
+                label={f.label ?? 'Multiple comparisons'}
+                head={[
+                  `${test} multiple comparisons${f.label ? `: ${f.label}` : ''}`,
+                  'Mean diff.',
+                  '95.00% CI of diff.',
+                  'Significant?',
+                  'Summary',
+                  'Adjusted P value',
+                ]}
+                rows={f.pairs.map((x) => [
+                  `${x.a.title} vs. ${x.b.title}`,
+                  sig(x.diff),
+                  interval(x.ciLower, x.ciUpper),
+                  x.p < 0.05 ? 'Yes' : 'No',
+                  stars(x.p),
+                  pValue(x.p),
+                ])}
+              />
+            ))}
             <Grid
-              key={i}
-              label={f.label ?? 'Multiple comparisons'}
-              head={[
-                `${test} multiple comparisons${f.label ? `: ${f.label}` : ''}`,
-                'Mean diff.',
-                '95.00% CI of diff.',
-                'Significant?',
-                'Summary',
-                'Adjusted P value',
-              ]}
-              rows={f.pairs.map((x) => [
-                `${x.a.title} vs. ${x.b.title}`,
-                sig(x.diff),
-                interval(x.ciLower, x.ciUpper),
-                x.p < 0.05 ? 'Yes' : 'No',
-                stars(x.p),
-                pValue(x.p),
-              ])}
+              label="Test details"
+              head={['Test details', 'Mean diff.', 'SE of diff.', qName, 'DF']}
+              rows={r.families.flatMap((f) =>
+                f.pairs.map((x) => [
+                  `${f.label ? `${f.label}: ` : ''}${x.a.title} vs. ${x.b.title}`,
+                  sig(x.diff),
+                  sig(x.se),
+                  sig(x.statistic),
+                  dfText(x.df),
+                ]),
+              )}
             />
-          ))}
-          <Grid
-            label="Test details"
-            head={['Test details', 'Mean diff.', 'SE of diff.', qName, 'DF']}
-            rows={r.families.flatMap((f) =>
-              f.pairs.map((x) => [
-                `${f.label ? `${f.label}: ` : ''}${x.a.title} vs. ${x.b.title}`,
-                sig(x.diff),
-                sig(x.se),
-                sig(x.statistic),
-                dfText(x.df),
-              ]),
-            )}
-          />
-        </>
-      )}
+          </>
+        )}
+      </div>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Mean diff. is the first minus the second. Main effects compare
         least-squares means (the average of the cell means). With unbalanced data the Type III sums
@@ -784,97 +894,116 @@ function OneWayView({ r }: { readonly r: OneWayResult }) {
   const qName = c.kind !== 'none' && (c.test === 'tukey' || c.test === 'games-howell') ? 'q' : 't';
   return (
     <>
-      <p className="reading">{oneWayReading(r)}</p>
-      <p className="method">{oneWayMethod(r)}</p>
-      <Sections sections={sections} />
-      {!r.welch && (
-        <Grid
-          label="ANOVA table"
-          head={['ANOVA table', 'SS', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
-          rows={[
-            [
-              'Treatment (between columns)',
-              sig(a.ssBetween),
-              dfText(a.dfBetween),
-              sig(a.msBetween),
-              `F (${dfText(a.dfBetween)}, ${dfText(a.dfWithin)}) = ${sig(a.f)}`,
-              pPhrase(a.p),
-            ],
-            [
-              'Residual (within columns)',
-              sig(a.ssWithin),
-              dfText(a.dfWithin),
-              sig(a.msWithin),
-              '',
-              '',
-            ],
-            ['Total', sig(a.ssTotal), dfText(a.dfTotal), '', '', ''],
-          ]}
-        />
-      )}
-      <Grid
-        label="Data summary"
-        head={['Data summary', 'n', 'Mean', 'SD', ...(r.from === 'values' ? ['Median'] : [])]}
-        rows={r.groups.map((g) => [
-          `${g.title}${droppedText(g.dropped)}`,
-          String(g.n),
-          sig(g.mean),
-          sig(g.sd),
-          ...(r.from === 'values' ? [sig(g.median)] : []),
-        ])}
+      <Headline
+        reading={oneWayReading(r)}
+        figures={[
+          pFigure(r.welchAnova ? 'P value (Welch’s ANOVA)' : 'P value (ANOVA)', oneWayP(r)),
+          r.welchAnova
+            ? {
+                label: 'W (DFn, DFd)',
+                value: sig(r.welchAnova.f),
+                detail: `DFn = ${dfText(r.welchAnova.dfn)}, DFd = ${dfText(r.welchAnova.dfd)}`,
+              }
+            : {
+                label: 'F (DFn, DFd)',
+                value: sig(a.f),
+                detail: `DFn = ${dfText(a.dfBetween)}, DFd = ${dfText(a.dfWithin)}`,
+              },
+          ...(r.pairs.length ? [pairsFigure(name, r.pairs, true)] : []),
+        ]}
       />
-      {r.pairs.length > 0 && (
-        <>
+      <p className="method">{oneWayMethod(r)}</p>
+      <div className="results-grid">
+        <Sections sections={sections} />
+        {!r.welch && (
           <Grid
-            label="Multiple comparisons"
-            head={[
-              `${name} multiple comparisons test`,
-              'Mean diff.',
-              '95.00% CI of diff.',
-              'Significant?',
-              'Summary',
-              'Adjusted P value',
+            label="ANOVA table"
+            head={['ANOVA table', 'SS', 'DF', 'MS', 'F (DFn, DFd)', 'P value']}
+            rows={[
+              [
+                'Treatment (between columns)',
+                sig(a.ssBetween),
+                dfText(a.dfBetween),
+                sig(a.msBetween),
+                `F (${dfText(a.dfBetween)}, ${dfText(a.dfWithin)}) = ${sig(a.f)}`,
+                pPhrase(a.p),
+              ],
+              [
+                'Residual (within columns)',
+                sig(a.ssWithin),
+                dfText(a.dfWithin),
+                sig(a.msWithin),
+                '',
+                '',
+              ],
+              ['Total', sig(a.ssTotal), dfText(a.dfTotal), '', '', ''],
             ]}
-            rows={r.pairs.map((x) => [
-              `${x.a.title} vs. ${x.b.title}`,
-              sig(x.diff),
-              interval(x.ciLower, x.ciUpper),
-              x.p < 0.05 ? 'Yes' : 'No',
-              stars(x.p),
-              pValue(x.p),
-            ])}
           />
-          <Grid
-            label="Test details"
-            head={[
-              'Test details',
-              'Mean 1',
-              'Mean 2',
-              'Mean diff.',
-              'SE of diff.',
-              'n1',
-              'n2',
-              qName,
-              'DF',
-            ]}
-            rows={r.pairs.map((x) => {
-              const g1 = r.groups.find((g) => g.id === x.a.id);
-              const g2 = r.groups.find((g) => g.id === x.b.id);
-              return [
+        )}
+        <Grid
+          label="Data summary"
+          head={['Data summary', 'n', 'Mean', 'SD', ...(r.from === 'values' ? ['Median'] : [])]}
+          rows={r.groups.map((g) => [
+            `${g.title}${droppedText(g.dropped)}`,
+            String(g.n),
+            sig(g.mean),
+            sig(g.sd),
+            ...(r.from === 'values' ? [sig(g.median)] : []),
+          ])}
+        />
+        {r.pairs.length > 0 && (
+          <>
+            <Grid
+              label="Multiple comparisons"
+              head={[
+                `${name} multiple comparisons test`,
+                'Mean diff.',
+                '95.00% CI of diff.',
+                'Significant?',
+                'Summary',
+                'Adjusted P value',
+              ]}
+              rows={r.pairs.map((x) => [
                 `${x.a.title} vs. ${x.b.title}`,
-                sig(g1?.mean ?? null),
-                sig(g2?.mean ?? null),
                 sig(x.diff),
-                sig(x.se),
-                String(g1?.n ?? ''),
-                String(g2?.n ?? ''),
-                sig(x.statistic),
-                dfText(x.df),
-              ];
-            })}
-          />
-        </>
-      )}
+                interval(x.ciLower, x.ciUpper),
+                x.p < 0.05 ? 'Yes' : 'No',
+                stars(x.p),
+                pValue(x.p),
+              ])}
+            />
+            <Grid
+              label="Test details"
+              head={[
+                'Test details',
+                'Mean 1',
+                'Mean 2',
+                'Mean diff.',
+                'SE of diff.',
+                'n1',
+                'n2',
+                qName,
+                'DF',
+              ]}
+              rows={r.pairs.map((x) => {
+                const g1 = r.groups.find((g) => g.id === x.a.id);
+                const g2 = r.groups.find((g) => g.id === x.b.id);
+                return [
+                  `${x.a.title} vs. ${x.b.title}`,
+                  sig(g1?.mean ?? null),
+                  sig(g2?.mean ?? null),
+                  sig(x.diff),
+                  sig(x.se),
+                  String(g1?.n ?? ''),
+                  String(g2?.n ?? ''),
+                  sig(x.statistic),
+                  dfText(x.df),
+                ];
+              })}
+            />
+          </>
+        )}
+      </div>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
         reports it.
@@ -907,40 +1036,53 @@ function NestedOneWayView({ r }: { readonly r: NestedOneWayResult }) {
   ];
   return (
     <>
-      <p className="reading">{nestedOneWayReading(r)}</p>
-      <p className="method">{nestedOneWayMethod(r)}</p>
-      <Sections sections={sections} />
-      <Grid
-        label="Data summary"
-        head={['Data summary', 'Replicates', 'Values', 'Mean']}
-        rows={r.groups.map((g) => [
-          `${g.title}${nestedDroppedText(g.dropped)}`,
-          String(g.nReplicates),
-          String(g.nValues),
-          sig(g.mean),
-        ])}
+      <Headline
+        reading={nestedOneWayReading(r)}
+        figures={[
+          pFigure('P value (ANOVA)', a.p),
+          {
+            label: 'F (DFn, DFd)',
+            value: sig(a.f),
+            detail: `DFn = ${dfText(a.dfn)}, DFd = ${dfText(a.dfd)}`,
+          },
+          ...(r.pairs.length ? [pairsFigure(name, r.pairs, true)] : []),
+        ]}
       />
-      {r.pairs.length > 0 && (
+      <p className="method">{nestedOneWayMethod(r)}</p>
+      <div className="results-grid">
+        <Sections sections={sections} />
         <Grid
-          label="Multiple comparisons"
-          head={[
-            `${name} multiple comparisons test`,
-            'Mean diff.',
-            '95% CI of diff.',
-            'Significant?',
-            'Summary',
-            'Adjusted P value',
-          ]}
-          rows={r.pairs.map((x) => [
-            `${x.a.title} vs. ${x.b.title}`,
-            sig(x.diff),
-            interval(x.ciLower, x.ciUpper),
-            x.p < 0.05 ? 'Yes' : 'No',
-            stars(x.p),
-            pValue(x.p),
+          label="Data summary"
+          head={['Data summary', 'Replicates', 'Values', 'Mean']}
+          rows={r.groups.map((g) => [
+            `${g.title}${nestedDroppedText(g.dropped)}`,
+            String(g.nReplicates),
+            String(g.nValues),
+            sig(g.mean),
           ])}
         />
-      )}
+        {r.pairs.length > 0 && (
+          <Grid
+            label="Multiple comparisons"
+            head={[
+              `${name} multiple comparisons test`,
+              'Mean diff.',
+              '95% CI of diff.',
+              'Significant?',
+              'Summary',
+              'Adjusted P value',
+            ]}
+            rows={r.pairs.map((x) => [
+              `${x.a.title} vs. ${x.b.title}`,
+              sig(x.diff),
+              interval(x.ciLower, x.ciUpper),
+              x.p < 0.05 ? 'Yes' : 'No',
+              stars(x.p),
+              pValue(x.p),
+            ])}
+          />
+        )}
+      </div>
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
         reports it.

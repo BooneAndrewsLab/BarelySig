@@ -115,8 +115,12 @@ more groups). Then it suggests the t test or ANOVA and says why.
 
 - **The first sentence** says in plain words what the result means, and
   never contradicts the asterisks.
+- **The key numbers** sit beside it: the P value it goes by, how big the
+  difference is (with its 95% confidence interval) or how many pairs
+  differ, and the test statistic. The same numbers are in the tables.
 - **The line below it** names the test and the options used.
-- **The tables** follow Prism’s layout, section by section.
+- **The tables** follow Prism’s layout, section by section: short tables
+  side by side, tables with columns across the page.
 - **P values** are shown as Prism shows them: four decimals,
   `< 0.0001` below that and `> 0.9999` at 1, never 0. A P just under a
   threshold is cut, not rounded up, so 0.04996 shows as 0.0499.

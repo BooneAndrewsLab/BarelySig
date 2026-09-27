@@ -132,10 +132,21 @@ describe('results sheets', () => {
     expect(
       screen.getByText('Unpaired t test, assuming both groups have the same SD, two-tailed.'),
     ).toBeInTheDocument();
-    const table = region('Unpaired t test of Viability').getByRole('table');
+    // The key numbers beside the reading, then Prism's tables as cards.
+    const sheet = region('Unpaired t test of Viability');
+    const figures = within(sheet.getByLabelText('Key numbers'));
+    const figure = (label: string) => figures.getByText(label).parentElement;
+    expect(figure('P value')).toHaveTextContent('P value0.0021** · two-tailed');
+    expect(figure('Difference (KO − WT)')).toHaveTextContent(/95% CI .+ to /);
+    expect(figure('t statistic')).toHaveTextContent('3.674df = 4');
+    expect(
+      within(sheet.getByRole('table', { name: 'Unpaired t test' })).getByRole('rowheader', {
+        name: 'P value',
+      }),
+    ).toBeInTheDocument();
     // The first matching row: the F test has its own "P value" further down.
     const row = (label: string) =>
-      within(table).getAllByRole('rowheader', { name: label })[0]?.closest('tr');
+      sheet.getAllByRole('rowheader', { name: label })[0]?.closest('tr');
     expect(row('P value')).toHaveTextContent('0.0021');
     expect(row('P value summary')).toHaveTextContent('**');
     expect(row('t, df')).toHaveTextContent('t = 3.674, df = 4');
@@ -324,9 +335,7 @@ describe('results sheets', () => {
     expect(
       screen.getByText(/can’t give P < 0\.05 however different the groups are/),
     ).toBeInTheDocument();
-    const table = screen.getByRole('table');
-    const row = (label: string) =>
-      within(table).getByRole('rowheader', { name: label }).closest('tr');
+    const row = (label: string) => screen.getByRole('rowheader', { name: label }).closest('tr');
     expect(row('Exact or approximate P value?')).toHaveTextContent('Exact');
     expect(row('Mann-Whitney U')).toHaveTextContent('0');
     expect(row('Difference: actual (KO − WT)')).toHaveTextContent('3');
@@ -376,9 +385,8 @@ describe('results sheets', () => {
       /^KO tends to be higher than WT within the same subjects \(P = 0\.0313\)/,
     );
     expect(screen.getByText(/counted for neither side \(Pratt’s method\)/)).toBeInTheDocument();
-    const table = screen.getByRole('table');
     expect(
-      within(table).getByRole('rowheader', { name: 'Sum of signed ranks (W)' }).closest('tr'),
+      screen.getByRole('rowheader', { name: 'Sum of signed ranks (W)' }).closest('tr'),
     ).toHaveTextContent('21');
   });
 
@@ -680,9 +688,8 @@ describe('matched nested t test sheet (note 14)', () => {
     expect(
       screen.getByText(/a paired t test on the replicate means \(n = 3 replicates/),
     ).toBeInTheDocument();
-    const table = region(name).getByRole('table');
     const row = (label: string) =>
-      within(table).getByRole('rowheader', { name: label }).closest('tr');
+      region(name).getByRole('rowheader', { name: label }).closest('tr');
     expect(row('Matched replicates (pairs)')).toHaveTextContent('3');
     expect(row('SD of the differences between replicate means')).toHaveTextContent('0.1408');
   });
