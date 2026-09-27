@@ -84,9 +84,20 @@ epsilon is always 1 and every P agrees.
   out for a missing value.
 - **Multiple comparisons**, one row per pair, as one-way ANOVA’s.
 
+## Exact or approximate Friedman P
+
+For small tables BarelySig counts every way each subject's own ranks
+could have been reassigned across the treatments, even with ties, and
+gives an **exact P** — Prism's own rule, treatments! raised to the
+number of subjects at most a billion, so a handful of treatments admits
+many subjects (11 for three treatments) while more treatments need very
+few subjects (two for up to seven). Bigger tables get the usual
+**chi-square approximation**, accurate there. The choice depends on the
+table's size, never on how fast your computer is.
+
 ## Reading the Friedman results
 
-- **Friedman test:** **P value** (always approximate, chi-square),
+- **Friedman test:** **P value**, **Exact or approximate P value?**,
   **P value summary**, **Friedman statistic**, the number of groups.
 - **Data summary:** each group’s sum and mean of ranks.
 - **Data analyzed:** the number of subjects and any rows left out.
@@ -103,10 +114,6 @@ The asterisks: ns P ≥ 0.05, `*` P < 0.05, `**` P < 0.01, `***` P < 0.001,
 Prism calls these “Repeated measures one-way ANOVA” and “Friedman test”
 (nonparametric). Where they differ:
 
-- **Friedman’s exact P:** Prism computes an exact permutation P for
-  small tables; BarelySig always uses the chi-square approximation for
-  now (issue #82), as Kruskal-Wallis did before its own exact P was
-  built.
 - Two-way repeated-measures ANOVA (one or both factors repeated, from a
   Grouped table) isn’t built yet (issue #81).
 
@@ -114,7 +121,11 @@ Everything is checked against R’s own `anova.mlm` (Geisser-Greenhouse and
 Huynh-Feldt epsilon), `aov`, `stats::friedman.test` and `t.test` (each
 pair, for the sphericity-free comparisons), with `TukeyHSD` and the
 multcomp package as second checks, on cases with ties, missing values,
-and a strong sphericity violation.
+and a strong sphericity violation. No package computes an exact,
+ties-aware Friedman P, so it is checked against brute-force counts of
+every way the ranks could be reassigned, on cases with and without ties
+and right either side of where the exact P gives way to the
+approximation.
 
 ## On a graph
 

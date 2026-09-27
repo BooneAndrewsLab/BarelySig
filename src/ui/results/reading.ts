@@ -350,7 +350,8 @@ export function friedmanMethod(r: FriedmanResult): string {
     c.kind === 'none'
       ? ''
       : ` Dunn’s multiple comparisons (${c.kind === 'all' ? 'every pair of groups' : 'each group against the control'}), ${r.corrected ? 'each P multiplied by the number of comparisons' : 'not adjusted for the number of comparisons'}.`;
-  return `Friedman test (nonparametric, ranks within each row), approximate P value (chi-square).${comps}`;
+  const p = r.exact ? 'exact P value' : 'approximate P value (chi-square)';
+  return `Friedman test (nonparametric, ranks within each row), ${p}.${comps}`;
 }
 
 export function friedmanReading(r: FriedmanResult): string {

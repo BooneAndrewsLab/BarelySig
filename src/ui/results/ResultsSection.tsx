@@ -778,7 +778,7 @@ function FriedmanView({ r, id }: { readonly r: FriedmanResult; readonly id: Id }
       'Friedman test',
       [
         ['P value', pValue(r.p)],
-        ['Exact or approximate P value?', 'Approximate (chi-square)'],
+        ['Exact or approximate P value?', r.exact ? 'Exact' : 'Approximate (chi-square)'],
         ['P value summary', stars(r.p)],
         ['Do the groups differ significantly (P < 0.05)?', yesNo(r.p)],
         ['Number of groups', String(r.groups.length)],
@@ -801,7 +801,7 @@ function FriedmanView({ r, id }: { readonly r: FriedmanResult; readonly id: Id }
       <Headline
         reading={friedmanReading(r)}
         figures={[
-          pFigure('P value', r.p, 'approximate'),
+          pFigure('P value', r.p, r.exact ? 'exact' : 'approximate'),
           { label: 'Friedman statistic', value: sig(r.statistic) },
           ...(r.pairs.length ? [pairsFigure('Dunn’s', r.pairs, adjusted)] : []),
         ]}
@@ -854,8 +854,10 @@ function FriedmanView({ r, id }: { readonly r: FriedmanResult; readonly id: Id }
         )}
       </AllNumbers>
       <p className="legend">
-        Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals. The Friedman P is
-        approximate (chi-square); very small tables get an exact P in a later version (#82).
+        Asterisks: {STAR_SCHEME}. Dunn’s test gives no confidence intervals.{' '}
+        {r.exact
+          ? 'The Friedman P is exact: it counts every way the ranks could have been reassigned within each row.'
+          : 'The Friedman P is approximate (chi-square), accurate unless the table is small; small tables get an exact P.'}
       </p>
     </>
   );

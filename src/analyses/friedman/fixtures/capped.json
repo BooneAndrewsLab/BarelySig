@@ -1,37 +1,32 @@
 {
   "input": {
-    "g1": [1, 4, 2, 5, 3, 6],
-    "g2": [
-      1.1000000000000001, 4.0999999999999996, 2.1000000000000001, 5.0999999999999996,
-      3.1000000000000001, 6.0999999999999996
-    ],
-    "g3": [
-      1.2, 4.2000000000000002, 2.2000000000000002, 5.2000000000000002, 3.2000000000000002,
-      6.2000000000000002
-    ],
-    "g4": [10, 40, 20, 50, 30, 60]
+    "g1": [1, 4, 2, 5],
+    "g2": [1.1000000000000001, 4.0999999999999996, 2.1000000000000001, 5.0999999999999996],
+    "g3": [1.2, 4.2000000000000002, 2.2000000000000002, 5.2000000000000002],
+    "g4": [10, 40, 20, 50]
   },
   "expected": {
     "k": 4,
-    "n": 6,
-    "statistic": 18,
+    "n": 4,
+    "statistic": 12,
     "df": 3,
-    "p": 0.00043984965283882903,
+    "p": 7.2337962962962959e-5,
+    "exact": true,
     "groups": [
       {
-        "rank_sum": 6,
+        "rank_sum": 4,
         "mean_rank": 1
       },
       {
-        "rank_sum": 12,
+        "rank_sum": 8,
         "mean_rank": 2
       },
       {
-        "rank_sum": 18,
+        "rank_sum": 12,
         "mean_rank": 3
       },
       {
-        "rank_sum": 24,
+        "rank_sum": 16,
         "mean_rank": 4
       }
     ],
@@ -40,48 +35,48 @@
         "i": 1,
         "j": 2,
         "diff": -1,
-        "z": 1.3416407864998738,
-        "p_unadjusted": 0.17971249487899985,
+        "z": 1.0954451150103321,
+        "p_unadjusted": 0.27332167829229814,
         "p": 1
       },
       {
         "i": 1,
         "j": 3,
         "diff": -2,
-        "z": 2.6832815729997477,
-        "p_unadjusted": 0.0072903580915356404,
-        "p": 0.043742148549213843
+        "z": 2.1908902300206643,
+        "p_unadjusted": 0.028459736916310593,
+        "p": 0.17075842149786355
       },
       {
         "i": 1,
         "j": 4,
         "diff": -3,
-        "z": 4.0249223594996213,
-        "p_unadjusted": 5.6994116233318492e-5,
-        "p": 0.00034196469739991098
+        "z": 3.2863353450309964,
+        "p_unadjusted": 0.0010150009471130688,
+        "p": 0.0060900056826784128
       },
       {
         "i": 2,
         "j": 3,
         "diff": -1,
-        "z": 1.3416407864998738,
-        "p_unadjusted": 0.17971249487899985,
+        "z": 1.0954451150103321,
+        "p_unadjusted": 0.27332167829229814,
         "p": 1
       },
       {
         "i": 2,
         "j": 4,
         "diff": -2,
-        "z": 2.6832815729997477,
-        "p_unadjusted": 0.0072903580915356404,
-        "p": 0.043742148549213843
+        "z": 2.1908902300206643,
+        "p_unadjusted": 0.028459736916310593,
+        "p": 0.17075842149786355
       },
       {
         "i": 3,
         "j": 4,
         "diff": -1,
-        "z": 1.3416407864998738,
-        "p_unadjusted": 0.17971249487899985,
+        "z": 1.0954451150103321,
+        "p_unadjusted": 0.27332167829229814,
         "p": 1
       }
     ]
@@ -91,11 +86,11 @@
     "packages": {
       "stats": "4.6.0"
     },
-    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = ft$p.value, groups = lapply(seq_len(k), function(j) list(rank_sum = rank_sum[j], \n                mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
-    "call": "friedman(complete_rows(g1, g2, g3, g4))"
+    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    permutations_of <- function(k) {\n        if (k == 1L) \n            return(matrix(1L, 1L, 1L))\n        sub <- permutations_of(k - 1L)\n        do.call(rbind, lapply(seq_len(k), function(i) {\n            shifted <- sub\n            shifted[shifted >= i] <- shifted[shifted >= i] + 1L\n            cbind(i, shifted)\n        }))\n    }\n    row_assignments <- function(row, perms) t(apply(perms, 1, function(idx) row[idx]))\n    friedman_p_brute <- function(m) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ranks <- t(apply(m, 1, rank))\n        perms <- permutations_of(k)\n        assigned <- lapply(seq_len(n), function(i) row_assignments(ranks[i, ], perms))\n        grid <- expand.grid(rep(list(seq_len(nrow(perms))), n))\n        total <- matrix(0, nrow(grid), k)\n        for (i in seq_len(n)) total <- total + assigned[[i]][grid[[i]], , drop = FALSE]\n        stat <- rowSums(total^2)\n        stat_obs <- sum(colSums(ranks)^2)\n        mean(stat >= stat_obs - 1e-09)\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE, exact = FALSE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = if (exact) friedman_p_brute(m) else ft$p.value, exact = exact, groups = lapply(seq_len(k), \n                function(j) list(rank_sum = rank_sum[j], mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "friedman(complete_rows(g1, g2, g3, g4), exact = TRUE)"
   },
   "tolerance": 9.9999999999999995e-7,
-  "note": "Six comparisons: a P above 1/6 is capped at 1 (Prism shows > 0.9999).",
+  "note": "Six comparisons: a P above 1/6 is capped at 1 (Prism shows > 0.9999). Exact (24^4).",
   "options": {
     "comparisons": "all",
     "corrected": true

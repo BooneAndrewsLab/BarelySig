@@ -35,10 +35,13 @@ export interface FriedmanResult {
   /** Complete rows kept. */
   readonly n: number;
   readonly droppedRows: number;
-  /** The chi-square approximation, with the standard tie correction; always approximate (#82). */
+  /** The chi-square approximation, with the standard tie correction. */
   readonly statistic: number;
   readonly df: number;
+  /** Exact (counted over every way the ranks could be reassigned by row), or from the chi-square approximation. */
   readonly p: number;
+  /** Whether P is exact: small tables, note 17's #82 section. */
+  readonly exact: boolean;
   readonly comparisons: FriedmanOptions['comparisons'];
   readonly corrected: boolean;
   readonly pairs: readonly DunnComparison[];

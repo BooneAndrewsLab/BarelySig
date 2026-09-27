@@ -16,7 +16,7 @@ const list = (v: Plain | undefined): readonly Plain[] => (Array.isArray(v) ? v :
 
 export const friedman: AnalysisModule<'friedman', FriedmanRequest, FriedmanResult> = {
   kind: 'friedman',
-  version: 1,
+  version: 2,
   code,
 
   prepare(analysis, project): Prepared<FriedmanRequest> {
@@ -116,6 +116,7 @@ export const friedman: AnalysisModule<'friedman', FriedmanRequest, FriedmanResul
       statistic: need(r['statistic'], 'Friedman statistic'),
       df: need(r['df'], 'df'),
       p: need(r['p'], 'P'),
+      exact: r['exact'] === true,
       comparisons: request.options.comparisons,
       corrected: request.options.corrected,
       pairs: list(r['comparisons']).map((v) => {

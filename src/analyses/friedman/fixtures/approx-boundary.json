@@ -1,0 +1,294 @@
+{
+  "input": {
+    "g1": [3, 2],
+    "g2": [1, 5],
+    "g3": [5, 1],
+    "g4": [2, 6],
+    "g5": [7, 3],
+    "g6": [4, 7],
+    "g7": [6, 4],
+    "g8": [8, 8]
+  },
+  "expected": {
+    "k": 8,
+    "n": 2,
+    "statistic": 7.5,
+    "df": 7,
+    "p": 0.37873690604821297,
+    "exact": false,
+    "groups": [
+      {
+        "rank_sum": 5,
+        "mean_rank": 2.5
+      },
+      {
+        "rank_sum": 6,
+        "mean_rank": 3
+      },
+      {
+        "rank_sum": 6,
+        "mean_rank": 3
+      },
+      {
+        "rank_sum": 8,
+        "mean_rank": 4
+      },
+      {
+        "rank_sum": 10,
+        "mean_rank": 5
+      },
+      {
+        "rank_sum": 11,
+        "mean_rank": 5.5
+      },
+      {
+        "rank_sum": 10,
+        "mean_rank": 5
+      },
+      {
+        "rank_sum": 16,
+        "mean_rank": 8
+      }
+    ],
+    "comparisons": [
+      {
+        "i": 1,
+        "j": 2,
+        "diff": -0.5,
+        "z": 0.20412414523193154,
+        "p_unadjusted": 0.83825648638582628,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 3,
+        "diff": -0.5,
+        "z": 0.20412414523193154,
+        "p_unadjusted": 0.83825648638582628,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 4,
+        "diff": -1.5,
+        "z": 0.61237243569579458,
+        "p_unadjusted": 0.54029137460741983,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 5,
+        "diff": -2.5,
+        "z": 1.0206207261596576,
+        "p_unadjusted": 0.30743416592739531,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 6,
+        "diff": -3,
+        "z": 1.2247448713915892,
+        "p_unadjusted": 0.22067136191984676,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 7,
+        "diff": -2.5,
+        "z": 1.0206207261596576,
+        "p_unadjusted": 0.30743416592739531,
+        "p": 1
+      },
+      {
+        "i": 1,
+        "j": 8,
+        "diff": -5.5,
+        "z": 2.2453655975512468,
+        "p_unadjusted": 0.024744672046398939,
+        "p": 0.69285081729917031
+      },
+      {
+        "i": 2,
+        "j": 3,
+        "diff": 0,
+        "z": 0,
+        "p_unadjusted": 1,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 4,
+        "diff": -1,
+        "z": 0.40824829046386307,
+        "p_unadjusted": 0.68309139830960874,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 5,
+        "diff": -2,
+        "z": 0.81649658092772615,
+        "p_unadjusted": 0.41421617824252505,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 6,
+        "diff": -2.5,
+        "z": 1.0206207261596576,
+        "p_unadjusted": 0.30743416592739531,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 7,
+        "diff": -2,
+        "z": 0.81649658092772615,
+        "p_unadjusted": 0.41421617824252505,
+        "p": 1
+      },
+      {
+        "i": 2,
+        "j": 8,
+        "diff": -5,
+        "z": 2.0412414523193152,
+        "p_unadjusted": 0.041226833337163697,
+        "p": 1
+      },
+      {
+        "i": 3,
+        "j": 4,
+        "diff": -1,
+        "z": 0.40824829046386307,
+        "p_unadjusted": 0.68309139830960874,
+        "p": 1
+      },
+      {
+        "i": 3,
+        "j": 5,
+        "diff": -2,
+        "z": 0.81649658092772615,
+        "p_unadjusted": 0.41421617824252505,
+        "p": 1
+      },
+      {
+        "i": 3,
+        "j": 6,
+        "diff": -2.5,
+        "z": 1.0206207261596576,
+        "p_unadjusted": 0.30743416592739531,
+        "p": 1
+      },
+      {
+        "i": 3,
+        "j": 7,
+        "diff": -2,
+        "z": 0.81649658092772615,
+        "p_unadjusted": 0.41421617824252505,
+        "p": 1
+      },
+      {
+        "i": 3,
+        "j": 8,
+        "diff": -5,
+        "z": 2.0412414523193152,
+        "p_unadjusted": 0.041226833337163697,
+        "p": 1
+      },
+      {
+        "i": 4,
+        "j": 5,
+        "diff": -1,
+        "z": 0.40824829046386307,
+        "p_unadjusted": 0.68309139830960874,
+        "p": 1
+      },
+      {
+        "i": 4,
+        "j": 6,
+        "diff": -1.5,
+        "z": 0.61237243569579458,
+        "p_unadjusted": 0.54029137460741983,
+        "p": 1
+      },
+      {
+        "i": 4,
+        "j": 7,
+        "diff": -1,
+        "z": 0.40824829046386307,
+        "p_unadjusted": 0.68309139830960874,
+        "p": 1
+      },
+      {
+        "i": 4,
+        "j": 8,
+        "diff": -4,
+        "z": 1.6329931618554523,
+        "p_unadjusted": 0.10247043485974935,
+        "p": 1
+      },
+      {
+        "i": 5,
+        "j": 6,
+        "diff": -0.5,
+        "z": 0.20412414523193154,
+        "p_unadjusted": 0.83825648638582628,
+        "p": 1
+      },
+      {
+        "i": 5,
+        "j": 7,
+        "diff": 0,
+        "z": 0,
+        "p_unadjusted": 1,
+        "p": 1
+      },
+      {
+        "i": 5,
+        "j": 8,
+        "diff": -3,
+        "z": 1.2247448713915892,
+        "p_unadjusted": 0.22067136191984676,
+        "p": 1
+      },
+      {
+        "i": 6,
+        "j": 7,
+        "diff": 0.5,
+        "z": 0.20412414523193154,
+        "p_unadjusted": 0.83825648638582628,
+        "p": 1
+      },
+      {
+        "i": 6,
+        "j": 8,
+        "diff": -2.5,
+        "z": 1.0206207261596576,
+        "p_unadjusted": 0.30743416592739531,
+        "p": 1
+      },
+      {
+        "i": 7,
+        "j": 8,
+        "diff": -3,
+        "z": 1.2247448713915892,
+        "p_unadjusted": 0.22067136191984676,
+        "p": 1
+      }
+    ]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    complete_rows <- function(...) {\n        m <- do.call(cbind, list(...))\n        m[stats::complete.cases(m), , drop = FALSE]\n    }\n    permutations_of <- function(k) {\n        if (k == 1L) \n            return(matrix(1L, 1L, 1L))\n        sub <- permutations_of(k - 1L)\n        do.call(rbind, lapply(seq_len(k), function(i) {\n            shifted <- sub\n            shifted[shifted >= i] <- shifted[shifted >= i] + 1L\n            cbind(i, shifted)\n        }))\n    }\n    row_assignments <- function(row, perms) t(apply(perms, 1, function(idx) row[idx]))\n    friedman_p_brute <- function(m) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ranks <- t(apply(m, 1, rank))\n        perms <- permutations_of(k)\n        assigned <- lapply(seq_len(n), function(i) row_assignments(ranks[i, ], perms))\n        grid <- expand.grid(rep(list(seq_len(nrow(perms))), n))\n        total <- matrix(0, nrow(grid), k)\n        for (i in seq_len(n)) total <- total + assigned[[i]][grid[[i]], , drop = FALSE]\n        stat <- rowSums(total^2)\n        stat_obs <- sum(colSums(ranks)^2)\n        mean(stat >= stat_obs - 1e-09)\n    }\n    friedman <- function(m, comps = \"all\", control = 1, corrected = TRUE, exact = FALSE) {\n        n <- nrow(m)\n        k <- ncol(m)\n        ft <- friedman.test(m)\n        r <- t(apply(m, 1, rank))\n        rank_sum <- colSums(r)\n        mean_rank <- rank_sum/n\n        out <- list(k = k, n = n, statistic = unname(ft$statistic), df = unname(ft$parameter), \n            p = if (exact) friedman_p_brute(m) else ft$p.value, exact = exact, groups = lapply(seq_len(k), \n                function(j) list(rank_sum = rank_sum[j], mean_rank = mean_rank[j])))\n        out$comparisons <- if (comps == \"none\") \n            list()\n        else {\n            pairs <- unname(if (comps == \"all\") {\n                do.call(rbind, lapply(seq_len(k - 1), function(i) cbind(i, (i + 1):k)))\n            }\n            else {\n                cbind(control, seq_len(k)[-control])\n            })\n            K <- nrow(pairs)\n            se <- sqrt(k * (k + 1)/(6 * n))\n            lapply(seq_len(K), function(x) {\n                i <- pairs[x, 1]\n                j <- pairs[x, 2]\n                d <- mean_rank[i] - mean_rank[j]\n                z <- abs(d)/se\n                p <- 2 * pnorm(z, lower.tail = FALSE)\n                list(i = i, j = j, diff = d, z = z, p_unadjusted = p, p = if (corrected) min(1, \n                  K * p) else p)\n            })\n        }\n        out\n    }\n}",
+    "call": "friedman(complete_rows(g1, g2, g3, g4, g5, g6, g7, g8))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "8 treatments x 2 subjects: 40320^2 ~ 1.6e9, just past the threshold, so the fallback triggers and it stays approximate.",
+  "options": {
+    "comparisons": "all",
+    "corrected": true
+  }
+}
