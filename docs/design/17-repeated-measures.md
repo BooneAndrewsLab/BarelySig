@@ -317,3 +317,85 @@ the comparisons shown, every time — never a silent default, per
 CLAUDE.md's "text a user reads about statistics is part of correctness"
 lesson. The guide page (`docs/guide/18-repeated-measures.md`) gets a
 short section on when FAQ 1609 recommends each.
+
+## #82: exact Friedman P for small tables
+
+Written 2026-09-27, before implementing. The Friedman test has shipped
+(above) with only the chi-square approximation, always labelled
+"approximate" — exactly Kruskal-Wallis's situation before #49. Prism
+computes an exact permutation P when (treatments!)^subjects ≤ 10⁹, even
+with ties, the same rule note 06 records for Mann-Whitney and Wilcoxon.
+No reference package computes it (`coin::friedman_test(...,
+distribution = "exact")` refuses anything but a two-sample problem —
+checked directly, `Error: 'object' is not a two-sample problem` — and no
+other installed package offers an exact, ties-aware Friedman P either),
+so this is derived and validated the way CLAUDE.md's Correctness section
+allows when nothing independent exists: an own algorithm, cross-checked
+against literal brute-force permutation enumeration on small cases.
+
+**The null model.** Ranks are taken within each row (subject), midranks
+for ties — exactly what the approximate path already computes. Under the
+null, each row's own multiset of ranks is independently and uniformly
+reassigned to the k columns (one of its k! permutations, indistinguishable
+ones merged by the tie pattern). The statistic depends on the data only
+through Σⱼ Rⱼ² (Rⱼ the column rank sums): Σⱼ(Rⱼ − N(k+1)/2)² expands to
+Σⱼ Rⱼ² minus terms that are the same for every permutation (Σⱼ Rⱼ is
+invariant — a row's ranks always sum to k(k+1)/2 regardless of ties or
+reassignment — and so is the tie-corrected denominator, since permuting
+columns never changes which values are tied within a row). So "exact P"
+is exactly: over all k!ⁿ equally likely permutation assignments (fewer
+distinct *outcomes*, since ties collapse many permutations onto the same
+rank vector), the fraction with Σⱼ Rⱼ² at least the observed value.
+
+**Algorithm: convolve each row's own distribution, not enumerate
+directly** (`bs_friedman_exact`, `analysis.R`, the same shape as
+Kruskal-Wallis's `bs_kw_exact`): doubled midranks (`r2 = 2r`, whole
+numbers) so every sum is exact. Each row contributes one of its own k!
+permutations to the k columns; the DP only needs the column 1..(k−1)
+sums (column k is the row-constant total minus the rest), packed into
+one whole-number key exactly as `bs_kw_exact` packs its own state, and
+merged with `order(method = "radix")` + `rowsum` rather than a hash map.
+Convolving row by row (rather than materialising the full k!ⁿ Cartesian
+product) is what makes the ≤ 10⁹ threshold tractable at all: the DP's
+cost is driven by the *distinct sums reachable*, not literally k!ⁿ.
+
+**Performance is uneven across the threshold's own boundary**, and that
+is expected, not a bug: few subjects with many treatments is the
+expensive corner (little averaging to collapse states), not many
+subjects. Timed in desktop R: 4 treatments × 6 subjects (1.9×10⁸) and
+3 × 11 (3.6×10⁸) both under half a second; 6 × 3 (3.7×10⁸) and 7 × 2
+(2.5×10⁷, comfortably under 10⁹ by count alone) both take several
+seconds — the DP's intermediate state count peaks around 1.6 million
+states for 7 × 2, not enormous, but reaching it costs one multi-million-
+entry merge per row. This runs off the main thread (the engine's own
+rule) and only a few seconds even at the worst corner, so it is left as
+is rather than adding a second, faster algorithm just for that corner; a
+`cap` on the DP's own state count (mirroring `bs_kw_small`'s budget, not
+expected to bind given the measured worst case) falls back to the
+chi-square approximation rather than let a pathological input hang.
+
+**Oracle** (`friedman/oracle.R`): a second, independently written
+convolution (hash-keyed by the sum vector itself via `tapply`, not the
+app's packed-integer key) is cross-checked against literal brute-force
+enumeration (every row's own permutations, Cartesian-multiplied out with
+`expand.grid`-style repetition, no shortcuts) on every small fixture —
+both with and without ties. Existing fixtures whose (treatments!)^n
+newly qualifies as exact under this rule (`ties`, `dropped-row`, `n-2`,
+and `basic`/`uncorrected`/`capped` — the latter three shrunk from 6 to 4
+subjects so the brute-force check stays fast to generate) get their
+expected P recomputed and `exact: true` recorded; `control`, `tiny-p`
+and `five-groups` stay past the threshold and are untouched. Two new
+fixtures sit right either side of the 10⁹ boundary with n fixed at the
+fewest rows the test can run on (2): 7 treatments (5040² ≈ 2.5×10⁷,
+exact) and 8 treatments (40320² ≈ 1.6×10⁹, past it — the chi-square
+path, no brute force needed since it isn't exact).
+
+**Result and UI**: `FriedmanResult` gains `exact: boolean`, mirroring
+`KruskalWallisResult['exact']` exactly. `ResultsSection.tsx`'s
+`FriedmanView` and `reading.ts`'s `friedmanMethod` drop their hard-coded
+"approximate (chi-square)" text for the same `r.exact ? 'exact' :
+'approximate (chi-square)'` branch Kruskal-Wallis's view already uses;
+the legend sentence becomes conditional the same way. The guide page
+(`docs/guide/18-repeated-measures.md`) gets the same "exact for small
+tables, otherwise chi-square" sentence its Kruskal-Wallis section
+already has.
