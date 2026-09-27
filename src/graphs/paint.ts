@@ -149,11 +149,12 @@ export function paintScene(ctx: Ctx, scene: Scene, scale: number): void {
 export const MAX_PIXELS = 16_000_000;
 
 /**
- * Canvas pixels per point for the figure on screen: it is shown at 2 CSS
- * px per point (1.5× its millimetre size), times the device pixel ratio.
+ * Canvas pixels per point for the figure on screen: it is shown at up to
+ * 3 CSS px per point (2.25× its millimetre size, in a wide section; note
+ * 08), times the device pixel ratio.
  */
 export function screenScale(scene: Scene, dpr: number): number {
-  const want = 2 * Math.max(1, dpr);
+  const want = 3 * Math.max(1, dpr);
   const area = scene.width * scene.height;
   return area * want * want > MAX_PIXELS ? Math.sqrt(MAX_PIXELS / area) : want;
 }

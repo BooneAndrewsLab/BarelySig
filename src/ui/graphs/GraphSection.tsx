@@ -1,11 +1,20 @@
 /**
  * A graph as a section of its experiment's page (notes 05, 08): the
- * figure at its real proportions; Format (or clicking a part of the
- * figure) opens the settings a graph needs (what to plot, error bars,
- * theme, size) or the inspector beside it; notes say what the marks show. The figure is the same SVG an
- * export writes.
+ * figure at its real proportions, with the settings a graph needs (what
+ * to plot, error bars, theme, size) beside it where the section is wide
+ * enough, or behind Format where it isn't; clicking a part of the figure
+ * shows its inspector there instead. Notes say what the marks show. The
+ * figure is the same SVG an export writes.
  */
-import { type ReactNode, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { graphInput, summaryId } from '@/graphs/data';
 import { outlinePath, pickIn } from '@/graphs/drawn';
@@ -41,6 +50,32 @@ interface Props {
 
 /** Screen pixels per millimetre at 100% (CSS px are 1/96 in). */
 const PX_PER_MM = 96 / 25.4;
+/** The figure's size on screen, times its physical size: at least, and at most in a wide section. */
+const ZOOM = 1.5;
+const MAX_ZOOM = 2.25;
+/** A wide section's figure stays on a lab laptop's screen. */
+const MAX_HEIGHT = 560;
+/** Room the settings need beside the figure (two columns of them), and the gap between. */
+const SIDE_MIN = 460;
+const GAP = 24;
+
+/** The width of `ref`'s element, 0 until measured (and in jsdom, which has no ResizeObserver). */
+function useWidth(ref: RefObject<HTMLElement | null>): number {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    setWidth(el.clientWidth);
+    const ro = new ResizeObserver(() => {
+      setWidth(el.clientWidth);
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+    };
+  }, [ref]);
+  return width;
+}
 
 export function GraphSection({ project, graph: saved, number, note }: Props) {
   const bridge = getResults();
@@ -50,6 +85,7 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
   const [preview, setPreview] = useState<{ key: string; offset: number } | null>(null);
   const drag = useRef<{ key: string; startY: number; base: number; moved: boolean } | null>(null);
   const figure = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   // One object per preview, so what is drawn from it is kept (item 10).
   const graph = useMemo(
     () => (preview ? withOffset(saved, preview.key, preview.offset) : saved),
@@ -113,7 +149,23 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
   }
   const busy = view.busy || working !== null;
 
-  const panel = formatting || selected !== null;
+  // Wide enough for the settings beside the figure: they stay open, and
+  // the figure grows into the room left (note 08, decision 11).
+  const bodyWidth = useWidth(body);
+  const natural = graph.size.width * PX_PER_MM;
+  const wide = bodyWidth >= natural * ZOOM + GAP + SIDE_MIN;
+  const zoom = wide
+    ? Math.max(
+        ZOOM,
+        Math.min(
+          MAX_ZOOM,
+          (bodyWidth - GAP - SIDE_MIN) / natural,
+          MAX_HEIGHT / (graph.size.height * PX_PER_MM),
+        ),
+      )
+    : ZOOM;
+  const figureWidth = `${String(natural * zoom)}px`;
+  const panel = wide || formatting || selected !== null;
 
   return (
     <Section
@@ -142,18 +194,20 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
       }
       actions={
         <>
-          <button
-            type="button"
-            aria-pressed={panel}
-            onClick={() => {
-              if (panel) {
-                setFormatting(false);
-                setSelected(null);
-              } else setFormatting(true);
-            }}
-          >
-            <Icon name="format" size={16} /> Format
-          </button>
+          {!wide && (
+            <button
+              type="button"
+              aria-pressed={panel}
+              onClick={() => {
+                if (panel) {
+                  setFormatting(false);
+                  setSelected(null);
+                } else setFormatting(true);
+              }}
+            >
+              <Icon name="format" size={16} /> Format
+            </button>
+          )}
           <button
             type="button"
             className="primary"
@@ -168,7 +222,10 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
       }
       note={note}
     >
-      <div className={panel ? 'graph-body' : 'graph-body no-panel'}>
+      <div
+        ref={body}
+        className={wide ? 'graph-body wide' : panel ? 'graph-body' : 'graph-body no-panel'}
+      >
         {panel && (
           <div className="graph-side">
             <label className="field inspector-pick">
@@ -201,7 +258,7 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
             )}
           </div>
         )}
-        <figure className="graph-figure">
+        <figure className="graph-figure" style={wide ? { width: figureWidth } : undefined}>
           {status && (
             <p className="status-banner" role="status">
               {status}
@@ -228,7 +285,7 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
             <div
               className={busy ? 'graph-canvas busy' : 'graph-canvas'}
               aria-busy={busy}
-              style={{ width: `${String(graph.size.width * PX_PER_MM * 1.5)}px` }}
+              style={{ width: figureWidth }}
               tabIndex={0}
               aria-label="Graph: click a part of it to format it"
               onPointerDown={(e) => {

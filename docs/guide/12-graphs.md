@@ -11,9 +11,12 @@ thousands of points can take a second or two, and a spinner shows in its
 place meanwhile. While a change is being drawn, or its means and error
 bars recalculated, the previous version stays in view, faded.
 
-**Format**, in the graph's header, opens its settings beside it. Click any
-part of the graph to format that part instead: see
-[Formatting a graph](13-formatting.md).
+On a wide screen the graph's settings sit beside it, always open, and the
+graph is drawn larger to fill the room; on a narrower one, **Format** in
+the graph's header opens them. Click any part of the graph to format that
+part instead: see [Formatting a graph](13-formatting.md). The size on
+screen is only for looking at: an export is always the size in
+millimetres set under **Size**.
 
 ## Kinds of plot
 

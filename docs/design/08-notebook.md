@@ -77,6 +77,7 @@ The notebook groups by that instead.
    figure centred; **Format** (or clicking a part of the figure) opens the
    settings / inspector panel beside it, as before. Mockup C shows no
    panel; a panel always open would halve the figure in a 780 px column.
+   (A wide section keeps it open: decision 11.)
 5. **Sidebar.** The project name (click to rename), the experiments with
    a thumbnail of each one's first graph (the same SVG as the figure,
    scaled; the table's icon until there is a graph) and a one-line summary
@@ -124,6 +125,17 @@ The notebook groups by that instead.
     tables become cards side by side, and tables with columns run across
     the section. The key numbers repeat values from the tables, never
     new ones, so Prism's layout below stays complete (#57 builds on this).
+11. **The graph section on a wide page (2026-09-26).** Decision 4's
+    reason (a panel would halve the figure in a 780 px column) went with
+    decision 10: a centred 70 mm figure at 1.5× left most of a 1200 px
+    section empty. Where the section has room for the figure at 1.5×
+    plus 460 px, the graph's settings stay open to its right in two
+    columns (clicking a part swaps in its inspector there, as before),
+    Format goes away, and the figure grows into the rest: up to 2.25×
+    its millimetre size and 560 px tall, so it stays on a lab laptop's
+    screen. The worker paints at 3 px per point (times the device pixel
+    ratio) so the larger figure stays sharp. Narrower sections keep
+    decision 4. Opening a part's settings never moves the figure.
 
 ## Prism parity
 

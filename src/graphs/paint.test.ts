@@ -383,10 +383,10 @@ describe('the scale of the picture on screen', () => {
     notes: [],
   });
 
-  it('is 2 px per point times the device pixel ratio', () => {
-    expect(screenScale(scene(200, 170), 1)).toBe(2);
-    expect(screenScale(scene(200, 170), 2)).toBe(4);
-    expect(screenScale(scene(200, 170), 0.5)).toBe(2);
+  it('is 3 px per point times the device pixel ratio', () => {
+    expect(screenScale(scene(200, 170), 1)).toBe(3);
+    expect(screenScale(scene(200, 170), 2)).toBe(6);
+    expect(screenScale(scene(200, 170), 0.5)).toBe(3);
   });
 
   it('never exceeds the pixel budget', () => {

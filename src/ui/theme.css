@@ -1088,6 +1088,45 @@ select {
   width: 100%;
 }
 
+/* A wide section (note 08, decision 11): the figure on the left, grown
+   into the room, and the settings beside it in columns, always open. */
+.graph-body.wide {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.graph-body.wide .graph-side {
+  order: 1;
+  width: auto;
+  padding-left: 24px;
+  border-left: 1px solid var(--rule);
+}
+
+.graph-body.wide .inspector-pick {
+  max-width: 280px;
+}
+
+.graph-body.wide .graph-controls,
+.graph-body.wide .inspector {
+  columns: 2 200px;
+  column-gap: 28px;
+}
+
+.graph-body.wide .graph-controls fieldset,
+.graph-body.wide .inspector fieldset {
+  break-inside: avoid;
+}
+
+.graph-body.wide .inspector-head {
+  column-span: all;
+}
+
+.graph-body.wide .graph-figure .legend {
+  max-width: none;
+}
+
 .inspector-pick {
   display: flex;
   flex-direction: column;

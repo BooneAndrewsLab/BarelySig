@@ -271,6 +271,39 @@ describe('graph sheet', () => {
       `0 0 ${String(Math.round(((89 * 72) / 25.4) * 100) / 100)} ${String(Math.round(((60 * 72) / 25.4) * 100) / 100)}`,
     );
   });
+
+  it('keeps the settings open beside a larger figure where the section is wide (note 08)', async () => {
+    const width = (el: Element) => (el.classList.contains('graph-body') ? 1200 : 0);
+    const saved = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return width(this);
+      },
+    });
+    const nothing = () => undefined;
+    globalThis.ResizeObserver = class {
+      observe = nothing;
+      unobserve = nothing;
+      disconnect = nothing;
+    };
+    try {
+      render(<App />);
+      fireEvent.click(screen.getByRole('button', { name: /New graph/ }));
+      await screen.findByRole('img', { name: /Bars/ });
+      expect(screen.queryByRole('button', { name: 'Format' })).toBeNull();
+      expect(screen.getByRole('form', { name: 'Graph settings' })).toBeInTheDocument();
+      // 70 mm at 2.25× (the most), not 1.5×: 1200 px leaves room for more.
+      const canvas = screen.getByRole('img', { name: /Viability/ }).closest('.graph-canvas');
+      expect(parseFloat((canvas as HTMLElement).style.width)).toBeCloseTo(
+        70 * (96 / 25.4) * 2.25,
+        2,
+      );
+    } finally {
+      if (saved) Object.defineProperty(HTMLElement.prototype, 'clientWidth', saved);
+      Reflect.deleteProperty(globalThis, 'ResizeObserver');
+    }
+  });
 });
 
 describe('grouped bar graphs', () => {
