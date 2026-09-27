@@ -251,208 +251,37 @@ the target).
 
 ## Status (2026-09-27)
 
+Session-by-session narrative lives in `docs/design/NN-*.md` (notes 01–21)
+and in git/GitHub history — this section tracks current state only, not
+how it got here.
+
 - Repo: `BooneAndrewsLab/BarelySig`, private, **not published yet**.
-  `deploy.yml` is ready: on a published GitHub Release it runs the check
-  and the e2e tests at the Pages base, builds with the Matomo env
-  (`VITE_MATOMO_URL=https://boonelab.ccbr.utoronto.ca/matomo/`,
-  `VITE_MATOMO_SITE_ID=7`) and deploys. Version 1.0.0, `CITATION.cff`,
-  release notes in `docs/releases/1.0.0.md`. Left to the user (#36):
-  make the repo public, enable Pages (source: GitHub Actions), connect
-  Zenodo, publish the release; then add the DOI to `CITATION.cff`.
-- Scaffold done: Vite/React/TS, ESLint, Prettier, Vitest, CI, logo
-  lockup page, Matomo module (no site id yet).
-- `barelysig-r` conda env created (R 4.6.0 + oracle packages).
-- Milestones and issues #1–#42 on GitHub.
-- 0.1 done: WebR spike (item 01, #1, #2); R oracle, fixture harness and
-  engine parity test (#3).
-- 0.2 done: design note 02 accepted (#4); typed tables, named edits,
-  invariants and analysis-input selectors (#5); derived dependency
-  graph, input hashes and debounced recompute (#6); `.bsig` with
-  migrations and fast-check round trips (#7).
-- 0.3 (data entry, note 03): app shell and navigator (#8), own data grid
-  with Excel keys (#9), paste/copy (#10, code done; open until real
-  clipboard captures replace the constructed fixtures, see the issue),
-  summary data incl. mean with limits (#11), undo/redo (#12), autosave to
-  IndexedDB, open and download (#13). `npm run dev`, then `/?capture`
-  records a clipboard as a fixture.
-- 0.4 (analysis pipeline, note 04): engine over WebR with cancel,
-  restart and plain errors, packages pinned in `src/engine/lock.json`
-  (#14); PWA with WebR cached on first use (#15); descriptive statistics
-  (#16) and t tests (#17) with oracle fixtures; results sheets, the
-  Analyze dialog and saved results (#18).
-- 0.5 (first graphs, note 05): Modern and Classic themes with Arimo
-  (Arial metrics) bundled; pure layout → scene → one SVG serialiser;
-  bars and beeswarm dots with error bars from R (a graph's virtual
-  summary analysis); significance brackets from t tests; SVG/PNG export
-  at physical size; figure recipes embedded in exports and an export
-  history (#43). Follow-ups: #44 (real clipboard captures), #45 (drag
-  brackets), #46 (engine-change comparison).
-- `webr:fetch` skips when `public/webr/.stamp` matches; never rebuild
-  `public/webr/` under a running dev server by hand (it then serves
-  index.html for the package files).
-- Close project (#47): back to the start screen, which lists the
-  projects kept in this browser.
-- 0.6 done (MVP statistics, note 06): Mann-Whitney and Wilcoxon with
-  exact P even with ties (#24); one-way ANOVA with Tukey, Dunnett, Šidák,
-  Bonferroni, and Games-Howell / Dunnett T3 / Tamhane T2 after Welch
-  (#25); Kruskal-Wallis with Dunn (#26); two-way ANOVA, Type III, with
-  comparisons per row/column (#27); normality tests, offered alongside
-  parametric tests (#28); "Help me choose" in the Analyze dialog (#29).
-  Brackets come from every pairwise analysis, one per comparison.
-  Follow-ups: #48 (exact Spearman), #49 (exact Kruskal-Wallis), #50
-  (repeated measures, Friedman), #51, #52 (two-way edge cases).
-- 1.0 built (note 07): click-to-format inspector and draggable brackets
-  (#30, #45); box and violin plots from an internal `graph-summary`
-  analysis with its own oracle (#31); grouped bars with two-way brackets
-  (#32); exact Kruskal-Wallis P for small samples (#49); "numbers under a
-  newer engine" notice for reopened figures (#46); user guide in
-  `docs/guide/` shown by the ? button (#34); usability pass (#33, follow-ups
-  #53, #54); Playwright e2e in CI (#35). Exact Spearman moved to Phase 2
-  (#48). Open in 1.0: #36 (the user's release steps) and #44 (real
-  clipboard captures, needs the apps).
-- Milestone 9 "UI revamp" (created 2026-09-25): four layouts were
-  mocked up (https://claude.ai/artifact/V7PHbi4aa9ZcTFyF8SWGc8); the
-  notebook (C) was picked. Built (note 08): one page per experiment (a
-  table and everything made from it) with numbered sections, a sidebar
-  of experiments with thumbnails (#55), and plain-language margin notes
-  beside each section, hideable (#56). Open: #57 (key numbers first),
-  #58 (UI font). The old navigator and sheets are gone: `Sheet` still
-  names what to show, the page scrolls to its section.
-- Project manager (#59, note 09): the start screen lists every project
-  kept in this browser (contents, "edited 3 hours ago", "not
-  downloaded", search), each with Open / Rename / Duplicate / Download /
-  Delete…; deleting asks, and warns when there is no downloaded copy
-  (a `downloaded` flag per row). The start screen warns when the
-  browser's storage is best-effort and asks it to persist from a click
-  (`src/ui/state/storageSafety.ts`).
-- Open a data file (#60, note 10): Open…, drop, the start screen and New
-  experiment take `.csv/.tsv/.txt/.xlsx/.xls/.xlsm/.xlsb/.ods/.numbers`;
-  a dialog guesses the layout (columns, two factors, summary, long →
-  reshaped), previews the table with non-numbers struck through, and
-  Create adds one experiment (one undo). `src/io/import/`: our delimited
-  parser (the paste parser, any separator), SheetJS 0.20.3 vendored in
-  `vendor/` and loaded lazily in a worker, pure `guess.ts`. Workbook
-  fixtures come from `scripts/make-import-fixtures.py` (openpyxl, odfpy,
-  xlwt), never from SheetJS itself.
-- Graphs drawn in a worker (#62, note 11): `src/graphs/render.worker.ts`
-  lays out and paints the scene (`paint.ts`, held to `svg.ts` mark by
-  mark) to a PNG; hit regions and outlines come back as typed arrays
-  (`drawn.ts`); the latest request per figure wins (`renderer.ts`); a
-  spinner while drawing. Without a worker canvas (jsdom, old browsers)
-  the figure is the inline SVG, drawn on the main thread. Exports are
-  still the SVG. Work in progress never moves the page (note 11, 5a):
-  "Calculating…"/"Updating…" is a note over the faded figure or result,
-  which keeps its last complete version meanwhile; banners only for
-  problems. Left: the "points were squeezed" caption line appears once a
-  big graph is first drawn (it comes from the worker's layout).
-- Milestone 10 "Nested tables & SuperPlots" (2026-09-26): a Nested table
-  type (design note 13) — groups, biological replicates, individual
-  values, reusing the existing `DataSet.subcolumns`/grid machinery
-  almost unchanged (#63). Nested t test and nested one-way ANOVA (#66,
-  #67): a real REML mixed model (`nlme::lme`, replicate random within
-  group via a single `group:replicate` interaction factor — nlme's own
-  nesting operator double-counts a factor already fixed and gives a
-  degenerate df, caught before any fixture was written), post-hoc
-  comparisons for the ANOVA via `emmeans` (its first shipped runtime
-  use); `nlme` pinned (#65). Data entry UI (#64) and the SuperPlot graph
-  (#68) — colour by replicate, replicate-mean overlay, no new graph
-  kind needed. Guide page and "Help me choose" wiring (#69). Browser
-  testing (not just Node) surfaced and fixed two real bugs: `nlme`
-  failed to install under Vite's dev server specifically (its SPA
-  fallback masks a missing `PACKAGES.rds`/`.gz` as a 200, which WebR
-  can't tell from a malformed index), and `ResultsSection.tsx`'s
-  per-kind view is a plain conditional chain, not an exhaustive switch,
-  so a missing case compiled clean and rendered nothing.
-- SuperPlot redrawn against Lord et al. 2020, Fig. 1 "Even better"
-  (note 13, as revised): replicates coloured *and* shaped, small pale
-  cells, large replicate means on top of mean ± SEM of the replicate
-  means, beeswarmed apart. Matched replicates (note 14, #70): the nested
-  t test's "Matched" option is a paired t test on the replicate means
-  (the paper's test); a REML model with a random experiment effect was
-  far too conservative in simulation (`scripts/sim/nested-calibration.R`).
-  Split out: #71 (matched nested ANOVA, after #50), #72 (the unmatched
-  REML test is conservative when replicates hardly differ — Prism's
-  method; needs the user's decision).
-- Help me choose as a guide (#73, note 15): the Analyze dialog opens on
-  two tabs, Help me choose (default, remembered) and Pick a test
-  myself; one question at a time in bench words with pictures, the
-  user's own row 1 as the pairing example, "I'm not sure" always an
-  answer, a control-group question for 3+ groups (Dunnett/Tukey/Dunn),
-  folded answers with Change, one "Run this test". Pairing wording
-  everywhere now leads with a split sample (one culture split between
-  the groups), never "the same day" (the user's correction). Filed:
-  #74, a SuperPlot over a violin with replicates joined (Lord et al.
-  2020, Fig. S1F), Phase 2.
-- Key numbers first (#57, note 16): each analysis section shows the
-  reading and the one table a reader needs (the multiple-comparisons
-  table, for a test that runs one) beside the headline; the rest of
-  Prism's layout (ANOVA table, SD tests, cell means, data summary, test
-  details) sits behind an "All numbers" toggle, remembered per section
-  (`src/ui/results/openNumbers.ts`), closed by default. Normality and
-  descriptive statistics are untouched (already just a few short
-  tables). Filed: #80 (favicon: an inverse, theme-adaptive variant like
-  PlasmidPop's, instead of a fixed black tile).
-- Favicon fixed (#80): transparent, ink switches via
-  `prefers-color-scheme` like PlasmidPop's, red asterisk constant; no
-  more solid ink tile on the browser tab. App icon untouched.
-- Milestone 10 follow-up, #50 (one-way slice, note 17): repeated-measures
-  one-way ANOVA (Geisser-Greenhouse correction from base R's own
-  `stats:::sphericity`/`anova.mlm`, no extra package) and the Friedman
-  test with Dunn's comparisons, both on a Column table paired by row (a
-  new N-ary selector, `matchedGroups`, generalising `pairedGroups`).
-  Comparisons after the ANOVA reuse `oneway`'s `bs_comparisons` directly
-  (as `twoway` already does); epsilon is clamped to Prism's stated
-  `[1/(k−1), 1]`, which also makes k = 2 read epsilon = 1 with no
-  special case, matching Prism's own stated behaviour there. Wired into
-  every touch point a new analysis kind needs (note 13's lesson):
-  brackets, margin notes, the Analyze dialog, "help me choose", the
-  results view, `.bsig`, the guide (`18-repeated-measures.md`), property
-  tests. Split off, each its own issue: two-way repeated-measures ANOVA
-  (#81), exact Friedman P for small tables (#82, as Kruskal-Wallis's
-  was before #49), and comparisons without assuming sphericity (#83).
-  #71 (matched nested one-way ANOVA) still waits on its own sibling
-  piece, not this one. A genuine oracle bug (not an app bug) was caught
-  only by the parity test: see Lessons.
-- Descriptive statistics of a Grouped table (#54, split from #33, note
-  18): `descriptive.prepare()` no longer refuses Grouped tables; results
-  show per-cell statistics (row × data set) and, from raw replicates
-  only, each data set's statistics pooled over every row (Prism only
-  offers the pooled view; BarelySig ships per-cell too, a deliberate
-  difference). Summary-format Grouped tables get per-cell statistics
-  only, since a pooled group's percentiles can't be recovered from
-  mean/SD/n. The Analyze dialog's tile and "Help me choose" both offer
-  it on Grouped tables now.
-- Normality of a paired t test's differences (#53, split from #33, note
-  19): `paired-normality`, a new analysis kind reusing `normality`'s R
-  code by concatenation (as `twoway` reuses `oneway`'s comparisons) on
-  the row-by-row differences (`b - a`) instead of on each group. Offered
-  alongside a paired t test in the Analyze dialog and the guided
-  chooser — the "before the test" checkbox now branches on which
-  companion fits (`normality` on each group for an unpaired test or
-  ANOVA, `paired-normality` on the differences for a paired t test) —
-  and as its own tile, "Normality of the differences". R-oracle
-  fixtures with an independent reference, checked against `fBasics` for
-  n ≥ 20 as `normality`'s are. Wired into every touch point (note 13's
-  lesson): the results view, margin notes, `.bsig`, property tests, the
-  guide (a new "The paired case" section in `10-normality.md`).
-- Two-way ANOVA from unbalanced summary data (#51, note 20): Prism's
-  "analysis of unweighted means" (Fisher and van Belle, 1993) for
-  summary data (mean, SD, n) with unequal n per cell, which `prepare`
-  used to refuse outright. Only the row, column and interaction SS/DF/
-  MS/F/P are the approximation (harmonic-mean-weighted, from the
-  textbook formula); the residual, cell table and every multiple
-  comparison are exact regardless of balance, reusing the already-
-  validated `bs_twoway_comparisons` unchanged. `TwoWayResult` gained
-  `approximate: boolean`; the results view's method line and the guide
-  say so when it's set, and recommend the individual values for an
-  exact result. Validated against a written-out reference independent
-  of `analysis.R` (harmonic mean, unweighted means, pooled residual),
-  cross-checked a second way (a balanced regression on the cell means
-  themselves, scaled by the harmonic mean) and against a reduction
-  check that the new formula matches the existing exact path bit-for-
-  bit when balanced. No follow-ups filed: #52 (empty-cell comparisons)
-  is untouched since summary-data entry already requires every cell
-  filled before this code runs.
+  `deploy.yml` is ready. Left to the user (#36): make the repo public,
+  enable Pages (source: GitHub Actions), connect Zenodo, publish the
+  1.0.0 release, then add the DOI to `CITATION.cff`.
+- **Shipped:** milestones 0.1–0.6 and 1.0 (WebR engine + oracle harness,
+  typed tables + `.bsig`, data entry with Excel paste, analysis pipeline,
+  first graphs with SVG/PNG export, MVP statistics, formatting inspector/
+  guide/e2e — notes 01–07); milestone 9 "UI revamp" (notebook layout,
+  note 08); milestone 10 "Nested tables & SuperPlots" (Nested tables,
+  nested t-test/ANOVA, SuperPlots, "Help me choose" guide, key-numbers-
+  first results, project manager, file import, worker-rendered graphs,
+  Grouped-table descriptives, paired-normality, unbalanced two-way ANOVA,
+  matched nested one-way ANOVA — notes 09–21).
+- **Open issues:**
+  - #36 — the user's release steps (above)
+  - #44 — real clipboard captures (needs the sibling apps)
+  - #46 — engine-change comparison for reopened figures
+  - #48 — exact Spearman (deferred to Phase 2)
+  - #52 — two-way comparisons with empty cells (low priority: summary-data
+    entry currently requires every cell filled)
+  - #58 — UI font
+  - #72 — keep the conservative REML unmatched nested test, or switch to
+    Prism's method? Needs the user's decision
+  - #74 — SuperPlot over a violin with replicates joined, Phase 2
+  - #81 — two-way repeated-measures ANOVA
+  - #82 — exact Friedman P for small tables
+  - #83 — repeated-measures comparisons without assuming sphericity
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling
