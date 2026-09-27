@@ -26,3 +26,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 18 | [Descriptive statistics of a Grouped table](18-grouped-descriptive.md) | #54 |
 | 19 | [Normality of a paired t test's differences](19-paired-normality.md) | #53 |
 | 20 | [Two-way ANOVA from unbalanced summary data](20-unweighted-means-twoway.md) | #51 |
+| 21 | [Matched nested one-way ANOVA](21-matched-nested-anova.md) | #71 |
