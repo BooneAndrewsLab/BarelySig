@@ -7,12 +7,9 @@ behind a graph.
 
 ## Running it
 
-Click **Analyze…** on a Column table, then **Descriptive statistics** (the
-tile selected when the dialog opens), tick the groups and click
-**Analyze**. There are no options.
-
-Descriptive statistics describe Column tables; Grouped tables don’t
-offer them yet.
+Click **Analyze…** on a Column or Grouped table, then **Descriptive
+statistics** (the tile selected when the dialog opens), tick the groups
+(or data sets) and click **Analyze**. There are no options.
 
 ## Reading the results
 
@@ -49,6 +46,22 @@ These are easy to mix up, and error bars use all three:
   mean ± t × SEM.
 
 Say which one you show; see [Graphs](12-graphs.md) for error bars.
+
+## Grouped tables
+
+On a Grouped table (rows are one factor, data sets the other), the
+results show two tables:
+
+- **Per cell**, one column per row × data set combination, exactly as
+  above.
+- **Per data set, pooled over every row**, one column per data set, its
+  values combined across every row — the row factor set aside, so you
+  can read off "how does Treated compare with Control overall".
+
+Pooling needs the individual values: from a Grouped table entered as
+summary data (mean, SD, n per cell), only the per-cell table is shown;
+the pooled one needs the values to work out the pooled median, quartiles,
+minimum and maximum, which summary data can't supply.
 
 ## From summary data
 

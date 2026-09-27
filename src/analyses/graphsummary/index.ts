@@ -117,10 +117,14 @@ export const graphSummary: AnalysisModule<
     // The descriptive part reads exactly as descriptive statistics do.
     const described = descriptive.parse(
       value,
-      { groups: request.cells.map((c) => ({ id: c.id, title: c.title, data: c.data })) },
+      {
+        kind: 'column',
+        groups: request.cells.map((c) => ({ id: c.id, title: c.title, data: c.data })),
+      },
       warnings,
     );
     const all = object(value, 'graph summary');
+    if (described.kind !== 'column') throw new Error('unreachable');
     const cells = described.groups.map((g, i): SummaryCell => {
       const r = object(all[`g${String(i + 1)}`] ?? null, 'cell');
       const w = r['whiskers'];

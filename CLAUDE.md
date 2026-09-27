@@ -413,6 +413,15 @@ the target).
   #71 (matched nested one-way ANOVA) still waits on its own sibling
   piece, not this one. A genuine oracle bug (not an app bug) was caught
   only by the parity test: see Lessons.
+- Descriptive statistics of a Grouped table (#54, split from #33, note
+  18): `descriptive.prepare()` no longer refuses Grouped tables; results
+  show per-cell statistics (row × data set) and, from raw replicates
+  only, each data set's statistics pooled over every row (Prism only
+  offers the pooled view; BarelySig ships per-cell too, a deliberate
+  difference). Summary-format Grouped tables get per-cell statistics
+  only, since a pooled group's percentiles can't be recovered from
+  mean/SD/n. The Analyze dialog's tile and "Help me choose" both offer
+  it on Grouped tables now.
 - Next: UI revamp as the user files ideas; then the release (#36).
 
 ## Tooling

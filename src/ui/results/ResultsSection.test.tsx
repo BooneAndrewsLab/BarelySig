@@ -246,6 +246,7 @@ describe('results sheets', () => {
 
   it('shows descriptive statistics as a table of groups', async () => {
     const r: DescriptiveResult = {
+      kind: 'column',
       groups: [
         {
           id: 'a',

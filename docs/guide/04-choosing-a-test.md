@@ -34,17 +34,17 @@ reruns by itself.
 
 ## What each table offers
 
-| Test                                        | Table   | Use it to                                                                                               |
-| ------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| [Descriptive statistics](11-descriptive.md) | Column  | Describe each group: n, mean, SD, SEM, CI, median                                                       |
-| [Normality tests](10-normality.md)          | Column  | Check for clear departures from a bell shape                                                            |
-| [t test](05-t-tests.md)                     | Column  | Compare the means of two groups                                                                         |
-| [Mann-Whitney / Wilcoxon](06-rank-tests.md) | Column  | Compare two groups by ranks                                                                             |
-| [One-way ANOVA](07-one-way-anova.md)        | Column  | Compare the means of three or more groups                                                               |
-| [Kruskal-Wallis](08-kruskal-wallis.md)      | Column  | Compare three or more groups by ranks                                                                   |
-| [Two-way ANOVA](09-two-way-anova.md)        | Grouped | Two factors at once, and whether they interact                                                          |
-| [Nested t test](17-nested-tables.md)        | Nested  | Compare two groups, weighing each biological replicate; or matched, when each replicate ran both groups |
-| [Nested one-way ANOVA](17-nested-tables.md) | Nested  | Compare three or more groups the same way                                                               |
+| Test                                        | Table           | Use it to                                                                                               |
+| ------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
+| [Descriptive statistics](11-descriptive.md) | Column, Grouped | Describe each group: n, mean, SD, SEM, CI, median                                                       |
+| [Normality tests](10-normality.md)          | Column          | Check for clear departures from a bell shape                                                            |
+| [t test](05-t-tests.md)                     | Column          | Compare the means of two groups                                                                         |
+| [Mann-Whitney / Wilcoxon](06-rank-tests.md) | Column          | Compare two groups by ranks                                                                             |
+| [One-way ANOVA](07-one-way-anova.md)        | Column          | Compare the means of three or more groups                                                               |
+| [Kruskal-Wallis](08-kruskal-wallis.md)      | Column          | Compare three or more groups by ranks                                                                   |
+| [Two-way ANOVA](09-two-way-anova.md)        | Grouped         | Two factors at once, and whether they interact                                                          |
+| [Nested t test](17-nested-tables.md)        | Nested          | Compare two groups, weighing each biological replicate; or matched, when each replicate ran both groups |
+| [Nested one-way ANOVA](17-nested-tables.md) | Nested          | Compare three or more groups the same way                                                               |
 
 Tests that rank or pair the values need the individual values; from
 summary data (mean, SD, n) only the unpaired t test, one-way ANOVA,
@@ -116,8 +116,10 @@ would be more sensitive if the rows do belong together.
 
 Some tables skip questions:
 
-- A **Grouped table** goes straight to two-way ANOVA after the data
-  sets.
+- A **Grouped table** asks the same first question as a Column table
+  (whether the groups differ, or the numbers for each group); “Whether
+  the groups differ” goes straight to two-way ANOVA after the data sets,
+  since a Grouped table has only that one comparison to offer.
 - A **Nested table** asks one question: was “Replicate 1” (or whatever
   you named it) one sample split between the groups? No: the nested
   t test (two groups) or nested one-way ANOVA (three or more). Yes: the

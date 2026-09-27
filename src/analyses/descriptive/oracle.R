@@ -80,3 +80,12 @@ fixture("summary-sd-n", input = list(mean = 12.5, sd = 2.1, n = 8), expr = from_
 fixture("summary-no-n", input = list(mean = 3, sd = 1, n = NA), expr = from_summary(mean, sd, n),
   setup = reference, options = list(from = "summary"),
   note = "Without n there is no SEM or CI.")
+
+# Grouped-table descriptive statistics (item 18, #54): per-cell statistics
+# reuse the same describe()/from_summary() reference above (a cell is just
+# a group). This one checks pooling one data set over two rows, as
+# poolColumn concatenates the rows' raw values before describing them:
+# the "basic" and "missing" cases' values, pooled.
+fixture("pooled", input = list(x = c(34, 43, 81, 106, 106, 115, 3.2, NA, 4.8, 5.1, NA, 6)),
+  expr = describe(x), setup = reference,
+  note = "Grouped-table pooling: two rows' values for one data set, concatenated then described.")

@@ -9,7 +9,7 @@ import { ANALYSIS_PAGE } from '../help/guide';
 import { openGuide } from '../help/openGuide';
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
-import type { DescriptiveResult } from '@/analyses/descriptive/types';
+import type { DescribedGroup, DescriptiveResult } from '@/analyses/descriptive/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
@@ -1360,10 +1360,7 @@ function NestedOneWayView({ r, id }: { readonly r: NestedOneWayResult; readonly 
   );
 }
 
-const DESCRIPTIVE_ROWS: readonly (readonly [
-  string,
-  (g: DescriptiveResult['groups'][number]) => string,
-])[] = [
+const DESCRIPTIVE_ROWS: readonly (readonly [string, (g: DescribedGroup) => string])[] = [
   ['Number of values', (g) => (g.n === null ? '—' : `${String(g.n)}${droppedText(g.dropped)}`)],
   ['Minimum', (g) => sig(g.min)],
   ['25% percentile', (g) => sig(g.q1)],
@@ -1381,43 +1378,100 @@ const DESCRIPTIVE_ROWS: readonly (readonly [
   ['Sum', (g) => sig(g.sum)],
 ];
 
-function DescriptiveView({ r }: { readonly r: DescriptiveResult }) {
+/** One statistics table, headed by each group's title: shared by Column groups, Grouped cells and pooled data sets. */
+function StatsTable({ groups }: { readonly groups: readonly DescribedGroup[] }) {
   return (
-    <>
-      <div className="results-scroll">
-        <table className="results-table wide">
-          <thead>
-            <tr>
-              <th scope="col" />
-              {r.groups.map((g) => (
-                <th key={g.id} scope="col">
-                  {g.title}
-                </th>
+    <div className="results-scroll">
+      <table className="results-table wide">
+        <thead>
+          <tr>
+            <th scope="col" />
+            {groups.map((g) => (
+              <th key={g.id} scope="col">
+                {g.title}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {DESCRIPTIVE_ROWS.map(([label, f]) => (
+            <tr key={label}>
+              <th scope="row" title={explain(label)}>
+                {label}
+              </th>
+              {groups.map((g) => (
+                <td key={g.id}>{f(g)}</td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {DESCRIPTIVE_ROWS.map(([label, f]) => (
-              <tr key={label}>
-                <th scope="row" title={explain(label)}>
-                  {label}
-                </th>
-                {r.groups.map((g) => (
-                  <td key={g.id}>{f(g)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="legend">
-        — means not defined for these values (e.g. the SD of a single value, a geometric mean with
-        values of 0 or below) or not available from summary data. Percentiles as Prism computes
-        them.
-      </p>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const DESCRIPTIVE_LEGEND =
+  '— means not defined for these values (e.g. the SD of a single value, a geometric mean with ' +
+  'values of 0 or below) or not available from summary data. Percentiles as Prism computes them.';
+
+function DescriptiveView({ r }: { readonly r: DescriptiveResult }) {
+  if (r.kind === 'column') {
+    return (
+      <>
+        <StatsTable groups={r.groups} />
+        <p className="legend">{DESCRIPTIVE_LEGEND}</p>
+      </>
+    );
+  }
+  const cellGroups: DescribedGroup[] = r.rows.flatMap((row, ri) =>
+    r.columns.map((col, ci): DescribedGroup => {
+      const g = r.cells[ri]?.[ci];
+      const title = `${row.title} · ${col.title}`;
+      return g ? { ...g, title } : { ...EMPTY_CELL, id: `${row.id}/${col.id}`, title };
+    }),
+  );
+  const pooledGroups = r.pooled?.map((g, i) => ({ ...g, title: r.columns[i]?.title ?? g.title }));
+  return (
+    <>
+      <p className="hint">Per cell (row × data set):</p>
+      <StatsTable groups={cellGroups} />
+      {pooledGroups ? (
+        <>
+          <p className="hint">Per data set, pooled over every row:</p>
+          <StatsTable groups={pooledGroups} />
+        </>
+      ) : (
+        <p className="hint">
+          Pooled statistics for each data set aren’t available from summary data: recovering the
+          median, quartiles, minimum and maximum of the pooled rows needs the individual values.
+        </p>
+      )}
+      <p className="legend">{DESCRIPTIVE_LEGEND}</p>
     </>
   );
 }
+
+const EMPTY_CELL: DescribedGroup = {
+  id: '',
+  title: '',
+  from: 'values',
+  n: 0,
+  dropped: { empty: 0, excluded: 0 },
+  min: null,
+  q1: null,
+  median: null,
+  q3: null,
+  max: null,
+  range: null,
+  mean: null,
+  sd: null,
+  sem: null,
+  ciLower: null,
+  ciUpper: null,
+  cv: null,
+  geomean: null,
+  sum: null,
+};
 
 /** Whether the analysis is being (re)calculated. */
 function working(analysis: Analysis): boolean {

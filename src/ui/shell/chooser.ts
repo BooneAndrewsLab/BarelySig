@@ -87,7 +87,8 @@ function comparisonsWord(
 }
 
 export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
-  const describable = ctx.tableType === 'column';
+  // Descriptive statistics can describe a Column or Grouped table (item 18, #54).
+  const describable = ctx.tableType === 'column' || ctx.tableType === 'grouped';
   if (describable && a.goal === null) return { kind: 'ask', question: 'goal' };
   if (!a.groups) return { kind: 'ask', question: 'groups' };
   const k = ctx.groups.length;

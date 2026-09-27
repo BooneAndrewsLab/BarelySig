@@ -62,8 +62,8 @@ const KINDS: readonly KindInfo[] = [
     kind: 'descriptive',
     name: 'Descriptive statistics',
     blurb: 'Describe each group: n, mean, SD, SEM, 95% CI, median and quartiles.',
-    // Grouped tables aren't described yet; offering the tile only led to a refusal (#33).
-    tables: ['column'],
+    // Grouped tables, too (item 18, #54): per cell, and per data set pooled over rows.
+    tables: ['column', 'grouped'],
   },
   {
     kind: 'normality',

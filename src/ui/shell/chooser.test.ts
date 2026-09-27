@@ -150,11 +150,21 @@ describe('help me choose', () => {
     });
   });
 
-  it('goes straight to two-way ANOVA for Grouped tables, and to summary-data tests', () => {
+  it('asks the goal on Grouped tables too, then two-way ANOVA or descriptive statistics', () => {
     expect(pick(suggest({ ...NO_ANSWERS, groups: true }, ctx('grouped', [3, 3])))).toEqual([
+      'ask',
+      'goal',
+    ]);
+    expect(pick(suggest(ans(), ctx('grouped', [3, 3])))).toEqual([
       'two-way-anova',
       'Two-way ANOVA',
     ]);
+    expect(
+      pick(suggest({ ...NO_ANSWERS, goal: 'describe', groups: true }, ctx('grouped', [3, 3]))),
+    ).toEqual(['descriptive', 'Descriptive statistics']);
+  });
+
+  it('goes straight to summary-data tests', () => {
     expect(pick(suggest(ans(), column([5, 5], true)))).toEqual(['t-test', 'Unpaired t test']);
     expect(pick(suggest(ans({ control: 'all' }), column([5, 5, 5], true)))).toEqual([
       'one-way-anova',
