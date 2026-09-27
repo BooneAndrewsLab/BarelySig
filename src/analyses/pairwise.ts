@@ -124,6 +124,7 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     }
     case 'descriptive':
     case 'normality':
+    case 'paired-normality':
     case 'graph-summary':
       return [];
   }
@@ -179,6 +180,7 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     }
     case 'descriptive':
     case 'normality':
+    case 'paired-normality':
     case 'graph-summary':
       return [];
   }

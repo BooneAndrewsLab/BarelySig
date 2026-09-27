@@ -96,6 +96,10 @@ const nestedComparisonsArb: fc.Arbitrary<NestedComparisons> = fc.oneof(
 export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
   fc.constant<AnalysisSpec>({ kind: 'descriptive', options: DEFAULT_OPTIONS.descriptive }),
   fc.constant<AnalysisSpec>({ kind: 'normality', options: DEFAULT_OPTIONS.normality }),
+  fc.constant<AnalysisSpec>({
+    kind: 'paired-normality',
+    options: DEFAULT_OPTIONS['paired-normality'],
+  }),
   fc
     .record({ paired: fc.boolean(), welch: fc.boolean(), tails })
     .map((o): AnalysisSpec => ({ kind: 't-test', options: { ...o } })),

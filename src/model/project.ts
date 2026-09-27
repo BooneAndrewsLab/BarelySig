@@ -27,6 +27,7 @@ export type AnalysisSpec =
   | { readonly kind: 'repeated-measures-anova'; readonly options: RepeatedMeasuresOptions }
   | { readonly kind: 'friedman'; readonly options: FriedmanOptions }
   | { readonly kind: 'normality'; readonly options: NormalityOptions }
+  | { readonly kind: 'paired-normality'; readonly options: PairedNormalityOptions }
   /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
   | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
 
@@ -40,6 +41,13 @@ export type DescriptiveOptions = Readonly<Record<string, never>>;
 
 /** Both tests (D'Agostino-Pearson, Shapiro-Wilk) on every group; nothing to choose (note 06). */
 export type NormalityOptions = Readonly<Record<string, never>>;
+
+/**
+ * The same two tests, run once on a paired t test's row-by-row differences
+ * rather than on each group (item 18, #53): the paired t test assumes the
+ * differences are Gaussian, not the groups themselves. Nothing to choose.
+ */
+export type PairedNormalityOptions = Readonly<Record<string, never>>;
 
 /** Box-plot whiskers, as Prism offers them (note 07). */
 export const WHISKERS = ['min-max', 'tukey', 'p10-90', 'p5-95', 'p2.5-97.5', 'p1-99'] as const;
@@ -190,6 +198,7 @@ export const DEFAULT_OPTIONS: {
   'repeated-measures-anova': { comparisons: { kind: 'all', test: 'tukey' } },
   friedman: { comparisons: { kind: 'all' }, corrected: true },
   normality: {},
+  'paired-normality': {},
   'graph-summary': { whiskers: null, kde: null },
 };
 

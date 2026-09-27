@@ -69,6 +69,7 @@ export const EVENTS = {
     'new-repeated-measures-anova',
     'new-friedman',
     'new-normality',
+    'new-paired-normality',
     // A new analysis made from Help me choose's suggestion (item 15).
     'guided',
   ],

@@ -79,6 +79,14 @@ const KINDS: readonly KindInfo[] = [
     groups: 2,
   },
   {
+    kind: 'paired-normality',
+    name: 'Normality of the differences',
+    blurb:
+      'Check whether the row-by-row differences behind a paired comparison look bell-shaped — the actual assumption pairing by row makes, not each group’s own shape.',
+    tables: ['column'],
+    groups: 2,
+  },
+  {
     kind: 'nested-t-test',
     name: 'Nested t test',
     blurb: 'Compare two groups, weighing each biological replicate by how many values it has.',
@@ -135,6 +143,9 @@ const KINDS: readonly KindInfo[] = [
 ];
 
 type Options = { -readonly [K in AnalysisKind]: Extract<AnalysisSpec, { kind: K }>['options'] };
+
+/** A companion analysis offered alongside the main one (note 06, item 18): both normality tests. */
+type CompanionKind = 'normality' | 'paired-normality';
 
 function initialOptions(analysis: Analysis | undefined): Options {
   const o: Options = { ...DEFAULT_OPTIONS };
@@ -846,22 +857,21 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
   const [options, setOptions] = useState<Options>(() => initialOptions(analysis));
   // Prism offers normality tests before a parametric test; so does the dialog (note 06).
   const [alsoNormality, setAlsoNormality] = useState(true);
-  // A paired t test assumes Gaussian differences within rows, not groups: testing each group
-  // would check the wrong thing (#33), so it isn't offered there.
+  // A paired t test assumes Gaussian differences within rows, not groups (#33): it offers a
+  // normality test of the differences instead of one on each group (#53).
   const pairedT = kind === 't-test' && options['t-test'].paired;
-  // A new t test or one-way ANOVA on values offers normality tests too (note 06).
-  const offersNormalityFor = (s: UserAnalysisSpec) =>
-    !analysis &&
-    !summary &&
-    ((s.kind === 't-test' && !s.options.paired) ||
-      s.kind === 'one-way-anova' ||
-      s.kind === 'repeated-measures-anova');
-  const offersNormality =
-    !analysis &&
-    !summary &&
-    ((kind === 't-test' && !pairedT) ||
-      kind === 'one-way-anova' ||
-      kind === 'repeated-measures-anova');
+  // A new t test, one-way ANOVA or repeated-measures ANOVA on values offers a companion
+  // normality analysis too (note 06, item 18): each group's for an unpaired test or ANOVA,
+  // the row-by-row differences' for a paired t test.
+  const companionForKind = (k: UserAnalysisKind, paired: boolean): CompanionKind | null => {
+    if (k === 't-test') return paired ? 'paired-normality' : 'normality';
+    if (k === 'one-way-anova' || k === 'repeated-measures-anova') return 'normality';
+    return null;
+  };
+  const offersNormalityFor = (s: UserAnalysisSpec): CompanionKind | null =>
+    analysis || summary ? null : companionForKind(s.kind, s.kind === 't-test' && s.options.paired);
+  const companionKind = analysis || summary ? null : companionForKind(kind, pairedT);
+  const offersNormality = companionKind !== null;
   const picked = table.dataSets.filter((d) => chosen.includes(d.id)).map((d) => d.id);
   const info = KINDS.find((k) => k.kind === kind);
   const groups = info?.groups;
@@ -883,6 +893,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return { kind, options: options.descriptive };
       case 'normality':
         return { kind, options: options.normality };
+      case 'paired-normality':
+        return { kind, options: options['paired-normality'] };
       case 't-test':
         return {
           kind,
@@ -960,7 +972,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     }
   };
 
-  const submit = (s: UserAnalysisSpec, withNormality: boolean) => {
+  const submit = (s: UserAnalysisSpec, withCompanion: CompanionKind | null) => {
     const input = { kind: 'table' as const, table: table.id, dataSets: picked };
     const title = analysisTitle(s, table.title);
     if (analysis) {
@@ -977,15 +989,15 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     } else {
       const id = newId('a');
       const main: Analysis = { id, title, input, ...s };
-      const companion: Analysis = {
+      const companion: Analysis | null = withCompanion && {
         id: newId('a'),
-        title: analysisTitle({ kind: 'normality', options: {} }, table.title),
+        title: analysisTitle({ kind: withCompanion, options: {} }, table.title),
         input,
-        kind: 'normality',
+        kind: withCompanion,
         options: {},
       };
       store.edit(
-        withNormality
+        companion
           ? {
               op: 'batch',
               label: `Add ${title}`,
@@ -1041,7 +1053,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             normality={{ offered: offersNormalityFor, on: alsoNormality }}
             setNormality={setAlsoNormality}
             onRun={(s) => {
-              submit(s, offersNormalityFor(s) && alsoNormality);
+              const c = offersNormalityFor(s);
+              submit(s, c && alsoNormality ? c : null);
             }}
             onOptions={(s) => {
               setOptions((cur) => ({ ...cur, [s.kind]: s.options }));
@@ -1059,7 +1072,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            submit(spec(), offersNormality && alsoNormality);
+            submit(spec(), offersNormality && alsoNormality ? companionKind : null);
           }}
         >
           <fieldset className="type-choice">
@@ -1206,21 +1219,16 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
                     setAlsoNormality(e.currentTarget.checked);
                   }}
                 />
-                Also test each group for normality (a separate analysis)
+                {companionKind === 'paired-normality'
+                  ? 'Also test the paired differences for normality (a separate analysis)'
+                  : 'Also test each group for normality (a separate analysis)'}
               </label>
               <p className="hint">
-                This test assumes values that follow a bell-shaped (Gaussian) distribution. With few
-                values a normality test can’t confirm that; it can only flag clear departures.
+                {companionKind === 'paired-normality'
+                  ? 'A paired t test assumes that the differences within each row (not the groups themselves) follow a bell-shaped (Gaussian) distribution. With few pairs a normality test can’t confirm that; it can only flag clear departures.'
+                  : 'This test assumes values that follow a bell-shaped (Gaussian) distribution. With few values a normality test can’t confirm that; it can only flag clear departures.'}
               </p>
             </fieldset>
-          )}
-
-          {pairedT && !summary && (
-            <p className="hint">
-              A paired t test assumes that the differences within each row follow a bell-shaped
-              distribution, not the groups themselves, so testing each group’s normality wouldn’t
-              check it.
-            </p>
           )}
           <div className="actions">
             <button type="button" onClick={onClose}>

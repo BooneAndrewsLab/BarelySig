@@ -275,6 +275,17 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
+    case 'paired-normality':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'A paired t test assumes the row-by-row differences are Gaussian, not the two groups on their own, so this tests the differences instead.',
+            'A small P suggests the differences don’t come from a normal (bell-shaped) distribution. A large P is not proof that they do: with a few pairs these tests rarely detect anything.',
+          ],
+        },
+      ];
     case 'graph-summary':
       return [];
   }
