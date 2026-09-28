@@ -42,6 +42,34 @@ unmatched <- function(k, m, su, se) {
   cat(sprintf("unmatched k=%d m=%d su=%.1f se=%.1f           REML mixed model %.3f   t on replicate means %.3f\n", k, m, su, se, r[1], r[2]))
 }
 
+# Unmatched with unequal cells per unit (#72, #76): unit sizes vary, so
+# REML's variance-weighting and a plain t on unweighted replicate means
+# can disagree even at the null.
+unmatched_unbalanced <- function(k, ms, su, se) {
+  n_units <- 2 * k
+  res <- replicate(R, {
+    grp <- rep(1:2, each = k)
+    unit <- seq_len(n_units)
+    cell_m <- sample(ms, n_units, replace = TRUE)
+    rep_unit <- rep(unit, cell_m)
+    rep_grp <- rep(grp, cell_m)
+    v <- rnorm(n_units, 0, su)[rep_unit] + rnorm(length(rep_unit), 0, se)
+    d <- data.frame(v, group = factor(rep_grp), unit = factor(rep_unit))
+    p_lme <- tryCatch(
+      summary(lme(v ~ group, random = ~1 | unit, data = d, method = "REML"))$tTable[2, 5],
+      error = function(e) NA
+    )
+    mm <- tapply(v, rep_unit, mean)
+    g <- tapply(rep_grp, rep_unit, `[`, 1)
+    c(p_lme < 0.05, t.test(mm[g == 1], mm[g == 2], var.equal = TRUE)$p.value < 0.05)
+  })
+  r <- rowMeans(res, na.rm = TRUE)
+  cat(sprintf(
+    "unbalanced k=%d ms=%s su=%.1f se=%.1f     REML mixed model %.3f   t on replicate means %.3f\n",
+    k, paste(ms, collapse = "/"), su, se, r[1], r[2]
+  ))
+}
+
 matched(3, 30, 5, 1, 7)
 matched(3, 30, 0.5, 1, 7)
 matched(3, 30, 5, 3, 7)
@@ -52,3 +80,7 @@ unmatched(3, 30, 3, 7)
 unmatched(3, 30, 0.5, 7)
 unmatched(3, 30, 0, 7)
 unmatched(5, 10, 1, 7)
+unmatched_unbalanced(3, c(5, 30), 3, 7)
+unmatched_unbalanced(3, c(5, 30), 0.5, 7)
+unmatched_unbalanced(3, c(5, 30), 0, 7)
+unmatched_unbalanced(5, c(3, 5, 50), 1, 7)
