@@ -107,14 +107,13 @@ function setup() {
 function inputOf(p: Project, graph: Graph, results: ReadonlyMap<Id, ResultEntry>) {
   const input = graphInput(p, graph, (id) => results.get(id));
   if (!input.ok) throw new Error(input.reason);
-  return input.input;
+  if (input.input.kind !== 'column') throw new Error('expected a column render input');
+  return input.input.input;
 }
 
 /** The figure as drawn from a project and its results, without metadata. */
 function figure(p: Project, graph: Graph, results: ReadonlyMap<Id, ResultEntry>): string {
-  const input = graphInput(p, graph, (id) => results.get(id));
-  if (!input.ok) throw new Error(input.reason);
-  return exportSvg(layoutColumn(input.input));
+  return exportSvg(layoutColumn(inputOf(p, graph, results)));
 }
 
 const ENGINE = { webr: '0.6.0', r: '4.6.0', packages: {} };

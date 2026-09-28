@@ -282,25 +282,132 @@ export function Inspector({ project, graph, element, onDone }: Props) {
       );
       break;
     case 'x-axis':
+      body =
+        plot.kind === 'xy-scatter' ? (
+          <>
+            <fieldset>
+              <legend>Range</legend>
+              <NumberField
+                label="Minimum"
+                value={graph.format.xMin}
+                placeholder="Auto"
+                onChange={(v) => {
+                  set(withFormat(graph, { xMin: v }));
+                }}
+              />
+              <NumberField
+                label="Maximum"
+                value={graph.format.xMax}
+                placeholder="Auto"
+                onChange={(v) => {
+                  set(withFormat(graph, { xMax: v }));
+                }}
+              />
+              <label className="option">
+                <input
+                  type="checkbox"
+                  checked={graph.format.xScale === 'log10'}
+                  onChange={(e) => {
+                    set(
+                      withFormat(graph, {
+                        xScale: e.currentTarget.checked ? 'log10' : undefined,
+                        xStep: undefined,
+                      }),
+                    );
+                  }}
+                />
+                Logarithmic scale (powers of 10)
+              </label>
+            </fieldset>
+            <fieldset>
+              <legend>Ticks</legend>
+              {graph.format.xScale !== 'log10' && (
+                <NumberField
+                  label="Interval"
+                  value={graph.format.xStep}
+                  placeholder="Auto"
+                  min={0}
+                  onChange={(v) => {
+                    set(withFormat(graph, { xStep: v === 0 ? undefined : v }));
+                  }}
+                />
+              )}
+              {graph.format.xScale !== 'log10' && (
+                <NumberField
+                  label="Decimals"
+                  value={graph.format.xDecimals}
+                  placeholder="Auto"
+                  min={0}
+                  max={10}
+                  onChange={(v) => {
+                    set(withFormat(graph, { xDecimals: v === undefined ? v : Math.round(v) }));
+                  }}
+                />
+              )}
+              {style('font.tick', 'Label size (both axes)', theme.font.tick)}
+            </fieldset>
+            <fieldset>
+              <legend>Lines</legend>
+              {style('lines.axis', 'Axis width (both axes)', theme.lines.axis)}
+            </fieldset>
+          </>
+        ) : (
+          <fieldset>
+            <legend>Group labels</legend>
+            <label className="field inspector-field">
+              <span>Angle</span>
+              <select
+                value={String(graph.format.xAngle ?? 0)}
+                onChange={(e) => {
+                  const v = Number(e.currentTarget.value);
+                  set(withFormat(graph, { xAngle: v === 45 || v === 90 ? v : undefined }));
+                }}
+              >
+                <option value="0">Automatic (level, wrapped or turned to fit)</option>
+                <option value="45">Turned 45°</option>
+                <option value="90">Vertical</option>
+              </select>
+            </label>
+            {style('font.tick', 'Label size (both axes)', theme.font.tick)}
+            {style('lines.axis', 'Axis width (both axes)', theme.lines.axis)}
+          </fieldset>
+        );
+      break;
+    case 'x-title':
       body = (
         <fieldset>
-          <legend>Group labels</legend>
-          <label className="field inspector-field">
-            <span>Angle</span>
-            <select
-              value={String(graph.format.xAngle ?? 0)}
+          <legend>Text</legend>
+          <label className="field inspector-field wide">
+            <span>Title</span>
+            <input
+              type="text"
+              value={graph.format.xTitle ?? ''}
+              placeholder="From the X data set’s title"
               onChange={(e) => {
-                const v = Number(e.currentTarget.value);
-                set(withFormat(graph, { xAngle: v === 45 || v === 90 ? v : undefined }));
+                const v = e.currentTarget.value;
+                set(withFormat(graph, { xTitle: v === '' ? undefined : v }));
               }}
-            >
-              <option value="0">Automatic (level, wrapped or turned to fit)</option>
-              <option value="45">Turned 45°</option>
-              <option value="90">Vertical</option>
-            </select>
+            />
           </label>
-          {style('font.tick', 'Label size (both axes)', theme.font.tick)}
-          {style('lines.axis', 'Axis width (both axes)', theme.lines.axis)}
+          {style('font.axisTitle', 'Size', theme.font.axisTitle)}
+        </fieldset>
+      );
+      break;
+    case 'fit-line':
+      body = (
+        <fieldset>
+          <legend>Fitted line</legend>
+          <p className="hint flush">Its colour follows the data set’s.</p>
+          {style('lines.fit', 'Line width', theme.lines.fit)}
+        </fieldset>
+      );
+      break;
+    case 'band':
+      body = (
+        <fieldset>
+          <legend>Band</legend>
+          <p className="hint flush">Its fill colour follows the data set’s.</p>
+          {percent('bandOpacity', 'Fill opacity', theme.bandOpacity)}
         </fieldset>
       );
       break;

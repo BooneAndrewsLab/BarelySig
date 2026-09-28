@@ -20,6 +20,23 @@ bs_runs_test <- function(s) {
   list(ran = TRUE, n_runs = runs, n_pos = n1, n_neg = n2, z = unname(z), p = 2 * pnorm(-abs(z)))
 }
 
+# A pointwise confidence/prediction band, evaluated at a fixed 100-point
+# grid across the observed X range -- independent of screen resolution,
+# computed once per analysis run, not per render (#87).
+bs_predict_band <- function(m, x) {
+  grid <- seq(min(x), max(x), length.out = 100)
+  ci <- predict(m, newdata = data.frame(x = grid), interval = "confidence", se.fit = TRUE)
+  pi <- predict(m, newdata = data.frame(x = grid), interval = "prediction", se.fit = TRUE)
+  list(
+    x = grid,
+    fit = unname(ci$fit[, "fit"]),
+    confidence_lower = unname(ci$fit[, "lwr"]),
+    confidence_upper = unname(ci$fit[, "upr"]),
+    prediction_lower = unname(pi$fit[, "lwr"]),
+    prediction_upper = unname(pi$fit[, "upr"])
+  )
+}
+
 bs_linreg_one <- function(x, y) {
   n <- length(x)
   if (n < 3) return(list(n = n, ran = FALSE, why = "few", minimum = 3))
@@ -56,7 +73,8 @@ bs_linreg_one <- function(x, y) {
     y = y[ord],
     fitted = unname(fitted(m))[ord],
     residual = resid_ord,
-    runs = runs
+    runs = runs,
+    band = bs_predict_band(m, x)
   )
 }
 

@@ -8,8 +8,9 @@ import type { Mark, Scene } from './scene';
 import { textWidth } from './text/measure';
 
 /**
- * 'y-axis', 'y-title', 'x-axis', 'title', 'legend', 'error-bars',
- * `series:<data set>` or `bracket:<bracket key>`.
+ * 'y-axis', 'y-title', 'x-axis', 'x-title', 'title', 'legend',
+ * 'error-bars', `series:<data set>`, `bracket:<bracket key>`,
+ * `fit-line:<series>` or `band:<series>` (XY graphs, item 31).
  */
 export type ElementId = string;
 
@@ -33,6 +34,7 @@ const SERIES_ROLES = new Set([
   'median',
   'whisker',
   'violin',
+  'xy-point',
 ]);
 
 /** The element a mark belongs to, or null for marks that aren't formatted on their own. */
@@ -46,11 +48,15 @@ export function elementOf(m: Mark): ElementId | null {
       return 'y-axis';
     case 'axis-x':
     case 'tick-x':
+    case 'tick-x-minor':
+    case 'tick-label-x':
     case 'group-label':
     case 'cluster-label':
       return 'x-axis';
     case 'axis-title':
       return 'y-title';
+    case 'axis-title-x':
+      return 'x-title';
     case 'title':
       return 'title';
     case 'error':
@@ -62,6 +68,10 @@ export function elementOf(m: Mark): ElementId | null {
     case 'legend-swatch':
     case 'legend-label':
       return 'legend';
+    case 'fit-line':
+      return m.ref === undefined ? null : `fit-line:${m.ref}`;
+    case 'band':
+      return m.ref === undefined ? null : `band:${m.ref}`;
     default:
       return SERIES_ROLES.has(m.role) && m.ref !== undefined ? `series:${m.ref}` : null;
   }

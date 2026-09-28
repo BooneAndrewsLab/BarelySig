@@ -604,7 +604,12 @@ export function resolve(p: Project, s: Shape): Edit | null {
       return { op: 'setAnalysis', analysis: { ...cur, input: { kind: 'analysis', analysis: to } } };
     }
     case 'graph': {
-      if (!table) return null;
+      // Contingency tables have no graph plot kind yet (#86, note 31's
+      // PLOT_TABLE_TYPES): every plot kind this generator can build is for
+      // a Column/Grouped/Nested/XY table, so it never adds one to a
+      // Contingency table (the "New graph" button's own gap, unrelated to
+      // this generator, is #86's to close).
+      if (!table || table.type === 'contingency') return null;
       const analyses = [
         ...new Set(
           s.a.flatMap((i) => {
@@ -638,31 +643,38 @@ export function resolve(p: Project, s: Shape): Edit | null {
                   error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
                   points: s.v % 3 !== 0,
                 }
-              : s.v % 11 === 3
+              : table.type === 'xy'
                 ? {
-                    kind: 'box',
-                    whiskers:
-                      (['min-max', 'tukey', 'p10-90', 'p2.5-97.5'] as const)[s.v % 4] ?? 'tukey',
-                    points: (['none', 'outliers', 'all'] as const)[s.v % 3] ?? 'all',
+                    kind: 'xy-scatter',
+                    points: s.v % 3 !== 0,
+                    fit: s.v % 2 === 0,
+                    band: (['confidence', 'prediction', 'none'] as const)[s.v % 3] ?? 'none',
                   }
-                : s.v % 11 === 5
+                : s.v % 11 === 3
                   ? {
-                      kind: 'violin',
-                      inner: (['quartiles', 'box', 'points', 'none'] as const)[s.v % 4] ?? 'none',
-                      smoothing: 0.5 + (s.v % 4) * 0.25,
+                      kind: 'box',
+                      whiskers:
+                        (['min-max', 'tukey', 'p10-90', 'p2.5-97.5'] as const)[s.v % 4] ?? 'tukey',
+                      points: (['none', 'outliers', 'all'] as const)[s.v % 3] ?? 'all',
                     }
-                  : s.v % 3 === 0
+                  : s.v % 11 === 5
                     ? {
-                        kind: 'dots',
-                        center: s.v % 5 === 0 ? 'median' : 'mean',
-                        error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
-                        ...(s.v % 2 === 0 ? { colorByReplicate: s.v % 4 === 0 } : {}),
+                        kind: 'violin',
+                        inner: (['quartiles', 'box', 'points', 'none'] as const)[s.v % 4] ?? 'none',
+                        smoothing: 0.5 + (s.v % 4) * 0.25,
                       }
-                    : {
-                        kind: 'bars',
-                        error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
-                        points: s.v % 7 !== 0,
-                      },
+                    : s.v % 3 === 0
+                      ? {
+                          kind: 'dots',
+                          center: s.v % 5 === 0 ? 'median' : 'mean',
+                          error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                          ...(s.v % 2 === 0 ? { colorByReplicate: s.v % 4 === 0 } : {}),
+                        }
+                      : {
+                          kind: 'bars',
+                          error: (['sd', 'sem', 'ci95', 'range', 'none'] as const)[s.v % 5] ?? 'sd',
+                          points: s.v % 7 !== 0,
+                        },
           size: { width: 20 + (s.v % 160), height: 20 + ((s.v * 7) % 120) + 0.5 },
           theme:
             s.v % 4 === 0
@@ -674,10 +686,13 @@ export function resolve(p: Project, s: Shape): Edit | null {
             ...(s.v % 3 === 0 ? { starScheme: 'apa' as const } : {}),
             hiddenBrackets: analyses.slice(0, s.v % 2),
             ...(s.v % 5 === 1 ? { yTitle: 'Viability (%)', yMin: -1.5, yMax: 120 } : {}),
+            ...(s.v % 5 === 2 ? { xTitle: 'Time (h)', xMin: -1, xMax: 48 } : {}),
             ...(s.v % 6 === 2
               ? {
                   yScale: 'log10' as const,
                   yDecimals: 2,
+                  xScale: 'log10' as const,
+                  xDecimals: 1,
                   xAngle: 45 as const,
                   showTitle: true,
                   style: {
@@ -698,6 +713,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
             ...(s.v % 6 === 4
               ? {
                   yStep: 5,
+                  xStep: 6,
                   xAngle: 90 as const,
                   showTitle: false,
                   legend: 'none' as const,

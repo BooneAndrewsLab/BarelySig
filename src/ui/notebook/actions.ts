@@ -1,7 +1,13 @@
 /** What the notebook's buttons do (item 08), kept out of the components. */
 import { gives } from '@/analyses/pairwise';
 import { newId } from '@/model/ids';
-import { GRAPH_DEFAULTS, GROUPED_DEFAULT, NESTED_DEFAULT, type Project } from '@/model/project';
+import {
+  GRAPH_DEFAULTS,
+  GROUPED_DEFAULT,
+  NESTED_DEFAULT,
+  type Project,
+  XY_DEFAULT,
+} from '@/model/project';
 import type { Table } from '@/model/table';
 
 import { analytics } from '../analytics';
@@ -36,7 +42,9 @@ export function addGraph(project: Project, table: Table): void {
           ? { plot: GROUPED_DEFAULT }
           : table.type === 'nested'
             ? { plot: NESTED_DEFAULT }
-            : {}),
+            : table.type === 'xy'
+              ? { plot: XY_DEFAULT }
+              : {}),
       },
     },
     { show: { kind: 'graph', id } },
@@ -47,6 +55,8 @@ export function addGraph(project: Project, table: Table): void {
       ? 'new-grouped'
       : table.type === 'nested'
         ? 'new-nested'
-        : 'new-column',
+        : table.type === 'xy'
+          ? 'new-xy'
+          : 'new-column',
   );
 }

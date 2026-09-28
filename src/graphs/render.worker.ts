@@ -7,6 +7,13 @@ import { drawnParts, transferables } from './drawn';
 import { layoutColumn } from './layout';
 import { PAINT_FONT, paintScene, screenScale } from './paint';
 import type { RenderReply, RenderRequest } from './renderer';
+import type { RenderInput } from './renderInput';
+import type { Scene } from './scene';
+import { layoutXy } from './xy';
+
+function layoutOf(input: RenderInput): Scene {
+  return input.kind === 'xy' ? layoutXy(input.input) : layoutColumn(input.input);
+}
 
 const scope = self as unknown as {
   fonts?: FontFaceSet;
@@ -39,7 +46,7 @@ function loadFonts(): Promise<boolean> {
 
 async function handle(req: RenderRequest): Promise<void> {
   if (req.type === 'scene') {
-    scope.postMessage({ type: 'scene', id: req.id, scene: layoutColumn(req.input) });
+    scope.postMessage({ type: 'scene', id: req.id, scene: layoutOf(req.input) });
     return;
   }
   const unsupported: RenderReply = { type: 'drawn', id: req.id, ok: false, unsupported: true };
@@ -47,7 +54,7 @@ async function handle(req: RenderRequest): Promise<void> {
     scope.postMessage(unsupported);
     return;
   }
-  const scene = layoutColumn(req.input);
+  const scene = layoutOf(req.input);
   const parts = drawnParts(scene);
   const scale = screenScale(scene, req.dpr);
   const canvas = new OffscreenCanvas(

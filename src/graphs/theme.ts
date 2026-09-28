@@ -25,6 +25,8 @@ export interface GraphTheme {
     readonly barEdge: number;
     readonly bracket: number;
     readonly pointEdge: number;
+    /** An XY graph's fitted regression line (item 31, #87). */
+    readonly fit: number;
   };
   readonly ink: string;
   readonly palette: readonly string[];
@@ -45,6 +47,8 @@ export interface GraphTheme {
   readonly barWidth: number;
   /** Error-bar caps as a fraction of the bar's width (dots: of the centre line). */
   readonly capWidth: number;
+  /** An XY graph's confidence/prediction band: fill opacity (item 31, #87). */
+  readonly bandOpacity: number;
 }
 
 export const FONT_FAMILY = 'Arial, Arimo, "Liberation Sans", Helvetica, sans-serif';
@@ -60,6 +64,7 @@ export const MODERN: GraphTheme = {
     barEdge: 0.75,
     bracket: 0.75,
     pointEdge: 0.4,
+    fit: 1,
   },
   ink: '#201e1d',
   palette: COLORBLIND,
@@ -73,6 +78,7 @@ export const MODERN: GraphTheme = {
   pointSize: 4,
   barWidth: 0.62,
   capWidth: 0.5,
+  bandOpacity: 0.18,
 };
 
 /** Prism-like: boxed, inward ticks, solid bars with black edges, black points. */

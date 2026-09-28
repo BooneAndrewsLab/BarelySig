@@ -10,23 +10,33 @@ import {
   WorkerRenderer,
   type WorkerLike,
 } from './renderer';
+import type { RenderInput } from './renderInput';
 import { MODERN } from './theme';
 
-const input = (title: string): LayoutInput => ({
-  plot: { kind: 'bars', error: 'sd', points: true },
-  size: { width: 70, height: 60 },
-  theme: MODERN,
-  yTitle: title,
-  groups: [
-    {
-      id: 'A',
-      title: 'A',
-      color: COLORBLIND[0] ?? '#000',
-      values: [1, 2, 3],
-      summary: null,
-    },
-  ],
-  brackets: [],
+/** Every input in this file is column-shaped, so its layout is always reachable directly. */
+const layoutOf = (r: RenderInput): LayoutInput => {
+  if (r.kind !== 'column') throw new Error('expected a column render input');
+  return r.input;
+};
+
+const input = (title: string): RenderInput => ({
+  kind: 'column',
+  input: {
+    plot: { kind: 'bars', error: 'sd', points: true },
+    size: { width: 70, height: 60 },
+    theme: MODERN,
+    yTitle: title,
+    groups: [
+      {
+        id: 'A',
+        title: 'A',
+        color: COLORBLIND[0] ?? '#000',
+        values: [1, 2, 3],
+        summary: null,
+      },
+    ],
+    brackets: [],
+  },
 });
 
 /** A worker that answers only when told to. */
@@ -45,14 +55,15 @@ class FakeWorker implements WorkerLike {
     this.onmessage?.({ data: r } as MessageEvent<RenderReply>);
   }
   /** Answers the last draw request with a picture of its input. */
-  draw(): LayoutInput {
+  draw(): RenderInput {
     const req = this.sent.at(-1);
     if (req?.type !== 'draw') throw new Error('no draw request');
+    if (req.input.kind !== 'column') throw new Error('expected a column input');
     this.reply({
       type: 'drawn',
       id: req.id,
       ok: true,
-      parts: drawnParts(layoutColumn(req.input)),
+      parts: drawnParts(layoutColumn(req.input.input)),
       png: new Blob(['png'], { type: 'image/png' }),
     });
     return req.input;
@@ -90,7 +101,7 @@ describe('drawing in a worker (item 11)', () => {
     const done = r.view('g1', a);
     expect(done.busy).toBe(false);
     expect(done.drawn?.picture.kind).toBe('png');
-    expect(done.drawn?.width).toBe(layoutColumn(a).width);
+    expect(done.drawn?.width).toBe(layoutColumn(layoutOf(a)).width);
     expect(r.view('g1', a)).toBe(done);
   });
 
@@ -177,8 +188,8 @@ describe('drawing in a worker (item 11)', () => {
     const scene = r.scene(a);
     const req = worker.sent.at(-1);
     expect(req).toMatchObject({ type: 'scene', input: a });
-    worker.reply({ type: 'scene', id: req?.id ?? 0, scene: layoutColumn(a) });
-    expect((await scene).width).toBe(layoutColumn(a).width);
+    worker.reply({ type: 'scene', id: req?.id ?? 0, scene: layoutColumn(layoutOf(a)) });
+    expect((await scene).width).toBe(layoutColumn(layoutOf(a)).width);
     const failed = r.scene(a);
     worker.reply({ type: 'scene', id: worker.sent.at(-1)?.id ?? 0, scene: null });
     await expect(failed).rejects.toThrow(DRAW_FAILED);

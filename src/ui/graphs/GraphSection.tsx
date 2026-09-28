@@ -129,7 +129,10 @@ export function GraphSection({ project, graph: saved, number, note }: Props) {
   };
   const notes = [
     `${describePlot(graph.plot)}.`,
-    ...(input.ok && input.input.brackets.length > 0 && graph.format.bracketLabels === 'stars'
+    ...(input.ok &&
+    input.input.kind === 'column' &&
+    input.input.input.brackets.length > 0 &&
+    graph.format.bracketLabels === 'stars'
       ? [`Asterisks: ${schemeText(graph.format.starScheme ?? 'prism')}.`]
       : []),
     ...(drawn?.notes ?? []),

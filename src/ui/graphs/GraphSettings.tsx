@@ -56,7 +56,19 @@ export function GraphSettings({ project, graph }: Props) {
     set({ plot: next });
   };
   const { plot } = graph;
-  const nested = graphTable(project, graph)?.type === 'nested';
+  const table = graphTable(project, graph);
+  const nested = table?.type === 'nested';
+  const regressions =
+    table?.type === 'xy'
+      ? project.order.analyses.flatMap((id) => {
+          const a = project.analyses.get(id);
+          return a?.kind === 'linear-regression' &&
+            a.input.kind === 'table' &&
+            a.input.table === table.id
+            ? [a]
+            : [];
+        })
+      : [];
   return (
     <form
       className="graph-controls"
@@ -116,7 +128,66 @@ export function GraphSettings({ project, graph }: Props) {
             )}
           </>
         )}
+        {plot.kind === 'xy-scatter' && (
+          <>
+            <label className="option">
+              <input
+                type="checkbox"
+                checked={plot.points}
+                onChange={(e) => {
+                  setPlot({ ...plot, points: e.currentTarget.checked });
+                }}
+              />
+              Show the points
+            </label>
+            <label className="field inspector-field wide">
+              <span>Fitted line</span>
+              <select
+                value={plot.fit ? (graph.analyses[0] ?? '') : ''}
+                onChange={(e) => {
+                  const id = e.currentTarget.value;
+                  if (id === '') {
+                    setPlot({ ...plot, fit: false });
+                  } else {
+                    set({ analyses: [id as (typeof graph.analyses)[number]] });
+                    setPlot({ ...plot, fit: true });
+                  }
+                }}
+              >
+                <option value="">None</option>
+                {regressions.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.title}
+                  </option>
+                ))}
+              </select>
+              {plot.fit && regressions.length === 0 && (
+                <span className="hint">Run a linear regression on this table to fit a line.</span>
+              )}
+            </label>
+            {plot.fit && (
+              <label className="field inspector-field wide">
+                <span>Band around the line</span>
+                <select
+                  value={plot.band}
+                  onChange={(e) => {
+                    const v = e.currentTarget.value;
+                    setPlot({
+                      ...plot,
+                      band: v === 'confidence' || v === 'prediction' ? v : 'none',
+                    });
+                  }}
+                >
+                  <option value="none">None</option>
+                  <option value="confidence">95% confidence band</option>
+                  <option value="prediction">95% prediction band</option>
+                </select>
+              </label>
+            )}
+          </>
+        )}
         {plot.kind !== 'grouped-bars' &&
+          plot.kind !== 'xy-scatter' &&
           PLOTS.map(([kind, label]) => (
             <label key={kind} className="option">
               <input
@@ -278,88 +349,90 @@ export function GraphSettings({ project, graph }: Props) {
           </select>
         </fieldset>
       )}
-      <fieldset>
-        <legend>Significance</legend>
-        {choices.length === 0 && (
-          <p className="hint flush">
-            Compare groups of this table (a t test, for example) to add brackets.
-          </p>
-        )}
-        {choices.map((c) => (
-          <div key={c.id}>
-            <label className="option">
-              <input
-                type="checkbox"
-                checked={c.shown}
+      {plot.kind !== 'xy-scatter' && (
+        <fieldset>
+          <legend>Significance</legend>
+          {choices.length === 0 && (
+            <p className="hint flush">
+              Compare groups of this table (a t test, for example) to add brackets.
+            </p>
+          )}
+          {choices.map((c) => (
+            <div key={c.id}>
+              <label className="option">
+                <input
+                  type="checkbox"
+                  checked={c.shown}
+                  onChange={(e) => {
+                    store.edit({
+                      op: 'setGraph',
+                      graph: withBracket(graph, c.id, e.currentTarget.checked),
+                    });
+                  }}
+                />
+                {c.title}
+              </label>
+              {c.shown &&
+                c.pairs.map((x) => (
+                  <label key={x.key} className="option nested">
+                    <input
+                      type="checkbox"
+                      checked={x.shown}
+                      onChange={(e) => {
+                        store.edit({
+                          op: 'setGraph',
+                          graph: withPair(graph, x.key, e.currentTarget.checked),
+                        });
+                      }}
+                    />
+                    {x.label}
+                  </label>
+                ))}
+            </div>
+          ))}
+          {choices.length > 0 && (
+            <>
+              <select
+                aria-label="Bracket labels"
+                value={
+                  graph.format.bracketLabels === 'exact'
+                    ? 'exact'
+                    : (graph.format.starScheme ?? 'prism')
+                }
                 onChange={(e) => {
-                  store.edit({
-                    op: 'setGraph',
-                    graph: withBracket(graph, c.id, e.currentTarget.checked),
-                  });
+                  const v = e.currentTarget.value;
+                  set(
+                    withFormat(
+                      graph,
+                      v === 'exact'
+                        ? { bracketLabels: 'exact', starScheme: undefined }
+                        : v === 'apa'
+                          ? { bracketLabels: 'stars', starScheme: 'apa' }
+                          : { bracketLabels: 'stars', starScheme: undefined },
+                    ),
+                  );
                 }}
-              />
-              {c.title}
-            </label>
-            {c.shown &&
-              c.pairs.map((x) => (
-                <label key={x.key} className="option nested">
-                  <input
-                    type="checkbox"
-                    checked={x.shown}
-                    onChange={(e) => {
-                      store.edit({
-                        op: 'setGraph',
-                        graph: withPair(graph, x.key, e.currentTarget.checked),
-                      });
-                    }}
-                  />
-                  {x.label}
-                </label>
-              ))}
-          </div>
-        ))}
-        {choices.length > 0 && (
-          <>
-            <select
-              aria-label="Bracket labels"
-              value={
-                graph.format.bracketLabels === 'exact'
-                  ? 'exact'
-                  : (graph.format.starScheme ?? 'prism')
-              }
-              onChange={(e) => {
-                const v = e.currentTarget.value;
-                set(
-                  withFormat(
-                    graph,
-                    v === 'exact'
-                      ? { bracketLabels: 'exact', starScheme: undefined }
-                      : v === 'apa'
-                        ? { bracketLabels: 'stars', starScheme: 'apa' }
-                        : { bracketLabels: 'stars', starScheme: undefined },
-                  ),
-                );
-              }}
-            >
-              <option value="prism">Asterisks (Prism: up to ****)</option>
-              <option value="apa">Asterisks (APA: up to ***)</option>
-              <option value="exact">Exact P values</option>
-            </select>
-            <label className="option">
-              <input
-                type="checkbox"
-                checked={graph.format.showNs}
-                onChange={(e) => {
-                  set({ format: { ...graph.format, showNs: e.currentTarget.checked } });
-                }}
-              />
-              {graph.format.bracketLabels === 'exact'
-                ? 'Show P values for differences that aren’t significant'
-                : 'Show “ns” for differences that aren’t significant'}
-            </label>
-          </>
-        )}
-      </fieldset>
+              >
+                <option value="prism">Asterisks (Prism: up to ****)</option>
+                <option value="apa">Asterisks (APA: up to ***)</option>
+                <option value="exact">Exact P values</option>
+              </select>
+              <label className="option">
+                <input
+                  type="checkbox"
+                  checked={graph.format.showNs}
+                  onChange={(e) => {
+                    set({ format: { ...graph.format, showNs: e.currentTarget.checked } });
+                  }}
+                />
+                {graph.format.bracketLabels === 'exact'
+                  ? 'Show P values for differences that aren’t significant'
+                  : 'Show “ns” for differences that aren’t significant'}
+              </label>
+            </>
+          )}
+        </fieldset>
+      )}
       <fieldset>
         <legend>Look</legend>
         <select

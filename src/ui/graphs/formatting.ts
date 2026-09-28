@@ -82,6 +82,7 @@ const ELEMENT_STYLE: Readonly<Record<string, readonly StyleKey[]>> = {
   'y-axis': ['font.tick', 'lines.axis', 'lines.tick', 'lines.tickLength', 'ticks', 'spines'],
   'x-axis': ['font.tick', 'lines.axis'],
   'y-title': ['font.axisTitle'],
+  'x-title': ['font.axisTitle'],
   title: ['font.title'],
   legend: ['font.legend'],
   'error-bars': ['lines.error', 'capWidth'],
@@ -94,6 +95,8 @@ const ELEMENT_STYLE: Readonly<Record<string, readonly StyleKey[]>> = {
     'lines.pointEdge',
   ],
   bracket: ['font.bracket', 'lines.bracket'],
+  'fit-line': ['lines.fit'],
+  band: ['bandOpacity'],
 };
 
 const kindOf = (element: ElementId): string => element.split(':')[0] ?? element;
@@ -110,8 +113,17 @@ export function resetElement(graph: Graph, element: ElementId): Graph {
       yStep: undefined,
       yDecimals: undefined,
     });
-  if (kind === 'x-axis') g = withFormat(g, { xAngle: undefined });
+  if (kind === 'x-axis')
+    g = withFormat(g, {
+      xAngle: undefined,
+      xMin: undefined,
+      xMax: undefined,
+      xScale: undefined,
+      xStep: undefined,
+      xDecimals: undefined,
+    });
   if (kind === 'y-title') g = withFormat(g, { yTitle: undefined });
+  if (kind === 'x-title') g = withFormat(g, { xTitle: undefined });
   if (kind === 'series') g = withSymbol(g, element.slice('series:'.length), undefined);
   if (kind === 'bracket') g = withOffset(g, element.slice('bracket:'.length), 0);
   return g;
@@ -131,6 +143,12 @@ export function resetAll(graph: Graph): Graph {
     yStep: undefined,
     yDecimals: undefined,
     xAngle: undefined,
+    xTitle: undefined,
+    xMin: undefined,
+    xMax: undefined,
+    xScale: undefined,
+    xStep: undefined,
+    xDecimals: undefined,
     showTitle: undefined,
     style: undefined,
     symbols: undefined,
@@ -149,9 +167,11 @@ export function elementLabel(element: ElementId, project: Project, graph: Graph)
     case 'y-axis':
       return 'Y axis';
     case 'x-axis':
-      return 'X axis and group labels';
+      return graph.plot.kind === 'xy-scatter' ? 'X axis' : 'X axis and group labels';
     case 'y-title':
       return 'Y axis title';
+    case 'x-title':
+      return 'X axis title';
     case 'title':
       return 'Title';
     case 'legend':
@@ -160,6 +180,10 @@ export function elementLabel(element: ElementId, project: Project, graph: Graph)
       return 'Error bars';
     case 'series':
       return `Data set: ${title(element.slice('series:'.length))}`;
+    case 'fit-line':
+      return `Fitted line: ${title(element.slice('fit-line:'.length))}`;
+    case 'band':
+      return `Band: ${title(element.slice('band:'.length))}`;
     case 'bracket': {
       const key = element.slice('bracket:'.length);
       for (const id of graph.analyses) {

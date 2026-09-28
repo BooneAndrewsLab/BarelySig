@@ -7,7 +7,56 @@
 # installed into this environment for reference only (never shipped to
 # WebR, the same status `multcomp`/`car`/`dunn.test`/etc. already have).
 
+# Independent check of predict.lm's confidence/prediction band formula
+# (CLAUDE.md's oracle lesson: a reference is verified against something
+# else before a fixture trusts it), for #87's band: hand-computed t * SE
+# at a few grid points against the textbook formula for the standard
+# error of a fitted value / a new observation, on synthetic data, once,
+# when this oracle loads -- independent of predict.lm() itself, which
+# `run_linreg` below then uses to build every fixture's band.
+local({
+  set.seed(1)
+  x <- 1:10
+  y <- 2 * x + rnorm(10, sd = 1.5)
+  m <- lm(y ~ x)
+  grid <- c(min(x), mean(x), max(x))
+  s <- summary(m)
+  sigma <- s$sigma
+  df <- m$df.residual
+  xbar <- mean(x)
+  sxx <- sum((x - xbar)^2)
+  se_fit <- sigma * sqrt(1 / length(x) + (grid - xbar)^2 / sxx)
+  fit <- unname(predict(m, newdata = data.frame(x = grid)))
+  t_crit <- qt(0.975, df)
+  hand_ci_lower <- fit - t_crit * se_fit
+  hand_ci_upper <- fit + t_crit * se_fit
+  se_pred <- sigma * sqrt(1 + 1 / length(x) + (grid - xbar)^2 / sxx)
+  hand_pi_lower <- fit - t_crit * se_pred
+  hand_pi_upper <- fit + t_crit * se_pred
+  pr_ci <- predict(m, newdata = data.frame(x = grid), interval = "confidence")
+  pr_pi <- predict(m, newdata = data.frame(x = grid), interval = "prediction")
+  stopifnot(
+    max(abs(hand_ci_lower - pr_ci[, "lwr"])) < 1e-9,
+    max(abs(hand_ci_upper - pr_ci[, "upr"])) < 1e-9,
+    max(abs(hand_pi_lower - pr_pi[, "lwr"])) < 1e-9,
+    max(abs(hand_pi_upper - pr_pi[, "upr"])) < 1e-9
+  )
+})
+
 reference <- quote({
+  run_predict_band <- function(m, x) {
+    grid <- seq(min(x), max(x), length.out = 100)
+    ci <- predict(m, newdata = data.frame(x = grid), interval = "confidence", se.fit = TRUE)
+    pi <- predict(m, newdata = data.frame(x = grid), interval = "prediction", se.fit = TRUE)
+    list(
+      x = grid,
+      fit = unname(ci$fit[, "fit"]),
+      confidence_lower = unname(ci$fit[, "lwr"]),
+      confidence_upper = unname(ci$fit[, "upr"]),
+      prediction_lower = unname(pi$fit[, "lwr"]),
+      prediction_upper = unname(pi$fit[, "upr"])
+    )
+  }
   run_linreg <- function(x, y) {
     m <- lm(y ~ x)
     s <- summary(m)
@@ -32,7 +81,8 @@ reference <- quote({
         n_runs = rt$runs,
         n_pos = sum(signs > 0), n_neg = sum(signs < 0),
         z = unname(rt$statistic), p = rt$p.value
-      )
+      ),
+      band = run_predict_band(m, x)
     )
   }
 })

@@ -82,7 +82,7 @@ export const EVENTS = {
     // A new analysis made from Help me choose's suggestion (item 15).
     'guided',
   ],
-  graph: ['new-column', 'new-grouped', 'new-nested', 'export-svg', 'export-png'],
+  graph: ['new-column', 'new-grouped', 'new-nested', 'new-xy', 'export-svg', 'export-png'],
   help: ['page'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 

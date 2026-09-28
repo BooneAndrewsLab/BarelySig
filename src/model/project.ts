@@ -387,14 +387,22 @@ export interface GroupedPlot {
   readonly points: boolean;
 }
 
+/** What a graph of an XY table plots (item 31, #87). */
+export interface XyPlot {
+  readonly kind: 'xy-scatter';
+  /** Show each series' (x, y) points. */
+  readonly points: boolean;
+  /** Draw the fitted line from this graph's linear-regression analysis (graph.analyses[0]), if it has one. */
+  readonly fit: boolean;
+  /** Band around the fit; meaningless (ignored) unless fit is true. */
+  readonly band: 'confidence' | 'prediction' | 'none';
+}
+
 /**
- * A graph's plot: Column-table plots, or grouped bars for a Grouped table.
- * An XY table has no graph yet (item 29, #38's own follow-up: the
- * existing plots all draw on a categorical value axis, which an XY
- * scatter's two continuous numeric axes don't fit — a rendering-
- * architecture change of its own, filed separately).
+ * A graph's plot: Column-table plots, grouped bars for a Grouped table, or
+ * an XY scatter for an XY table.
  */
-export type GraphPlot = ColumnPlot | GroupedPlot;
+export type GraphPlot = ColumnPlot | GroupedPlot | XyPlot;
 
 /** The plots that draw error bars. */
 export const hasErrorBars = (
@@ -408,6 +416,14 @@ export const GROUPED_DEFAULT: GroupedPlot = {
   arrangement: 'interleaved',
   error: 'sd',
   points: true,
+};
+
+/** A new XY graph's plot: points only; a fitted line is a separate step (note 29's framing). */
+export const XY_DEFAULT: XyPlot = {
+  kind: 'xy-scatter',
+  points: true,
+  fit: false,
+  band: 'none',
 };
 
 /**
@@ -447,11 +463,13 @@ export const STYLE_NUMBERS = [
   'lines.barEdge',
   'lines.bracket',
   'lines.pointEdge',
+  'lines.fit',
   'pointSize',
   'pointOpacity',
   'barWidth',
   'barLighten',
   'capWidth',
+  'bandOpacity',
 ] as const;
 export type StyleNumber = (typeof STYLE_NUMBERS)[number];
 
@@ -481,6 +499,17 @@ export interface GraphFormat {
    * overlap, note 12).
    */
   readonly xAngle?: 45 | 90;
+  /** XY graphs' x-axis title; unset = the table's x title and unit. */
+  readonly xTitle?: string;
+  /** XY graphs' x-axis range; unset = automatic. */
+  readonly xMin?: number;
+  readonly xMax?: number;
+  /** XY graphs' logarithmic x-axis (base 10); unset = linear. */
+  readonly xScale?: 'log10';
+  /** XY graphs' major tick interval of a linear x-axis; unset = automatic. */
+  readonly xStep?: number;
+  /** XY graphs' x tick label decimals; unset = what the tick interval needs. */
+  readonly xDecimals?: number;
   /** The graph's title drawn above it; unset = not shown. */
   readonly showTitle?: boolean;
   /** Grouped graphs' legend: above the plot or none; unset = at the right. */

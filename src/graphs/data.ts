@@ -4,19 +4,28 @@
  * error bars (a virtual descriptive analysis run by R), and the brackets
  * of the comparisons it draws.
  */
+import type { LinearRegressionResult, RegressionOutcome } from '@/analyses/linear-regression/types';
 import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
 import { cellId, comparisons, gives, pairsOf } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
 import type { Analysis, Graph, GraphSummaryOptions, Project } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
-import { type GroupData, columnGroup, groupedCells, nestedGroups } from '@/model/selectors';
+import {
+  type GroupData,
+  columnGroup,
+  groupedCells,
+  nestedGroups,
+  xySeries,
+} from '@/model/selectors';
 import type { DataSet, Table } from '@/model/table';
 
 import { pPhrase, stars } from '@/ui/results/format';
 
-import type { BracketInput, GroupInput, LayoutInput } from './layout';
+import type { BracketInput, GroupInput } from './layout';
 import { paletteColor } from './palette';
+import type { RenderInput } from './renderInput';
 import { graphTheme } from './themes';
+import type { XyGraphInput, XySeriesInput } from './xy';
 
 /** The id of a graph's summary statistics, run like an analysis (note 05). */
 export const summaryId = (graph: Id): Id => asId(`${graph}/summary`);
@@ -85,7 +94,7 @@ export function valueTitle(table: Table, graph: Graph): string {
 }
 
 export type GraphInput =
-  | { readonly ok: true; readonly input: LayoutInput; readonly summaryReady: boolean }
+  | { readonly ok: true; readonly input: RenderInput; readonly summaryReady: boolean }
   | { readonly ok: false; readonly reason: string };
 
 /** The last input made for each graph, with what it was made from. */
@@ -125,6 +134,14 @@ function makeGraphInput(
 ): GraphInput {
   const table = graphTable(project, graph);
   if (!table) return { ok: false, reason: 'The table this graph plots no longer exists.' };
+  if (graph.plot.kind === 'xy-scatter') {
+    if (table.type !== 'xy') return { ok: false, reason: 'This plot is for XY tables.' };
+    return {
+      ok: true,
+      summaryReady: true,
+      input: { kind: 'xy', input: xyGraphInput(table, graph, result) },
+    };
+  }
   const sets = plotted(table, graph);
   const summaryEntry = result(summaryId(graph.id));
   const summary = summaryEntry?.ok ? (summaryEntry.value as unknown as GraphSummaryResult) : null;
@@ -253,43 +270,141 @@ function makeGraphInput(
     ok: true,
     summaryReady: summary !== null,
     input: {
-      // Grouped bars are drawn as bars in clusters.
-      plot:
-        graph.plot.kind === 'grouped-bars'
-          ? { kind: 'bars', error: graph.plot.error, points: graph.plot.points }
-          : graph.plot,
-      size: graph.size,
-      theme: graphTheme(graph.theme, graph.format.style),
-      yTitle: valueTitle(table, graph),
-      yMin: graph.format.yMin,
-      yMax: graph.format.yMax,
-      axis: {
-        scale: graph.format.yScale,
-        step: graph.format.yStep,
-        decimals: graph.format.yDecimals,
+      kind: 'column',
+      input: {
+        // Grouped bars are drawn as bars in clusters.
+        plot:
+          graph.plot.kind === 'grouped-bars'
+            ? { kind: 'bars', error: graph.plot.error, points: graph.plot.points }
+            : graph.plot,
+        size: graph.size,
+        theme: graphTheme(graph.theme, graph.format.style),
+        yTitle: valueTitle(table, graph),
+        yMin: graph.format.yMin,
+        yMax: graph.format.yMax,
+        axis: {
+          scale: graph.format.yScale,
+          step: graph.format.yStep,
+          decimals: graph.format.yDecimals,
+        },
+        xAngle: graph.format.xAngle,
+        title: graph.format.showTitle ? graph.title : undefined,
+        groups,
+        brackets,
+        ...(grouped
+          ? {
+              clusters,
+              barLabels: separated,
+              legend:
+                separated || graph.format.legend === 'none'
+                  ? undefined
+                  : {
+                      at: graph.format.legend === 'top' ? ('top' as const) : ('right' as const),
+                      entries: sets.map((x) => ({
+                        id: x.ds.id,
+                        title: x.ds.title,
+                        color: x.ds.color ?? paletteColor(x.index),
+                      })),
+                    },
+            }
+          : {}),
       },
-      xAngle: graph.format.xAngle,
-      title: graph.format.showTitle ? graph.title : undefined,
-      groups,
-      brackets,
-      ...(grouped
-        ? {
-            clusters,
-            barLabels: separated,
-            legend:
-              separated || graph.format.legend === 'none'
-                ? undefined
-                : {
-                    at: graph.format.legend === 'top' ? ('top' as const) : ('right' as const),
-                    entries: sets.map((x) => ({
-                      id: x.ds.id,
-                      title: x.ds.title,
-                      color: x.ds.color ?? paletteColor(x.index),
-                    })),
-                  },
-          }
-        : {}),
     },
+  };
+}
+
+/** Plain English for a series' fit that couldn't run, matching the results view's own wording. */
+function regressionWhy(outcome: Extract<RegressionOutcome, { ran: false }>): string {
+  if (outcome.why === 'constant-x') return 'every X is the same value, so there is no line to fit.';
+  if (outcome.why === 'constant-y')
+    return 'Y never varies, so there is nothing for a line to explain.';
+  return `it has too few points to fit a line (needs at least ${String(outcome.minimum ?? 3)}).`;
+}
+
+/** The regression analysis result behind a graph's fitted line, or null while it isn't ready. */
+function regressionResultOf(
+  id: Id,
+  result: (id: Id) => ResultEntry | undefined,
+): LinearRegressionResult | null {
+  const r = result(id);
+  return r?.ok ? (r.value as unknown as LinearRegressionResult) : null;
+}
+
+/** An XY table's x-axis title; unset = the X data set's own title. */
+function xTitleOf(table: Table, graph: Graph): string {
+  if (graph.format.xTitle !== undefined) return graph.format.xTitle;
+  return table.dataSets[0]?.title ?? 'X';
+}
+
+/** An XY graph's points, and its fitted line and band when the plot asks for them (item 31, #87). */
+function xyGraphInput(
+  table: Table,
+  graph: Graph,
+  result: (id: Id) => ResultEntry | undefined,
+): XyGraphInput {
+  const plot = graph.plot;
+  if (table.type !== 'xy' || plot.kind !== 'xy-scatter') {
+    throw new Error('xyGraphInput: not an XY table plotted as an xy-scatter');
+  }
+  const sets = plotted(table, graph);
+  const dataPoints = xySeries(
+    table,
+    sets.map((x) => x.ds.id),
+  );
+  const analysisId = graph.analyses[0];
+  const regression =
+    plot.fit && analysisId !== undefined ? regressionResultOf(analysisId, result) : null;
+  const series: XySeriesInput[] = sets.map((x) => {
+    const points = (dataPoints.find((d) => d.id === x.ds.id)?.points ?? []).map((p) => ({
+      x: p.x,
+      y: p.y,
+    }));
+    const color = x.ds.color ?? paletteColor(x.index);
+    const outcome = regression?.series.find((s) => s.id === x.ds.id)?.outcome;
+    if (!plot.fit || !outcome) return { id: x.ds.id, title: x.ds.title, color, points };
+    if (!outcome.ran) {
+      return {
+        id: x.ds.id,
+        title: x.ds.title,
+        color,
+        points,
+        note: `${x.ds.title}: no fitted line — ${regressionWhy(outcome)}`,
+      };
+    }
+    const { band: b } = outcome;
+    const fit = b.x.map((v, j) => ({ x: v, y: b.fit[j] ?? 0 }));
+    const band =
+      plot.band === 'none'
+        ? undefined
+        : b.x.map((v, j) => ({
+            x: v,
+            y0: (plot.band === 'confidence' ? b.confidenceLower[j] : b.predictionLower[j]) ?? 0,
+            y1: (plot.band === 'confidence' ? b.confidenceUpper[j] : b.predictionUpper[j]) ?? 0,
+          }));
+    return { id: x.ds.id, title: x.ds.title, color, points, fit, band };
+  });
+  return {
+    plot,
+    size: graph.size,
+    theme: graphTheme(graph.theme, graph.format.style),
+    xTitle: xTitleOf(table, graph),
+    yTitle: valueTitle(table, graph),
+    xMin: graph.format.xMin,
+    xMax: graph.format.xMax,
+    yMin: graph.format.yMin,
+    yMax: graph.format.yMax,
+    xAxis: {
+      scale: graph.format.xScale,
+      step: graph.format.xStep,
+      decimals: graph.format.xDecimals,
+    },
+    yAxis: {
+      scale: graph.format.yScale,
+      step: graph.format.yStep,
+      decimals: graph.format.yDecimals,
+    },
+    title: graph.format.showTitle ? graph.title : undefined,
+    series,
   };
 }
 

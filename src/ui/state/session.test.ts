@@ -236,8 +236,9 @@ describe('opening an exported figure', () => {
     const recipe = recipeText(p, graph, results, bridge.info, '0.5.0');
     const input = graphInput(p, graph, (id) => results.get(id));
     if (!input.ok) throw new Error(input.reason);
+    if (input.input.kind !== 'column') throw new Error('expected a column render input');
     const svg = exportSvg(
-      layoutColumn(input.input),
+      layoutColumn(input.input.input),
       await svgMeta(
         { app: '0.5.0', engine: bridge.info, title: 'Figure 2', withData: true },
         recipe,
