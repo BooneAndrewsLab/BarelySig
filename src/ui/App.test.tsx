@@ -56,9 +56,8 @@ describe('app shell', () => {
 
   it('builds a Grouped table of summary data from the dialog', () => {
     render(<App />);
-    fireEvent.click(nav().getByRole('button', { name: /New experiment/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Grouped table/ }));
     const dialog = screen.getByRole('dialog', { name: 'New experiment' });
-    fireEvent.click(within(dialog).getByRole('radio', { name: /Grouped/ }));
     fireEvent.click(within(dialog).getByRole('radio', { name: /Summary data/ }));
     fireEvent.change(within(dialog).getByRole('combobox', { name: 'Summary data' }), {
       target: { value: 'mean-sem-n' },
@@ -109,13 +108,24 @@ describe('app shell', () => {
 
   it('renames the project from the bar, as one undo step', () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Untitled project' }));
+    createColumnTable();
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Untitled project' }));
     const input = screen.getByRole('textbox', { name: 'Project name' });
     fireEvent.change(input, { target: { value: 'Knockout screen' } });
     fireEvent.blur(input);
     expect(screen.getByRole('button', { name: 'Knockout screen' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Undo Rename project' }));
     expect(screen.getByRole('button', { name: 'Untitled project' })).toBeInTheDocument();
+  });
+
+  it('clicking the logo or project name closes the project and goes to the front page', async () => {
+    render(<App />);
+    createColumnTable();
+    expect(screen.getByRole('heading', { level: 1, name: 'Data 1' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Untitled project' }));
+    await screen.findByRole('heading', { name: 'Start with a table' });
+    expect(screen.queryByRole('button', { name: 'Untitled project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Experiments' })).not.toBeInTheDocument();
   });
 
   it('opens the example project, one experiment per table', async () => {
@@ -201,13 +211,12 @@ describe('closing a project', () => {
 
   it('returns to the start screen, which lists it to reopen', async () => {
     render(<App />);
+    // Nothing to close yet: a no-op, still on the start screen.
     fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
-    expect(screen.getByRole('menuitem', { name: 'Close project' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    expect(screen.getByRole('heading', { name: 'Start with a table' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try an example' }));
     await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' }, slow);
     fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Close project' }));
     await screen.findByRole('heading', { name: 'Start with a table' }, slow);
     const recent = await screen.findByRole('region', { name: 'Your projects' }, slow);
     // Earlier tests saved example projects too; the newest comes first.
@@ -298,15 +307,17 @@ describe('the project list', () => {
     }, slow);
   });
 
-  it('deletes the open project from the Projects menu, back to the start screen', async () => {
+  it('deletes the open project once closed, from the Projects button', async () => {
     const p = await keep('Open one');
     await act(() => getSession().openStored(p.id));
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete project…' }));
+    const list = await screen.findByRole('region', { name: 'Your projects' }, slow);
+    await within(list).findByText('Open one', {}, slow);
+    fireEvent.click(row(list, 'Open one').getByRole('button', { name: 'More for Open one' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }));
     const dialog = screen.getByRole('dialog', { name: 'Delete “Open one”?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete without a copy' }));
-    await screen.findByRole('heading', { name: 'Start with a table' }, slow);
     await vi.waitFor(async () => {
       expect(await getSession().storage.load(p.id)).toBeNull();
     }, slow);

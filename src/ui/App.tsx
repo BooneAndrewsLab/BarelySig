@@ -7,8 +7,8 @@ import type { Table, TableType } from '@/model/table';
 import { analytics } from './analytics';
 import { DataGrid } from './grid/DataGrid';
 import { Home } from './shell/Home';
-import { ProjectMenu } from './shell/ProjectMenu';
-import { contentsLine, useProjects } from './shell/recent';
+import { HomeButton } from './shell/HomeButton';
+import { useProjects } from './shell/recent';
 import { SaveState } from './shell/SaveState';
 import { NewTableDialog } from './shell/NewTableDialog';
 import { OpenDataDialog } from './shell/OpenDataDialog';
@@ -139,16 +139,7 @@ export function App() {
           setNewTable('column');
         }}
       >
-        <ProjectMenu
-          current={p.id}
-          canClose={!blank}
-          deleteTarget={{
-            id: p.id,
-            name: p.name,
-            contents: contentsLine({ tables: p.tables.size, graphs: p.graphs.size }),
-            downloaded: state.downloaded === p,
-          }}
-        />
+        <HomeButton />
         <button
           type="button"
           title="Open a .bsig project, a figure exported from BarelySig, or a data file such as .csv or .xlsx (Ctrl+O); or drop one on the window"

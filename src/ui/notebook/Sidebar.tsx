@@ -11,8 +11,9 @@ import { copyName } from '../copyName';
 import { Logo } from '../Logo';
 import { tableTypeInfo } from '../formats';
 import { deletionNote } from '../shell/tables';
+import { getSession } from '../state/session';
 import { getResults } from '../state/results';
-import { HOME, type Sheet, store } from '../state/store';
+import { type Sheet, store } from '../state/store';
 import { partsOf, sectionsOf, summaryLine } from './experiments';
 import { MoreMenu } from './MoreMenu';
 import { RenameInput } from './RenameInput';
@@ -155,9 +156,9 @@ function ProjectName({ name }: { readonly name: string }) {
     <button
       type="button"
       className="project-name"
-      title="Show the front page (double-click, or F2, to rename)"
+      title="Close this project and go to the front page (double-click, or F2, to rename)"
       onClick={() => {
-        store.show(HOME);
+        void getSession().closeProject();
       }}
       onDoubleClick={() => {
         setRenaming(true);
@@ -192,26 +193,28 @@ export function Sidebar({ project, sheet, experiment, onNewExperiment, children 
         <button
           type="button"
           className="logo-home"
-          title="BarelySig: the front page"
+          title="Close this project and go to the front page"
           onClick={() => {
-            store.show(HOME);
+            void getSession().closeProject();
           }}
         >
           <Logo height={20} />
         </button>
-        <ProjectName name={project.name} />
+        {experiment !== null && <ProjectName name={project.name} />}
       </div>
-      <nav className="experiments" aria-label="Experiments">
-        <h2>Experiments</h2>
-        <ul>
-          {project.order.tables.map((id) => (
-            <ExperimentItem key={id} project={project} id={id} active={id === experiment} />
-          ))}
-        </ul>
-        <button type="button" className="exp-new" onClick={onNewExperiment}>
-          <Icon name="new-table" size={16} /> New experiment
-        </button>
-      </nav>
+      {experiment !== null && (
+        <nav className="experiments" aria-label="Experiments">
+          <h2>Experiments</h2>
+          <ul>
+            {project.order.tables.map((id) => (
+              <ExperimentItem key={id} project={project} id={id} active={id === experiment} />
+            ))}
+          </ul>
+          <button type="button" className="exp-new" onClick={onNewExperiment}>
+            <Icon name="new-table" size={16} /> New experiment
+          </button>
+        </nav>
+      )}
       {sections.length > 0 && (
         <nav className="on-page" aria-label="On this page">
           <h2>On this page</h2>
