@@ -113,10 +113,34 @@ describe('the Open data file dialog', () => {
     expect(t?.dataSets.map((d) => d.title)).toEqual(['Unbudded', 'Small']);
   });
 
+  it('starts the table at the row clicked, and marks the rows skipped and the titles', async () => {
+    open(
+      csv(
+        'buds.csv',
+        'Young cells,,,\nReplicate 1,,Replicate 2,\nUnbudded,Small,Unbudded,Small\n16,17,25,15\n17,18,16,11\n',
+      ),
+    );
+    await dialog().findByText('best guess');
+    const rows = within(dialog().getByRole('table', { name: 'Rows of the file' }));
+    expect(rows.getByRole('button', { name: 'Start at row 2' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(dialog().getByRole('radio', { name: /named subgroups/ })).toBeChecked();
+    expect(rows.getAllByText('skipped')).toHaveLength(1);
+    expect(rows.getAllByText('titles')).toHaveLength(2);
+    fireEvent.click(rows.getByRole('button', { name: 'Start at row 3' }));
+    expect(rows.getAllByText('skipped')).toHaveLength(2);
+    expect(dialog().getByRole('radio', { name: /named subgroups/ })).not.toBeChecked();
+  });
+
   it('skips rows and reads with another separator on request', async () => {
     open(csv('semi.txt', 'Exported\n\nWT;KO\n1,5;2,5\n'));
     await dialog().findByText('best guess');
-    expect(dialog().getByRole('spinbutton', { name: 'Skip rows at the top' })).toHaveValue(2);
+    expect(dialog().getByRole('button', { name: 'Start at row 3' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(dialog().getByRole('combobox', { name: 'Separated by' })).toHaveValue(';');
     expect(dialog().getByRole('combobox', { name: 'Decimal mark' })).toHaveValue(',');
     expect(preview().getByText('1,5')).toBeInTheDocument();

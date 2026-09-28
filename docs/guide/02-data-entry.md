@@ -53,7 +53,18 @@ experiment dialog, or drop the file on the window. BarelySig reads `.csv`,
 your computer.
 
 BarelySig works out how the file is laid out and shows you the table it
-will make before making anything:
+will make before making anything.
+
+First, **where the table starts**: the top of the file is shown as it
+is, and you click the row with the table's titles. Rows above it (a
+title such as `Young cells`, an instrument's header lines) are struck
+through as skipped, and the rows read as titles are marked, so a file
+with a title over two header rows shows exactly which rows each one
+becomes. BarelySig picks a start itself; click another row if it's
+wrong. Untick **It starts with a row of titles** if the first row is
+already numbers.
+
+Then the layout:
 
 - **Each column is a group:** group names across the top, values under
   them (columns of different lengths are fine).
@@ -74,9 +85,8 @@ will make before making anything:
 Its best guess is marked; pick another layout if it guessed wrong. A
 two-factor layout shows a swap checkbox right under it, to swap rows and
 groups (for a Nested table, groups and subgroups). You can also choose
-the sheet of a workbook, skip rows above the table (an instrument's
-header lines), say whether the first row holds titles, and for text
-files set the separator and the decimal mark. The preview follows each
+the sheet of a workbook, and for text files set the separator and the
+decimal mark. The preview follows each
 change.
 
 Why swap groups and subgroups? A nested test compares the **groups**

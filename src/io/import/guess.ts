@@ -70,6 +70,8 @@ export interface ImportNotes {
   readonly percent: number;
   readonly decimal: DecimalSeparator;
   readonly skipped: number;
+  /** Rows under the skipped ones the layout read as titles (0–2). */
+  readonly titleRows: number;
   /** Columns left out, by name: not numbers, or not used by the layout. */
   readonly leftOut: readonly string[];
   /** Long data turned into a table. */
@@ -348,6 +350,8 @@ const EMPTY: Slot = { value: null };
 
 interface Extra {
   readonly leftOut: readonly string[];
+  /** Rows under the skipped ones read as titles, not data. */
+  readonly titleRows: number;
   readonly reshaped?: boolean;
   readonly unlabelled?: number;
   readonly repeats?: number;
@@ -408,6 +412,7 @@ function finish(
       percent: tally.percent,
       decimal: context.decimal,
       skipped: context.skip,
+      titleRows: extra.titleRows,
       leftOut: extra.leftOut,
       reshaped: extra.reshaped ?? false,
       unlabelled: extra.unlabelled ?? 0,
@@ -490,7 +495,7 @@ function buildColumns(b: Block, choice: ImportChoice): Built {
       unit,
       valueTitle: null,
     },
-    extra: { leftOut },
+    extra: { leftOut, titleRows: from },
     tally,
   };
 }
@@ -569,7 +574,11 @@ function buildGrouped(b: Block, choice: ImportChoice): Built {
     unit,
     valueTitle: null,
   };
-  return { cube: choice.swap ? swapped(cube) : cube, extra: { leftOut }, tally };
+  return {
+    cube: choice.swap ? swapped(cube) : cube,
+    extra: { leftOut, titleRows: headerRows },
+    tally,
+  };
 }
 
 /** What `nestedShape` finds, shared by the guess and the builder. */
@@ -679,7 +688,11 @@ function buildNested(b: Block, choice: ImportChoice): Built {
     valueTitle: null,
     subTitles,
   };
-  return { cube: choice.swap ? swappedNested(cube) : cube, extra: { leftOut }, tally };
+  return {
+    cube: choice.swap ? swappedNested(cube) : cube,
+    extra: { leftOut, titleRows: 2 },
+    tally,
+  };
 }
 
 /** Columns of text labels (not numbers) under a header, from row 1. */
@@ -778,7 +791,7 @@ function summaryAcross(b: Block, choice: ImportChoice): Built {
   };
   return {
     cube: choice.swap && !column ? swapped(cube) : cube,
-    extra: { leftOut, unusedStats: format.unused },
+    extra: { leftOut, titleRows: headerRows, unusedStats: format.unused },
     tally,
   };
 }
@@ -826,7 +839,7 @@ function summaryDown(b: Block, choice: ImportChoice): Built {
       unit,
       valueTitle: null,
     };
-    return { cube, extra: { leftOut, unusedStats: format.unused }, tally };
+    return { cube, extra: { leftOut, titleRows: 1, unusedStats: format.unused }, tally };
   }
   const [rj = 0, gj = 0] = labelCols;
   const rowLevels: string[] = [];
@@ -860,7 +873,7 @@ function summaryDown(b: Block, choice: ImportChoice): Built {
   };
   return {
     cube: choice.swap ? swapped(cube) : cube,
-    extra: { leftOut, unusedStats: format.unused, repeats },
+    extra: { leftOut, titleRows: 1, unusedStats: format.unused, repeats },
     tally,
   };
 }
@@ -909,7 +922,7 @@ function buildLong(b: Block, choice: ImportChoice): Built {
         unit: header.unit,
         valueTitle: header.name || null,
       },
-      extra: { leftOut, reshaped: true, unlabelled },
+      extra: { leftOut, titleRows: 1, reshaped: true, unlabelled },
       tally,
     };
   }
@@ -952,7 +965,7 @@ function buildLong(b: Block, choice: ImportChoice): Built {
   };
   return {
     cube: choice.swap ? swapped(cube) : cube,
-    extra: { leftOut, reshaped: true, unlabelled },
+    extra: { leftOut, titleRows: 1, reshaped: true, unlabelled },
     tally,
   };
 }

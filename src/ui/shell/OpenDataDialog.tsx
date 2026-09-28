@@ -11,7 +11,7 @@ import {
   markKey,
 } from '@/io/import/guess';
 import { DataFileError, type ReadDataFile, readDataFile } from '@/io/import/read';
-import type { SourceBook } from '@/io/import/sheets';
+import type { SourceBook, SourceCell, SourceSheet } from '@/io/import/sheets';
 import type { Table } from '@/model/table';
 
 import { subcolumnLabels } from '../grid/layout';
@@ -36,6 +36,10 @@ const SEPARATOR_NAMES: Readonly<Record<Separator, string>> = {
 };
 
 const PREVIEW_ROWS = 12;
+/** Sheet rows shown to pick the start from, at least; more when the start is further down. */
+const START_ROWS = 30;
+/** Sheet columns shown there: enough to recognise the rows. */
+const START_COLUMNS = 12;
 
 type Status =
   | { readonly kind: 'reading' }
@@ -200,6 +204,37 @@ export function OpenDataDialog({
             )}
           </p>
 
+          <fieldset className="import-start">
+            <legend>Where does the table start?</legend>
+            <p className="hint">
+              Click the row with the table’s titles. Rows above it (a title, an instrument’s notes)
+              are skipped.
+            </p>
+            <StartRows
+              sheet={sheet}
+              skip={choice.skip}
+              titleRows={result ? result.notes.titleRows : choice.header ? 1 : 0}
+              decimal={choice.decimal}
+              onPick={(skip) => {
+                setGiven({ ...given, skip });
+              }}
+            />
+            {(choice.layout === 'columns' ||
+              choice.layout === 'grouped' ||
+              choice.layout === 'nested') && (
+              <label className="option">
+                <input
+                  type="checkbox"
+                  checked={choice.header}
+                  onChange={(e) => {
+                    change({ header: e.currentTarget.checked });
+                  }}
+                />
+                It starts with a row of titles
+              </label>
+            )}
+          </fieldset>
+
           <fieldset>
             <legend>How is it laid out?</legend>
             {LAYOUTS.map((l) => {
@@ -265,35 +300,6 @@ export function OpenDataDialog({
 
           <fieldset className="import-options">
             <legend>Reading</legend>
-            {(choice.layout === 'columns' ||
-              choice.layout === 'grouped' ||
-              choice.layout === 'nested') && (
-              <label className="option">
-                <input
-                  type="checkbox"
-                  checked={choice.header}
-                  onChange={(e) => {
-                    change({ header: e.currentTarget.checked });
-                  }}
-                />
-                The first row holds titles
-              </label>
-            )}
-            <label className="field">
-              Skip rows at the top
-              <input
-                type="number"
-                min={0}
-                max={Math.max(0, sheet.cells.length - 1)}
-                value={choice.skip}
-                onChange={(e) => {
-                  const v = e.currentTarget.valueAsNumber;
-                  if (Number.isInteger(v) && v >= 0) {
-                    setGiven({ ...given, skip: Math.min(v, sheet.cells.length) });
-                  }
-                }}
-              />
-            </label>
             {book?.kind === 'text' && (
               <label className="field">
                 Separated by
@@ -353,7 +359,7 @@ export function OpenDataDialog({
           ) : (
             <p className="import-empty">
               {guess.possible.length === 0
-                ? 'No numbers found in this sheet. Check the rows skipped, the separator and the decimal mark.'
+                ? 'No numbers found in this sheet. Check where the table starts, the separator and the decimal mark.'
                 : 'This layout doesn’t make a table from the sheet. Pick another, or check the columns.'}
             </p>
           )}
@@ -369,6 +375,87 @@ export function OpenDataDialog({
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/** A sheet cell as written, for picking rows. */
+function cellText(c: SourceCell | undefined, decimal: DecimalSeparator): string {
+  if (c === undefined) return '';
+  if (typeof c === 'number') return formatCell(c, decimal);
+  if (typeof c === 'string') return c.trim();
+  return `${formatCell(c.percent, decimal)}%`;
+}
+
+/**
+ * The top of the sheet as it is, each row a button: the one clicked is
+ * where the table starts, rows above it are skipped and the rows the
+ * layout reads as titles are marked, so the choice is made on the file
+ * itself rather than by counting rows.
+ */
+function StartRows({
+  sheet,
+  skip,
+  titleRows,
+  decimal,
+  onPick,
+}: {
+  readonly sheet: SourceSheet;
+  readonly skip: number;
+  readonly titleRows: number;
+  readonly decimal: DecimalSeparator;
+  readonly onPick: (skip: number) => void;
+}) {
+  const shown = sheet.cells.slice(0, Math.max(START_ROWS, skip + titleRows + 5));
+  const width = Math.min(
+    START_COLUMNS,
+    Math.max(
+      1,
+      ...shown.map((r) => {
+        let n = r.length;
+        while (n > 0 && cellText(r[n - 1], decimal) === '') n -= 1;
+        return n;
+      }),
+    ),
+  );
+  return (
+    <div className="import-scroll start-rows">
+      <table className="import-table" aria-label="Rows of the file">
+        <tbody>
+          {shown.map((r, i) => {
+            const role = i < skip ? 'skipped' : i < skip + titleRows ? 'titles' : 'data';
+            return (
+              <tr
+                key={i}
+                className={`start-${role}`}
+                onClick={() => {
+                  onPick(i);
+                }}
+              >
+                <th scope="row">
+                  <button
+                    type="button"
+                    aria-pressed={i === skip}
+                    aria-label={`Start at row ${String(i + 1)}`}
+                    title="Start the table here"
+                  >
+                    {i + 1}
+                  </button>
+                </th>
+                <td className="start-role">{role === 'data' ? '' : role}</td>
+                {Array.from({ length: width }, (_, j) => {
+                  const t = cellText(r[j], decimal);
+                  return (
+                    <td key={j} title={t.length > 14 ? t : undefined}>
+                      {t}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
