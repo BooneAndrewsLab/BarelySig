@@ -1016,14 +1016,12 @@ function KruskalView({ r, id }: { readonly r: KruskalWallisResult; readonly id: 
             head={[
               `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
               'Mean rank diff.',
-              'Significant?',
               'Summary',
               adjusted ? 'Adjusted P value' : 'Individual P value',
             ]}
             rows={r.pairs.map((x) => [
               `${x.a.title} vs. ${x.b.title}`,
               sig(x.diff),
-              x.p < 0.05 ? 'Yes' : 'No',
               stars(x.p),
               pValue(x.p),
             ])}
@@ -1123,14 +1121,12 @@ function FriedmanView({ r, id }: { readonly r: FriedmanResult; readonly id: Id }
             head={[
               `${adjusted ? 'Dunn’s' : 'Uncorrected Dunn’s'} multiple comparisons test`,
               'Mean rank diff.',
-              'Significant?',
               'Summary',
               adjusted ? 'Adjusted P value' : 'Individual P value',
             ]}
             rows={r.pairs.map((x) => [
               `${x.a.title} vs. ${x.b.title}`,
               sig(x.diff),
-              x.p < 0.05 ? 'Yes' : 'No',
               stars(x.p),
               pValue(x.p),
             ])}
@@ -1230,7 +1226,6 @@ function RepeatedTwoWayView({ r, id }: { readonly r: RepeatedTwoWayResult; reado
                 `${test} multiple comparisons${fam.label ? `: ${fam.label}` : ''}`,
                 'Mean diff.',
                 '95.00% CI of diff.',
-                'Significant?',
                 'Summary',
                 'Adjusted P value',
               ]}
@@ -1238,7 +1233,6 @@ function RepeatedTwoWayView({ r, id }: { readonly r: RepeatedTwoWayResult; reado
                 `${x.a.title} vs. ${x.b.title}`,
                 sig(x.diff),
                 interval(x.ciLower, x.ciUpper),
-                x.p < 0.05 ? 'Yes' : 'No',
                 stars(x.p),
                 pValue(x.p),
               ])}
@@ -1487,7 +1481,6 @@ function TwoWayView({ r, id }: { readonly r: TwoWayResult; readonly id: Id }) {
                 `${test} multiple comparisons${f.label ? `: ${f.label}` : ''}`,
                 'Mean diff.',
                 '95.00% CI of diff.',
-                'Significant?',
                 'Summary',
                 'Adjusted P value',
               ]}
@@ -1495,7 +1488,6 @@ function TwoWayView({ r, id }: { readonly r: TwoWayResult; readonly id: Id }) {
                 `${x.a.title} vs. ${x.b.title}`,
                 sig(x.diff),
                 interval(x.ciLower, x.ciUpper),
-                x.p < 0.05 ? 'Yes' : 'No',
                 stars(x.p),
                 pValue(x.p),
               ])}
@@ -1506,20 +1498,8 @@ function TwoWayView({ r, id }: { readonly r: TwoWayResult; readonly id: Id }) {
       <AllNumbers id={id}>
         <Grid
           label="Source of variation"
-          head={[
-            'Source of variation',
-            '% of total variation',
-            'P value',
-            'P value summary',
-            'Significant?',
-          ]}
-          rows={terms.map(([name, t]) => [
-            name,
-            sig(t.percent),
-            pValue(t.p),
-            stars(t.p),
-            yesNo(t.p),
-          ])}
+          head={['Source of variation', '% of total variation', 'P value', 'P value summary']}
+          rows={terms.map(([name, t]) => [name, sig(t.percent), pValue(t.p), stars(t.p)])}
         />
         <Grid
           label="ANOVA table"
@@ -1684,7 +1664,6 @@ function OneWayView({ r, id }: { readonly r: OneWayResult; readonly id: Id }) {
               `${name} multiple comparisons test`,
               'Mean diff.',
               '95.00% CI of diff.',
-              'Significant?',
               'Summary',
               'Adjusted P value',
             ]}
@@ -1692,7 +1671,6 @@ function OneWayView({ r, id }: { readonly r: OneWayResult; readonly id: Id }) {
               `${x.a.title} vs. ${x.b.title}`,
               sig(x.diff),
               interval(x.ciLower, x.ciUpper),
-              x.p < 0.05 ? 'Yes' : 'No',
               stars(x.p),
               pValue(x.p),
             ])}
@@ -1822,7 +1800,6 @@ function RepeatedMeasuresView({ r, id }: { readonly r: RepeatedMeasuresResult; r
               `${name} multiple comparisons test`,
               'Mean diff.',
               '95.00% CI of diff.',
-              'Significant?',
               'Summary',
               'Adjusted P value',
             ]}
@@ -1830,7 +1807,6 @@ function RepeatedMeasuresView({ r, id }: { readonly r: RepeatedMeasuresResult; r
               `${x.a.title} vs. ${x.b.title}`,
               sig(x.diff),
               interval(x.ciLower, x.ciUpper),
-              x.p < 0.05 ? 'Yes' : 'No',
               stars(x.p),
               pValue(x.p),
             ])}
@@ -1962,7 +1938,6 @@ function NestedRepeatedView({ r, id }: { readonly r: NestedRepeatedResult; reado
               `${name} multiple comparisons test`,
               'Mean diff.',
               '95.00% CI of diff.',
-              'Significant?',
               'Summary',
               'Adjusted P value',
             ]}
@@ -1970,7 +1945,6 @@ function NestedRepeatedView({ r, id }: { readonly r: NestedRepeatedResult; reado
               `${x.a.title} vs. ${x.b.title}`,
               sig(x.diff),
               interval(x.ciLower, x.ciUpper),
-              x.p < 0.05 ? 'Yes' : 'No',
               stars(x.p),
               pValue(x.p),
             ])}
@@ -2115,7 +2089,6 @@ function NestedOneWayView({ r, id }: { readonly r: NestedOneWayResult; readonly 
               `${name} multiple comparisons test`,
               'Mean diff.',
               '95% CI of diff.',
-              'Significant?',
               'Summary',
               'Adjusted P value',
             ]}
@@ -2123,7 +2096,6 @@ function NestedOneWayView({ r, id }: { readonly r: NestedOneWayResult; readonly 
               `${x.a.title} vs. ${x.b.title}`,
               sig(x.diff),
               interval(x.ciLower, x.ciUpper),
-              x.p < 0.05 ? 'Yes' : 'No',
               stars(x.p),
               pValue(x.p),
             ])}

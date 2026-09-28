@@ -504,7 +504,7 @@ describe('results sheets', () => {
     const mc = screen.getByRole('table', { name: 'Multiple comparisons' });
     expect(
       within(mc).getByRole('rowheader', { name: 'WT vs. KO' }).closest('tr'),
-    ).toHaveTextContent('WT vs. KO-3-5.2 to -0.8Yes*0.0151');
+    ).toHaveTextContent('WT vs. KO-3-5.2 to -0.8*0.0151');
     // The ANOVA table itself is behind "All numbers", closed by default.
     expect(screen.queryByRole('table', { name: 'ANOVA table' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'All numbers' }));
@@ -549,7 +549,7 @@ describe('results sheets', () => {
     const mc = screen.getByRole('table', { name: 'Multiple comparisons' });
     expect(
       within(mc).getByRole('rowheader', { name: 'WT vs. KO' }).closest('tr'),
-    ).toHaveTextContent('WT vs. KO-2.333Nons> 0.9999');
+    ).toHaveTextContent('WT vs. KO-2.333ns> 0.9999');
   });
 
   it('adds normality tests alongside a t test by default, in the same undo step', async () => {
@@ -867,7 +867,7 @@ describe('two-way ANOVA sheet', () => {
       within(screen.getByRole('table', { name: 'Day 1' }))
         .getByRole('rowheader', { name: 'WT vs. KO' })
         .closest('tr'),
-    ).toHaveTextContent('WT vs. KO-1-1.8 to -0.2Yes*0.0200');
+    ).toHaveTextContent('WT vs. KO-1-1.8 to -0.2*0.0200');
     // Source of variation is behind "All numbers", closed by default.
     expect(screen.queryByRole('table', { name: 'Source of variation' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'All numbers' }));
@@ -875,6 +875,6 @@ describe('two-way ANOVA sheet', () => {
       within(screen.getByRole('table', { name: 'Source of variation' }))
         .getByRole('rowheader', { name: 'Interaction' })
         .closest('tr'),
-    ).toHaveTextContent('Interaction200.0030**Yes');
+    ).toHaveTextContent('Interaction200.0030**');
   });
 });
