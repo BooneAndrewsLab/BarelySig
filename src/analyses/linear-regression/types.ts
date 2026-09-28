@@ -34,6 +34,20 @@ export type RunsOutcome =
       readonly nNegative: number;
     };
 
+/**
+ * The pointwise confidence/prediction band around a fit (#87): a fixed
+ * 100-point grid across the series' observed X range, sharing one `fit`
+ * value per grid point between both intervals.
+ */
+export interface RegressionBand {
+  readonly x: readonly number[];
+  readonly fit: readonly number[];
+  readonly confidenceLower: readonly number[];
+  readonly confidenceUpper: readonly number[];
+  readonly predictionLower: readonly number[];
+  readonly predictionUpper: readonly number[];
+}
+
 /** A series' regression, or why it couldn't run: too few points, or X has no variance. */
 export type RegressionOutcome =
   | {
@@ -52,6 +66,7 @@ export type RegressionOutcome =
       readonly p: number;
       readonly residuals: readonly Residual[];
       readonly runs: RunsOutcome;
+      readonly band: RegressionBand;
     }
   | {
       readonly ran: false;

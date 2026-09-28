@@ -12,6 +12,7 @@ import code from './analysis.R?raw';
 import type {
   LinearRegressionRequest,
   LinearRegressionResult,
+  RegressionBand,
   RegressionOutcome,
   Residual,
   RunsOutcome,
@@ -36,6 +37,17 @@ function runsOutcome(o: PlainObject): RunsOutcome {
     nNegative: need(o['n_neg'], 'n-'),
     z: need(o['z'], 'Z'),
     p: need(o['p'], 'P'),
+  };
+}
+
+function regressionBand(o: PlainObject): RegressionBand {
+  return {
+    x: list(o['x']).map((v) => num(v) ?? 0),
+    fit: list(o['fit']).map((v) => num(v) ?? 0),
+    confidenceLower: list(o['confidence_lower']).map((v) => num(v) ?? 0),
+    confidenceUpper: list(o['confidence_upper']).map((v) => num(v) ?? 0),
+    predictionLower: list(o['prediction_lower']).map((v) => num(v) ?? 0),
+    predictionUpper: list(o['prediction_upper']).map((v) => num(v) ?? 0),
   };
 }
 
@@ -76,6 +88,7 @@ function regressionOutcome(o: PlainObject): RegressionOutcome {
     p: need(o['p'], 'P'),
     residuals,
     runs: runsOutcome(object(o['runs'] ?? null, 'runs test')),
+    band: regressionBand(object(o['band'] ?? null, 'band')),
   };
 }
 
