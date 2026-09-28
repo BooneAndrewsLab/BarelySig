@@ -83,8 +83,9 @@ draw its brackets; untick a comparison to hide just that one.
 
 - Labels are asterisks by **Prism's scheme** (ns P ≥ 0.05, * P < 0.05,
   ** P < 0.01, *** P < 0.001, **** P < 0.0001), the **APA** one (up to
-  ***), or the **exact P values**. **Show "ns"** hides the brackets of
-  differences that aren't significant.
+  ***), or the **exact P values**. Unticking **Show "ns"** (with exact
+  P values, **Show P values for differences that aren't significant**)
+  hides the brackets of differences that aren't significant (P ≥ 0.05).
 - Multiple comparisons draw the adjusted P that the results show.
 - Brackets stack themselves so none overlap. Drag one to raise it: see
   [Formatting a graph](13-formatting.md#brackets).

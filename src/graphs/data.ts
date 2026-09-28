@@ -242,11 +242,10 @@ function makeGraphInput(
       const from = cells.findIndex((x) => x.id === c.a);
       const to = cells.findIndex((x) => x.id === c.b);
       if (from < 0 || to < 0) continue;
-      const label =
-        graph.format.bracketLabels === 'exact'
-          ? pPhrase(c.p)
-          : stars(c.p, graph.format.starScheme ?? 'prism');
-      if (label === 'ns' && !graph.format.showNs) continue;
+      const scheme = graph.format.starScheme ?? 'prism';
+      // Hides a non-significant bracket whichever way it is labelled.
+      if (!graph.format.showNs && stars(c.p, scheme) === 'ns') continue;
+      const label = graph.format.bracketLabels === 'exact' ? pPhrase(c.p) : stars(c.p, scheme);
       brackets.push({ id: c.key, from, to, label, offset: graph.format.bracketOffsets?.[c.key] });
     }
   }

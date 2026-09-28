@@ -123,6 +123,12 @@ describe('graph data', () => {
     expect(exact.ok && exact.input.brackets[0]?.label).toBe('P = 0.0030');
     const ns = { ...graph, format: { ...graph.format, showNs: false } };
     expect(bracketsOf(graphInput(p, ns, results(0.3)))).toEqual([]);
+    const nsExact = {
+      ...graph,
+      format: { ...graph.format, bracketLabels: 'exact' as const, showNs: false },
+    };
+    expect(bracketsOf(graphInput(p, nsExact, results(0.3)))).toEqual([]);
+    expect(bracketsOf(graphInput(p, nsExact, results(0.003)))).toHaveLength(1);
     const hidden = { ...graph, format: { ...graph.format, hiddenBrackets: [asId('a_t')] } };
     expect(bracketsOf(graphInput(p, hidden, results(0.003)))).toEqual([]);
   });

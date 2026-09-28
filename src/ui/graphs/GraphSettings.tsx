@@ -353,7 +353,9 @@ export function GraphSettings({ project, graph }: Props) {
                   set({ format: { ...graph.format, showNs: e.currentTarget.checked } });
                 }}
               />
-              Show “ns” for differences that aren’t significant
+              {graph.format.bracketLabels === 'exact'
+                ? 'Show P values for differences that aren’t significant'
+                : 'Show “ns” for differences that aren’t significant'}
             </label>
           </>
         )}
