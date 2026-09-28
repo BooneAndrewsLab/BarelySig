@@ -461,6 +461,22 @@ function whiskerWords(w: Whiskers): string {
 /** The note beside a graph: what its marks show and where its brackets come from. */
 export function graphNotes(project: Project, graph: Graph): Note[] {
   const plot = graph.plot;
+  if (plot.kind === 'xy-scatter') {
+    const fitId = graph.analyses[0];
+    const fitFrom =
+      plot.fit && fitId !== undefined ? project.analyses.get(fitId)?.title : undefined;
+    const w = String(graph.size.width);
+    const h = String(graph.size.height);
+    return [
+      {
+        kicker: 'On this graph',
+        text: [
+          ...(fitFrom ? [`The fitted line and band come from “${fitFrom}”.`] : []),
+          `It exports at ${w} × ${h} mm. Click any part of it to format that part.`,
+        ],
+      },
+    ];
+  }
   const marks =
     plot.kind === 'box'
       ? [

@@ -589,13 +589,13 @@ describe('drawn in a worker (item 11)', () => {
       this.pending = [];
       act(() => {
         for (const req of reqs) {
-          if (req.type !== 'draw') continue;
+          if (req.type !== 'draw' || req.input.kind !== 'column') continue;
           this.onmessage?.({
             data: {
               type: 'drawn',
               id: req.id,
               ok: true,
-              parts: drawnParts(layoutColumn(req.input)),
+              parts: drawnParts(layoutColumn(req.input.input)),
               png: new Blob(['png'], { type: 'image/png' }),
             },
           } as MessageEvent<RenderReply>);
