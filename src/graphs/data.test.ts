@@ -33,6 +33,14 @@ import {
   withGraphSummaries,
   withPair,
 } from './data';
+import type { LayoutInput } from './layout';
+import type { RenderInput } from './renderInput';
+
+/** Every test here plots a Column, Grouped or Nested table, so its input is always a column-family layout. */
+function layoutOf(input: RenderInput): LayoutInput {
+  if (input.kind !== 'column') throw new Error('expected a column render input');
+  return input.input;
+}
 
 function setup() {
   const t = createColumnTable({ title: 'Viability', groups: ['WT', 'KO', 'Het'], rows: 2 });
@@ -73,7 +81,7 @@ function setup() {
   return { p, graph, t, wt, ko, het };
 }
 
-const bracketsOf = (r: GraphInput) => (r.ok ? r.input.brackets : null);
+const bracketsOf = (r: GraphInput) => (r.ok ? layoutOf(r.input).brackets : null);
 
 const tResult = (p: number, a: string, b: string): ResultEntry => ({
   inputHash: 'h',
@@ -101,8 +109,8 @@ describe('graph data', () => {
     const r = graphInput(p, graph, () => undefined);
     if (!r.ok) throw new Error(r.reason);
     expect(r.summaryReady).toBe(false);
-    expect(r.input.yTitle).toBe('Viability (%)');
-    expect(r.input.groups.map((g) => [g.title, g.values, g.color])).toEqual([
+    expect(layoutOf(r.input).yTitle).toBe('Viability (%)');
+    expect(layoutOf(r.input).groups.map((g) => [g.title, g.values, g.color])).toEqual([
       ['WT', [1, 3], '#0173b2'],
       ['KO', [5], '#de8f05'],
       ['Het', [], '#029e73'],
@@ -114,13 +122,15 @@ describe('graph data', () => {
     const results = (pv: number) => (id: string) =>
       id === 'a_t' ? tResult(pv, wt.id, ko.id) : undefined;
     const ok = graphInput(p, graph, results(0.003));
-    expect(ok.ok && ok.input.brackets).toEqual([{ id: 'a_t', from: 0, to: 1, label: '**' }]);
+    expect(ok.ok && layoutOf(ok.input).brackets).toEqual([
+      { id: 'a_t', from: 0, to: 1, label: '**' },
+    ]);
     const exact = graphInput(
       p,
       { ...graph, format: { ...graph.format, bracketLabels: 'exact' } },
       results(0.003),
     );
-    expect(exact.ok && exact.input.brackets[0]?.label).toBe('P = 0.0030');
+    expect(exact.ok && layoutOf(exact.input).brackets[0]?.label).toBe('P = 0.0030');
     const ns = { ...graph, format: { ...graph.format, showNs: false } };
     expect(bracketsOf(graphInput(p, ns, results(0.3)))).toEqual([]);
     const nsExact = {
@@ -153,7 +163,7 @@ describe('graph data', () => {
     const r = graphInput(p, shown, (id) =>
       id === 'a_r' ? tResult(0.04, ko.id, wt.id) : undefined,
     );
-    expect(r.ok && r.input.brackets).toEqual([{ id: 'a_r', from: 1, to: 0, label: '*' }]);
+    expect(r.ok && layoutOf(r.input).brackets).toEqual([{ id: 'a_r', from: 1, to: 0, label: '*' }]);
   });
 
   it('draws a bracket per post-hoc comparison, each of which can be hidden', () => {
@@ -212,7 +222,7 @@ describe('graph data', () => {
     const r = graphInput(p, only, (id) =>
       id === 'a_t' ? tResult(0.001, wt.id, 'ds_elsewhere') : undefined,
     );
-    expect(r.ok && r.input.brackets).toEqual([]);
+    expect(r.ok && layoutOf(r.input).brackets).toEqual([]);
   });
 
   it('keeps graph summaries when saving results, drops those of graphs gone', () => {
@@ -275,18 +285,18 @@ describe('grouped bar graphs (note 07)', () => {
     const { p, graph, wt, ko, d1, d2 } = grouped();
     const r = graphInput(p, graph, () => undefined);
     if (!r.ok) throw new Error(r.reason);
-    expect(r.input.groups.map((g) => [g.id, g.series, g.title, g.values])).toEqual([
+    expect(layoutOf(r.input).groups.map((g) => [g.id, g.series, g.title, g.values])).toEqual([
       [`${d1.id}/${wt.id}`, wt.id, 'WT', [1, 2]],
       [`${d1.id}/${ko.id}`, ko.id, 'KO', [4]],
       [`${d2.id}/${wt.id}`, wt.id, 'WT', []],
       [`${d2.id}/${ko.id}`, ko.id, 'KO', [6]],
     ]);
-    expect(r.input.clusters).toEqual([
+    expect(layoutOf(r.input).clusters).toEqual([
       { title: 'Day 1', size: 2 },
       { title: 'Day 2', size: 2 },
     ]);
-    expect(r.input.legend?.entries.map((e) => e.title)).toEqual(['WT', 'KO']);
-    expect(r.input.plot).toEqual({ kind: 'bars', error: 'sd', points: true });
+    expect(layoutOf(r.input).legend?.entries.map((e) => e.title)).toEqual(['WT', 'KO']);
+    expect(layoutOf(r.input).plot).toEqual({ kind: 'bars', error: 'sd', points: true });
   });
 
   it('clusters by data set when separated, labelling each bar, without a legend', () => {
@@ -294,10 +304,15 @@ describe('grouped bar graphs (note 07)', () => {
     const g = { ...graph, plot: { ...GROUPED_DEFAULT, arrangement: 'separated' as const } };
     const r = graphInput(p, g, () => undefined);
     if (!r.ok) throw new Error(r.reason);
-    expect(r.input.groups.map((x) => x.title)).toEqual(['Day 1', 'Day 2', 'Day 1', 'Day 2']);
-    expect(r.input.clusters?.map((c) => c.title)).toEqual(['WT', 'KO']);
-    expect(r.input.barLabels).toBe(true);
-    expect(r.input.legend).toBeUndefined();
+    expect(layoutOf(r.input).groups.map((x) => x.title)).toEqual([
+      'Day 1',
+      'Day 2',
+      'Day 1',
+      'Day 2',
+    ]);
+    expect(layoutOf(r.input).clusters?.map((c) => c.title)).toEqual(['WT', 'KO']);
+    expect(layoutOf(r.input).barLabels).toBe(true);
+    expect(layoutOf(r.input).legend).toBeUndefined();
   });
 
   it('summarises every cell and draws two-way comparisons within rows as brackets', () => {
@@ -323,11 +338,11 @@ describe('grouped bar graphs (note 07)', () => {
     const results = new Map<string, ResultEntry>([['a_2', { inputHash: 'h', ok: true, value }]]);
     const r = graphInput(p, graph, (id) => results.get(id));
     if (!r.ok) throw new Error(r.reason);
-    expect(r.input.brackets.map((b) => [b.from, b.to, b.label])).toEqual([
+    expect(layoutOf(r.input).brackets.map((b) => [b.from, b.to, b.label])).toEqual([
       [0, 1, '**'],
       [2, 3, 'ns'],
     ]);
-    expect(r.input.brackets[0]?.id).toBe(choice?.pairs[0]?.key);
+    expect(layoutOf(r.input).brackets[0]?.id).toBe(choice?.pairs[0]?.key);
   });
 
   it('pairs rows within each data set for within-column comparisons', () => {
@@ -399,7 +414,7 @@ describe('SuperPlot graphs of a Nested table (item 13)', () => {
     const { p, graph } = nested();
     const r = graphInput(p, graph, () => undefined);
     if (!r.ok) throw new Error(r.reason);
-    const [control, treated] = r.input.groups;
+    const [control, treated] = layoutOf(r.input).groups;
     expect(control?.values).toEqual([10, 12, 20]);
     expect(control?.replicateOf).toEqual([0, 0, 1]);
     expect(control?.replicateMeans).toEqual([11, 20]);
@@ -420,7 +435,7 @@ describe('SuperPlot graphs of a Nested table (item 13)', () => {
     });
     const r = graphInput(q, graph, () => undefined);
     if (!r.ok) throw new Error(r.reason);
-    const t2 = r.input.groups[1];
+    const t2 = layoutOf(r.input).groups[1];
     expect(t2?.values).toEqual([40]);
     expect(t2?.replicateOf).toEqual([1]);
     expect(t2?.replicateMeans).toEqual([null, 40]);
@@ -442,7 +457,7 @@ describe('SuperPlot graphs of a Nested table (item 13)', () => {
       id === asId('a_nt') ? tResult(0.03, ctrl.id, treated.id) : undefined,
     );
     if (!r.ok) throw new Error(r.reason);
-    expect(r.input.brackets).toHaveLength(1);
-    expect(r.input.brackets[0]).toMatchObject({ from: 0, to: 1 });
+    expect(layoutOf(r.input).brackets).toHaveLength(1);
+    expect(layoutOf(r.input).brackets[0]).toMatchObject({ from: 0, to: 1 });
   });
 });

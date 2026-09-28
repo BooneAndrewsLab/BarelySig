@@ -197,6 +197,18 @@ const ERROR_WORDS: Readonly<Record<ErrorBar, string>> = {
 
 /** What the marks show, for the notes under the graph: "Bars: mean ± SD; points: individual values". */
 export function describePlot(graphPlot: GraphPlot): string {
+  if (graphPlot.kind === 'xy-scatter') {
+    const parts: string[] = [];
+    if (graphPlot.points) parts.push('points: each (X, Y) pair');
+    if (graphPlot.fit) {
+      parts.push('a fitted regression line');
+      if (graphPlot.band !== 'none')
+        parts.push(
+          `a ${graphPlot.band === 'confidence' ? '95% confidence' : '95% prediction'} band`,
+        );
+    }
+    return parts.length ? `XY scatter: ${parts.join('; ')}` : 'XY scatter';
+  }
   const plot: ColumnPlot =
     graphPlot.kind === 'grouped-bars'
       ? { kind: 'bars', error: graphPlot.error, points: graphPlot.points }

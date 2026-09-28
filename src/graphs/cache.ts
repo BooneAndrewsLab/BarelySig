@@ -5,9 +5,11 @@
  * figures are drawn on the main thread (item 11), this is what draws them.
  */
 import { type Drawn, drawnParts } from './drawn';
-import { type LayoutInput, layoutColumn } from './layout';
+import { layoutColumn } from './layout';
+import type { RenderInput } from './renderInput';
 import type { Scene } from './scene';
 import { sceneToSvg } from './svg';
+import { layoutXy } from './xy';
 
 function perObject<K extends object, V>(f: (k: K) => V): (k: K) => V {
   const seen = new WeakMap<K, V>();
@@ -19,10 +21,12 @@ function perObject<K extends object, V>(f: (k: K) => V): (k: K) => V {
   };
 }
 
-export const sceneOf = perObject((input: LayoutInput): Scene => layoutColumn(input));
+export const sceneOf = perObject((input: RenderInput): Scene =>
+  input.kind === 'xy' ? layoutXy(input.input) : layoutColumn(input.input),
+);
 export const svgOf = perObject((scene: Scene): string => sceneToSvg(scene));
 /** The figure drawn on the main thread: the inline SVG. */
-export const drawnOf = perObject((input: LayoutInput): Drawn => {
+export const drawnOf = perObject((input: RenderInput): Drawn => {
   const scene = sceneOf(input);
   return { ...drawnParts(scene), picture: { kind: 'svg', svg: svgOf(scene) } };
 });

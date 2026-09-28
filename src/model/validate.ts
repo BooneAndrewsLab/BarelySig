@@ -8,10 +8,26 @@
  */
 import { analysisOrder } from './deps';
 import type { Id } from './ids';
-import type { Project } from './project';
-import { type Table, XY_X_FORMAT, parseCellKey, subcolumnCount } from './table';
+import type { GraphPlot, Project } from './project';
+import { type Table, type TableType, XY_X_FORMAT, parseCellKey, subcolumnCount } from './table';
 
 const MAX_DECIMALS = 15;
+
+/**
+ * The table type each plot kind is drawn on. Nested tables reuse the
+ * Column-table plot kinds (`bars`/`dots`/`box`/`violin`) instead of
+ * getting their own, so they are an explicit allow-list rather than a
+ * fifth map entry.
+ */
+const PLOT_TABLE_TYPES: Readonly<Record<GraphPlot['kind'], TableType>> = {
+  bars: 'column',
+  dots: 'column',
+  box: 'column',
+  violin: 'column',
+  'grouped-bars': 'grouped',
+  'xy-scatter': 'xy',
+};
+const NESTED_PLOT_KINDS = new Set<GraphPlot['kind']>(['bars', 'dots', 'box', 'violin']);
 
 export function validateTable(table: Table): string[] {
   const problems: string[] = [];
@@ -185,8 +201,13 @@ export function validateProject(project: Project): string[] {
     if (!src) problems.push(`graph ${g.id}: its source does not exist`);
     if (g.source.kind === 'table') {
       const t = project.tables.get(g.source.table);
-      if (t && (t.type === 'grouped') !== (g.plot.kind === 'grouped-bars'))
-        problems.push(`graph ${g.id}: a ${g.plot.kind} plot of a ${t.type} table`);
+      if (t) {
+        const compatible =
+          t.type === 'nested'
+            ? NESTED_PLOT_KINDS.has(g.plot.kind)
+            : PLOT_TABLE_TYPES[g.plot.kind] === t.type;
+        if (!compatible) problems.push(`graph ${g.id}: a ${g.plot.kind} plot of a ${t.type} table`);
+      }
     }
     if (g.source.kind === 'table' && g.dataSets) {
       const t = project.tables.get(g.source.table);

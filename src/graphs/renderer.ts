@@ -7,7 +7,7 @@
  */
 import { drawnOf, sceneOf } from './cache';
 import type { Drawn, DrawnParts } from './drawn';
-import type { LayoutInput } from './layout';
+import type { RenderInput } from './renderInput';
 import type { Scene } from './scene';
 
 export interface FigureView {
@@ -20,20 +20,20 @@ export interface FigureView {
 
 export interface GraphRenderer {
   /** What to show for `input` in `slot` now; asks for it to be drawn if it isn't. Stable while unchanged. */
-  view(slot: string, input: LayoutInput): FigureView;
+  view(slot: string, input: RenderInput): FigureView;
   readonly subscribe: (listener: () => void) => () => void;
   /** The scene itself, for exports. */
-  scene(input: LayoutInput): Promise<Scene>;
+  scene(input: RenderInput): Promise<Scene>;
 }
 
 export type RenderRequest =
   | {
       readonly type: 'draw';
       readonly id: number;
-      readonly input: LayoutInput;
+      readonly input: RenderInput;
       readonly dpr: number;
     }
-  | { readonly type: 'scene'; readonly id: number; readonly input: LayoutInput };
+  | { readonly type: 'scene'; readonly id: number; readonly input: RenderInput };
 
 export type RenderReply =
   | {
@@ -63,9 +63,9 @@ export const DRAW_FAILED = 'The graph couldn’t be drawn.';
 
 /** Draws on the main thread, synchronously: the figure is the inline SVG. */
 export class MainThreadRenderer implements GraphRenderer {
-  private readonly views = new WeakMap<LayoutInput, FigureView>();
+  private readonly views = new WeakMap<RenderInput, FigureView>();
 
-  view(_slot: string, input: LayoutInput): FigureView {
+  view(_slot: string, input: RenderInput): FigureView {
     let v = this.views.get(input);
     if (!v) {
       try {
@@ -81,13 +81,13 @@ export class MainThreadRenderer implements GraphRenderer {
 
   subscribe = (): (() => void) => () => undefined;
 
-  scene(input: LayoutInput): Promise<Scene> {
+  scene(input: RenderInput): Promise<Scene> {
     return Promise.resolve(sceneOf(input));
   }
 }
 
 interface Slot {
-  readonly want: LayoutInput;
+  readonly want: RenderInput;
   view: FigureView;
 }
 
@@ -99,9 +99,9 @@ export class WorkerRenderer implements GraphRenderer {
   /** Most recently asked last. */
   private readonly slots = new Map<string, Slot>();
   /** Finished pictures by input, oldest first. */
-  private readonly done = new Map<LayoutInput, Drawn>();
-  private readonly failed = new WeakMap<LayoutInput, string>();
-  private inFlight: { readonly id: number; readonly input: LayoutInput } | null = null;
+  private readonly done = new Map<RenderInput, Drawn>();
+  private readonly failed = new WeakMap<RenderInput, string>();
+  private inFlight: { readonly id: number; readonly input: RenderInput } | null = null;
   private readonly scenes = new Map<
     number,
     { resolve: (s: Scene) => void; reject: (e: Error) => void }
@@ -116,7 +116,7 @@ export class WorkerRenderer implements GraphRenderer {
     private readonly dpr: () => number = () => globalThis.devicePixelRatio || 1,
   ) {}
 
-  view(slot: string, input: LayoutInput): FigureView {
+  view(slot: string, input: RenderInput): FigureView {
     if (this.fallback) return this.fallback.view(slot, input);
     const s = this.slots.get(slot);
     if (s?.want === input) return s.view;
@@ -135,7 +135,7 @@ export class WorkerRenderer implements GraphRenderer {
     };
   };
 
-  scene(input: LayoutInput): Promise<Scene> {
+  scene(input: RenderInput): Promise<Scene> {
     if (this.fallback) return this.fallback.scene(input);
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
@@ -144,7 +144,7 @@ export class WorkerRenderer implements GraphRenderer {
     });
   }
 
-  private viewOf(input: LayoutInput, previous: Drawn | null): FigureView {
+  private viewOf(input: RenderInput, previous: Drawn | null): FigureView {
     const d = this.done.get(input);
     if (d) {
       this.done.delete(input);

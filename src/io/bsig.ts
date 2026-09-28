@@ -247,6 +247,8 @@ function plotJson(plot: GraphPlot): Json {
       return { kind: 'box', whiskers: plot.whiskers, points: plot.points };
     case 'violin':
       return { kind: 'violin', inner: plot.inner, smoothing: plot.smoothing };
+    case 'xy-scatter':
+      return { kind: 'xy-scatter', points: plot.points, fit: plot.fit, band: plot.band };
   }
 }
 
@@ -268,6 +270,12 @@ function graphJson(g: Graph): Json {
     ...optional('yStep', f.yStep),
     ...optional('yDecimals', f.yDecimals),
     ...optional('xAngle', f.xAngle),
+    ...optional('xTitle', f.xTitle),
+    ...optional('xMin', f.xMin),
+    ...optional('xMax', f.xMax),
+    ...optional('xScale', f.xScale),
+    ...optional('xStep', f.xStep),
+    ...optional('xDecimals', f.xDecimals),
     ...optional('showTitle', f.showTitle),
     ...optional('legend', f.legend),
     ...optional('style', f.style && styleJson(f.style)),
@@ -678,6 +686,7 @@ function plot(v: Json | undefined, p: Path): GraphPlot {
     'box',
     'violin',
     'grouped-bars',
+    'xy-scatter',
   ] as const);
   switch (kind) {
     case 'grouped-bars':
@@ -721,6 +730,13 @@ function plot(v: Json | undefined, p: Path): GraphPlot {
         smoothing,
       };
     }
+    case 'xy-scatter':
+      return {
+        kind,
+        points: bool(o['points'], p.key('points')),
+        fit: bool(o['fit'], p.key('fit')),
+        band: oneOf(o['band'], p.key('band'), ['confidence', 'prediction', 'none'] as const),
+      };
   }
 }
 
@@ -784,6 +800,16 @@ function graph(v: Json, p: Path): Graph {
       yDecimals:
         f['yDecimals'] === undefined ? undefined : num(f['yDecimals'], fp.key('yDecimals')),
       xAngle: f['xAngle'] === undefined ? undefined : angle(f['xAngle'], fp.key('xAngle')),
+      xTitle: optStr(f, 'xTitle', fp),
+      xMin: f['xMin'] === undefined ? undefined : num(f['xMin'], fp.key('xMin')),
+      xMax: f['xMax'] === undefined ? undefined : num(f['xMax'], fp.key('xMax')),
+      xScale:
+        f['xScale'] === undefined
+          ? undefined
+          : oneOf(f['xScale'], fp.key('xScale'), ['log10'] as const),
+      xStep: f['xStep'] === undefined ? undefined : num(f['xStep'], fp.key('xStep')),
+      xDecimals:
+        f['xDecimals'] === undefined ? undefined : num(f['xDecimals'], fp.key('xDecimals')),
       showTitle:
         f['showTitle'] === undefined ? undefined : bool(f['showTitle'], fp.key('showTitle')),
       legend:
