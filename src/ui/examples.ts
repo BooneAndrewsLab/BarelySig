@@ -2,8 +2,13 @@
  * "Try an example": a small project with made-up numbers, so a first-time
  * user sees filled tables before typing anything — and what they turn
  * into: a one-way ANOVA with Tukey's comparisons and its bar graph with
- * brackets, a two-way ANOVA and its grouped bars (#33). The titles say the
- * data are invented.
+ * brackets, a two-way ANOVA and its grouped bars (#33), and an XY table
+ * (Anscombe's quartet dataset I, #91) with its linear regression and
+ * Pearson correlation — a real dataset, not invented, so its reference
+ * slope (0.500), intercept (3.000) and r (0.816) are independently
+ * published and let a user sanity-check the app's numbers. No graph is
+ * attached: XY graphs aren't supported yet (#87). The titles say which
+ * tables' data are invented.
  */
 import { type Edit, applyEdit } from '@/model/edits';
 import type { Cell } from '@/model/missing';
@@ -15,7 +20,7 @@ import {
   type Project,
   createProject,
 } from '@/model/project';
-import { type Table, createColumnTable, createGroupedTable } from '@/model/table';
+import { type Table, createColumnTable, createGroupedTable, createXyTable } from '@/model/table';
 
 function fill(table: Table, values: readonly (readonly (readonly Cell[])[])[]): Edit {
   // values[dataSet][subcolumn][row]
@@ -47,6 +52,14 @@ export function exampleProject(): Project {
     groups: ['Untreated', 'Treated'],
     format: { kind: 'replicates', count: 3 },
   });
+  const anscombe = createXyTable({
+    title: "Anscombe's quartet I",
+    xTitle: 'X',
+    groups: ['Y'],
+    rows: 11,
+  });
+  // dataSets[0] is the shared X column; the rest (just one, here) are Y data sets.
+  const anscombeYs = anscombe.dataSets.slice(1).map((d) => d.id);
   const edits: Edit[] = [
     { op: 'addTable', table: { ...viability, valueTitle: 'Viability', unit: '%' } },
     fill(viability, [
@@ -67,9 +80,16 @@ export function exampleProject(): Project {
         [9.9, 3.6],
       ],
     ]),
+    { op: 'addTable', table: anscombe },
+    fill(anscombe, [
+      [[10, 8, 13, 9, 11, 14, 6, 4, 12, 7, 5]],
+      [[8.04, 6.95, 7.58, 8.81, 8.33, 9.96, 7.24, 4.26, 10.84, 4.82, 5.68]],
+    ]),
   ];
   const anova = newId('a');
   const twoWay = newId('a');
+  const linReg = newId('a');
+  const pearson = newId('a');
   edits.push(
     {
       op: 'addAnalysis',
@@ -93,6 +113,26 @@ export function exampleProject(): Project {
         kind: 'two-way-anova',
         options: DEFAULT_OPTIONS['two-way-anova'],
         input: { kind: 'table', table: growth.id, dataSets: growth.dataSets.map((d) => d.id) },
+      },
+    },
+    {
+      op: 'addAnalysis',
+      analysis: {
+        id: linReg,
+        title: "Linear regression of Anscombe's quartet I",
+        kind: 'linear-regression',
+        options: DEFAULT_OPTIONS['linear-regression'],
+        input: { kind: 'table', table: anscombe.id, dataSets: anscombeYs },
+      },
+    },
+    {
+      op: 'addAnalysis',
+      analysis: {
+        id: pearson,
+        title: "Pearson correlation of Anscombe's quartet I",
+        kind: 'correlation',
+        options: DEFAULT_OPTIONS.correlation,
+        input: { kind: 'table', table: anscombe.id, dataSets: anscombeYs },
       },
     },
     {
