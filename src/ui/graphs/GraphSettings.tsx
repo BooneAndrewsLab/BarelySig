@@ -149,8 +149,10 @@ export function GraphSettings({ project, graph }: Props) {
                   if (id === '') {
                     setPlot({ ...plot, fit: false });
                   } else {
-                    set({ analyses: [id as (typeof graph.analyses)[number]] });
-                    setPlot({ ...plot, fit: true });
+                    set({
+                      analyses: [id as (typeof graph.analyses)[number]],
+                      plot: { ...plot, fit: true },
+                    });
                   }
                 }}
               >

@@ -4,7 +4,7 @@
  * no scene. Hit regions and outlines are typed arrays, so they cross from
  * the worker without copying and a click is a loop over numbers.
  */
-import { type ElementId, elementOf, elementsOf, hitRegions, markBox } from './hit';
+import { type ElementId, elementOf, elementsOf, fitLineBoxes, hitRegions, markBox } from './hit';
 import type { Scene } from './scene';
 
 export interface PackedRegions {
@@ -69,14 +69,14 @@ export function outlinesOf(scene: Scene): Map<ElementId, Float32Array> {
   for (const m of scene.marks) {
     const e = elementOf(m);
     if (e === null) continue;
-    const b = markBox(m);
+    const boxes = m.kind === 'path' && m.role === 'fit-line' ? fitLineBoxes(m.d) : [markBox(m)];
     let list = lists.get(e);
     if (!list) lists.set(e, (list = []));
-    list.push(b.x0, b.y0, b.x1, b.y1);
+    for (const b of boxes) list.push(b.x0, b.y0, b.x1, b.y1);
   }
   const out = new Map<ElementId, Float32Array>();
   for (const [e, list] of lists) {
-    if (e.startsWith('series:') || e === 'error-bars') {
+    if (e.startsWith('series:') || e.startsWith('fit-line:') || e === 'error-bars') {
       out.set(e, Float32Array.from(list));
       continue;
     }

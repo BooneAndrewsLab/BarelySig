@@ -107,6 +107,45 @@ const boxOf = (pts: readonly (readonly [number, number])[]): Box => ({
   y1: Math.max(...pts.map((p) => p[1])),
 });
 
+/**
+ * A fit line's own bounding box spans most of the plot, so it would never
+ * win the smallest-area tie-break against a data point sitting on it
+ * (item 31 follow-up). Break it into short segments instead, each boxed
+ * tightly, so a click anywhere along the visible stroke is local to it.
+ */
+const FIT_LINE_SPAN = 6;
+
+export function fitLineBoxes(d: string): Box[] {
+  const pts = pathPoints(d);
+  const boxes: Box[] = [];
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (!a || !b) continue;
+    const [x0, y0] = a;
+    const [x1, y1] = b;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / FIT_LINE_SPAN));
+    let px = x0;
+    let py = y0;
+    for (let s = 1; s <= steps; s += 1) {
+      const t = s / steps;
+      const qx = x0 + dx * t;
+      const qy = y0 + dy * t;
+      boxes.push(
+        boxOf([
+          [px, py],
+          [qx, qy],
+        ]),
+      );
+      px = qx;
+      py = qy;
+    }
+  }
+  return boxes;
+}
+
 /** A mark's bounding box in points (text measured with the graph font, turned when rotated). */
 export function markBox(m: Mark): Box {
   switch (m.kind) {
@@ -172,6 +211,10 @@ export function hitRegions(scene: Scene, min: number): Region[] {
       for (const [b, e] of edges) out.push({ ...pad(b, min), element: e });
       continue;
     }
+    if (m.kind === 'path' && m.role === 'fit-line') {
+      for (const b of fitLineBoxes(m.d)) out.push({ ...pad(b, min), element });
+      continue;
+    }
     out.push({ ...pad(markBox(m), min), element });
   }
   return out;
@@ -195,8 +238,17 @@ export function pick(regions: readonly Region[], x: number, y: number): ElementI
  * marks of anything else (an axis with its ticks and labels).
  */
 export function elementBoxes(scene: Scene, element: ElementId): Box[] {
-  const boxes = scene.marks.filter((m) => elementOf(m) === element).map(markBox);
-  if (element.startsWith('series:') || element === 'error-bars' || boxes.length === 0) return boxes;
+  const marks = scene.marks.filter((m) => elementOf(m) === element);
+  const boxes = marks.flatMap((m) =>
+    m.kind === 'path' && m.role === 'fit-line' ? fitLineBoxes(m.d) : [markBox(m)],
+  );
+  if (
+    element.startsWith('series:') ||
+    element.startsWith('fit-line:') ||
+    element === 'error-bars' ||
+    boxes.length === 0
+  )
+    return boxes;
   return [
     {
       x0: Math.min(...boxes.map((b) => b.x0)),
