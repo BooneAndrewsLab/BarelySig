@@ -14,6 +14,11 @@ import type { ContingencyFisherResult } from '@/analyses/contingency-fisher/type
 import type { CorrelationResult, CorrelationSeries } from '@/analyses/correlation/types';
 import type { DescribedGroup, DescriptiveResult } from '@/analyses/descriptive/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
+import type {
+  FitQuantity,
+  GrowthCurveResult,
+  GrowthCurveSeries,
+} from '@/analyses/growth-curve/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type {
   LinearRegressionResult,
@@ -62,6 +67,7 @@ import {
   correlationReading,
   friedmanMethod,
   friedmanReading,
+  growthCurveReading,
   kruskalMethod,
   kruskalReading,
   linearRegressionReading,
@@ -1027,6 +1033,90 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
         of LogEC50’s, so it isn’t symmetric around EC50. A nonlinear fit’s R² is not a test of the
         curve: a small runs-test P says the points systematically miss the curve. “~” marks a value
         the data barely pin down (dependency above 0.9999).
+      </p>
+    </>
+  );
+}
+
+/**
+ * The growth curve fit of an XY table's Y data sets (item 33, #94):
+ * lag/growth rate/doubling time/asymptote, laid out the same way as the
+ * dose-response fit above.
+ */
+function GrowthCurveView({ r }: { readonly r: GrowthCurveResult }) {
+  const head = ['', ...r.series.map((s) => s.title)];
+  type Fit = Extract<GrowthCurveSeries['outcome'], { ran: true }>;
+  const row = (label: string, f: (o: Fit) => string) => [
+    label,
+    ...r.series.map((s) => (s.outcome.ran ? f(s.outcome) : '—')),
+  ];
+  const value = (q: FitQuantity) => sig(q.value);
+  const ci = (q: FitQuantity) => interval(q.lower, q.upper);
+  const anyRan = r.series.some((s) => s.outcome.ran);
+  const runs = (o: Fit): string => {
+    const t = o.runs;
+    if (t.ran) return pValue(t.p);
+    return t.why === 'same' ? 'Every residual on one side' : 'Too few residuals';
+  };
+  return (
+    <>
+      <Headline reading={growthCurveReading(r)} />
+      <p className="method">
+        Nonlinear regression (least squares): Zwietering’s reparameterized Gompertz growth model, Y
+        = A × exp(−exp((μm·e/A) × (λ − t) + 1)). Asymptotic 95% CIs; no weighting; each replicate is
+        its own point.
+      </p>
+      {anyRan && (
+        <div className="results-grid">
+          <Grid
+            label="Best-fit values"
+            head={head}
+            rows={[
+              row('Asymptote (A)', (o) => value(o.asymptote)),
+              row('Growth rate (μm)', (o) => value(o.growthRate)),
+              row('Lag time (λ)', (o) => value(o.lag)),
+              row('Doubling time', (o) => value(o.doublingTime)),
+              row('End of exponential phase', (o) => value(o.exponentialEnd)),
+            ]}
+          />
+          <Grid
+            label="95% CI (asymptotic)"
+            head={head}
+            rows={[
+              row('Asymptote (A)', (o) => ci(o.asymptote)),
+              row('Growth rate (μm)', (o) => ci(o.growthRate)),
+              row('Lag time (λ)', (o) => ci(o.lag)),
+              row('Doubling time', (o) => ci(o.doublingTime)),
+              row('End of exponential phase', (o) => ci(o.exponentialEnd)),
+            ]}
+          />
+          <Grid
+            label="Goodness of fit"
+            head={head}
+            rows={[
+              row('Degrees of freedom', (o) => sig(o.df, 0)),
+              row('R squared', (o) => sig(o.r2)),
+              row('Sum of squares', (o) => sig(o.ss)),
+              row('Sy.x', (o) => sig(o.syx)),
+              row('Runs test (lack of fit), P value', runs),
+              [
+                'Number of points analyzed',
+                ...r.series.map((s) =>
+                  s.outcome.ran
+                    ? sig(s.outcome.n, 0)
+                    : `${String(s.outcome.n)} (${s.outcome.why === 'no-fit' ? 'didn’t converge' : 'too few'})`,
+                ),
+              ],
+            ]}
+          />
+        </div>
+      )}
+      <p className="legend">
+        Lag time is where the tangent line through the curve’s steepest point meets Y = 0; the end
+        of exponential phase is where that same tangent line reaches the asymptote — growth is
+        expected before the lag time (lag phase), between it and there (exponential phase, at the
+        growth rate above) and after it (stationary phase, at the asymptote). A small runs-test P
+        says the points systematically miss the curve.
       </p>
     </>
   );
@@ -2611,6 +2701,9 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'nonlinear-regression' && (
           <NonlinearRegressionView r={value as unknown as NonlinearRegressionResult} />
+        )}
+        {value !== null && analysis.kind === 'growth-curve' && (
+          <GrowthCurveView r={value as unknown as GrowthCurveResult} />
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
           <TwoWayView r={value as unknown as TwoWayResult} id={analysis.id} />

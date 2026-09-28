@@ -90,6 +90,43 @@ both plateaus, so there's no top (or bottom) to estimate. A value marked
 To draw the curve, make an XY graph and choose this analysis under
 **Fitted line**, with an optional confidence or prediction band.
 
+### Growth curve
+
+Fits a bacterial or yeast growth curve — OD600, CFU or similar vs. time —
+to each Y data set, using the Gompertz growth model in the form
+microbiologists usually report it (lag time, growth rate and the
+plateau, rather than the plain curve-shape parameters):
+
+- **Asymptote**: the plateau the culture approaches (carrying capacity);
+- **Growth rate**: the curve's steepest slope, in Y units per unit time;
+- **Doubling time**: ln 2 ÷ growth rate — how long the culture takes to
+  double at its fastest;
+- **Lag time**: where the tangent line through that steepest point meets
+  Y = 0 — growth hasn't measurably started before this time;
+- **End of exponential phase**: where that same tangent line reaches the
+  asymptote — the natural boundary between exponential and stationary
+  phase.
+
+Together these mark three phases: **lag** (before the lag time),
+**exponential** (between the lag time and the end of exponential phase,
+where the growth rate and doubling time apply) and **stationary** (after
+it, at the asymptote). If the culture hasn't reached a plateau within
+your observed time window, the end of exponential phase is still
+reported — stated as extrapolated beyond the data.
+
+Every replicate counts as its own point; with summary data, the fit uses
+the mean at each time. The results also give R², Sy.x and a runs test.
+The CIs are asymptotic. As for the dose-response fit, the results say so
+instead of a number when the fit can't be trusted: fewer than 4 points or
+3 distinct times, a Y that never varies, or data that isn't really a
+growth curve (declining, or too few points across the rise to pin down
+how fast it happens).
+
+To draw the curve, make an XY graph and choose this analysis under
+**Fitted line**, with an optional confidence or prediction band — the
+lag/exponential/stationary boundaries themselves aren't drawn on the
+graph yet.
+
 None of these analyses produces significance brackets: each is one number per Y
 data set, not a pairwise comparison.
 
@@ -99,4 +136,6 @@ data set, not a pairwise comparison.
 from the **Analyze…** dialog. The dose-response fit has one model so far:
 no fixed or shared parameters, no comparing curves ("do these EC50s
 differ?"), no other curve shapes, weighting or interpolating unknowns
-from a standard curve yet.
+from a standard curve yet. The growth curve fit likewise has one model
+(Gompertz); a logistic alternative, phase boundaries drawn on the graph,
+and fitting several data sets together aren't there yet either.

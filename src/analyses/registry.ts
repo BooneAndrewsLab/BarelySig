@@ -5,6 +5,7 @@ import { correlation } from './correlation';
 import { descriptive } from './descriptive';
 import { friedman } from './friedman';
 import { graphSummary } from './graphsummary';
+import { growthCurve } from './growth-curve';
 import { kruskal } from './kruskal';
 import { linearRegression } from './linear-regression';
 import type { Registry } from './module';
@@ -47,5 +48,6 @@ export const REGISTRY: Registry = {
   correlation,
   'linear-regression': linearRegression,
   'nonlinear-regression': nonlinearRegression,
+  'growth-curve': growthCurve,
   'graph-summary': graphSummary,
 };

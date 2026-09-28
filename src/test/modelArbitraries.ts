@@ -129,6 +129,10 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
       kind: 'nonlinear-regression',
       options: { model: 'log-agonist-variable-slope', x: o.x },
     })),
+  fc.constant<AnalysisSpec>({
+    kind: 'growth-curve',
+    options: DEFAULT_OPTIONS['growth-curve'],
+  }),
   fc
     .record({ method: fc.constantFrom('pearson' as const, 'spearman' as const) })
     .map((o): AnalysisSpec => ({ kind: 'correlation', options: { ...o } })),

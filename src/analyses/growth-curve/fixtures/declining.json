@@ -1,0 +1,30 @@
+{
+  "input": {
+    "t": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "y": [
+      1.9741, 1.8907, 1.8027, 1.7259, 1.6024, 1.5081, 1.4048, 1.2838000000000001, 1.2073,
+      1.0932999999999999, 0.97750000000000004
+    ]
+  },
+  "expected": {
+    "n": 11,
+    "ran": false,
+    "why": "no_fit"
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    ref_curve <- function(t, p) p[1] * exp(-exp((p[2] * exp(1)/p[1]) * (p[3] - t) + \n        1))\n    ref_jacobian <- function(t, p) {\n        sapply(1:3, function(j) {\n            h <- 1e-06\n            at <- function(k) {\n                q <- p\n                q[j] <- p[j] + k * h\n                ref_curve(t, q)\n            }\n            (at(-2) - 8 * at(-1) + 8 * at(1) - at(2))/(12 * h)\n        })\n    }\n    ref_runs <- function(s) {\n        n1 <- sum(s > 0)\n        n2 <- sum(s < 0)\n        r <- 1 + sum(s[-1] != s[-length(s)])\n        m <- 2 * n1 * n2/(n1 + n2) + 1\n        v <- (m - 1) * (m - 2)/(n1 + n2 - 1)\n        z <- (r - m)/sqrt(v)\n        list(ran = TRUE, n_runs = r, n_pos = n1, n_neg = n2, z = z, p = 2 * pnorm(-abs(z)))\n    }\n    ref_optimum <- function(t, y, start = NULL) {\n        best <- c(Inf, NA, NA, NA)\n        if (!is.null(start)) \n            best <- c(0, start)\n        if (is.null(start)) {\n            span <- max(t) - min(t)\n            lambda_grid <- seq(min(t) - span * 0.5, max(t) + span * 0.5, length.out = 21)\n            yr <- max(y) - min(y)\n            ord <- order(t)\n            d <- diff(y[ord])/diff(t[ord])\n            slope <- max(d[is.finite(d)], yr/span)\n            mumax_grid <- exp(seq(log(slope/50), log(slope * 5), length.out = 25))\n            a_grid <- max(y) * c(1, 1.1, 1.3)\n            for (lambda in lambda_grid) for (mumax in mumax_grid) for (a in a_grid) {\n                rss <- sum((y - ref_curve(t, c(a, mumax, lambda)))^2)\n                if (is.finite(rss) && rss < best[1]) \n                  best <- c(rss, a, mumax, lambda)\n            }\n        }\n        p <- unname(best[2:4])\n        rss <- function(p) sum((y - ref_curve(t, p))^2)\n        lambda_lm <- 0.001\n        for (it in 1:1000) {\n            J <- ref_jacobian(t, p)\n            A <- crossprod(J)\n            step <- tryCatch(unname(drop(solve(A + lambda_lm * diag(diag(A)), crossprod(J, \n                y - ref_curve(t, p))))), error = function(e) NULL)\n            if (is.null(step) || any(!is.finite(step))) {\n                lambda_lm <- lambda_lm * 10\n                if (lambda_lm > 1e+12) \n                  break\n                next\n            }\n            if (rss(p + step) <= rss(p)) {\n                p <- p + step\n                lambda_lm <- lambda_lm/10\n            }\n            else {\n                lambda_lm <- lambda_lm * 10\n            }\n            if (max(abs(step)/pmax(abs(p), 1e-08)) < 1e-14 || lambda_lm > 1e+12) \n                break\n        }\n        for (it in 1:5) {\n            J <- ref_jacobian(t, p)\n            step <- tryCatch(unname(drop(qr.coef(qr(J), y - ref_curve(t, p)))), error = function(e) NULL)\n            if (is.null(step) || any(!is.finite(step))) \n                break\n            p <- p + step\n        }\n        p\n    }\n    ref_quantity <- function(value, se, t) {\n        list(value = value, se = se, lower = value - t * se, upper = value + t * \n            se)\n    }\n    run_gc <- function(t, y) {\n        n <- length(t)\n        p <- ref_optimum(t, y)\n        J <- ref_jacobian(t, p)\n        A <- crossprod(J)\n        Ainv <- solve(A)\n        fitted <- ref_curve(t, p)\n        resid <- y - fitted\n        df <- n - 3\n        ss <- sum(resid^2)\n        s2 <- ss/df\n        se <- sqrt(s2 * diag(Ainv))\n        tcrit <- qt(0.975, df)\n        ord <- order(t)\n        signs <- sign(resid[ord])\n        grid <- seq(min(t), max(t), length.out = 100)\n        G <- ref_jacobian(grid, p)\n        var_fit <- vapply(seq_along(grid), function(i) drop(G[i, ] %*% Ainv %*% G[i, \n            ]), 0) * s2\n        fit_grid <- ref_curve(grid, p)\n        doubling_grad <- c(0, -log(2)/p[2]^2, 0)\n        doubling_se <- sqrt(drop(doubling_grad %*% Ainv %*% doubling_grad) * s2)\n        tau_grad <- c(1/p[2], -p[1]/p[2]^2, 1)\n        tau_se <- sqrt(drop(tau_grad %*% Ainv %*% tau_grad) * s2)\n        list(n = n, ran = TRUE, asymptote = ref_quantity(p[1], se[1], tcrit), growth_rate = ref_quantity(p[2], \n            se[2], tcrit), lag = ref_quantity(p[3], se[3], tcrit), doubling_time = ref_quantity(log(2)/p[2], \n            doubling_se, tcrit), exponential_end = ref_quantity(p[3] + p[1]/p[2], \n            tau_se, tcrit), df = df, ss = ss, syx = sqrt(s2), r2 = 1 - ss/sum((y - \n            mean(y))^2), x = t[ord], y = y[ord], fitted = fitted[ord], residual = resid[ord], \n            runs = ref_runs(signs[signs != 0]), band = list(x = grid, fit = fit_grid, \n                confidence_lower = fit_grid - tcrit * sqrt(var_fit), confidence_upper = fit_grid + \n                  tcrit * sqrt(var_fit), prediction_lower = fit_grid - tcrit * sqrt(var_fit + \n                  s2), prediction_upper = fit_grid + tcrit * sqrt(var_fit + s2)))\n    }\n}",
+    "call": "list(n = 11, ran = FALSE, why = \"no_fit\")",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0"
+      },
+      "code": "{\n    p <- tryCatch(ref_optimum(t, y), error = function(e) NA)\n    any(!is.finite(p)) || p[1] <= 0 || p[2] <= 0 || p[1]/p[2] < (max(t) - min(t)) * \n        0.001\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Y only decreases: not a growth curve, and the app reports that it could not fit rather than a number."
+}

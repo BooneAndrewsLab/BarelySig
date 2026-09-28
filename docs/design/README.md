@@ -38,3 +38,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 30 | [Import: a Nested-table layout](30-nested-import-layout.md) | #88 |
 | 31 | [XY scatter graph](31-xy-scatter-graph.md) | #87 |
 | 32 | [Nonlinear regression: the four-parameter dose-response curve](32-xy-nonlinear-regression.md) | #37 |
+| 33 | [Growth curve analysis: the reparameterized Gompertz model, and phase detection](33-growth-curve-analysis.md) | #94 |

@@ -10,6 +10,7 @@ import type {
   RegressionOutcome,
 } from '@/analyses/linear-regression/types';
 import type { NonlinearRegressionResult } from '@/analyses/nonlinear-regression/types';
+import type { GrowthCurveResult } from '@/analyses/growth-curve/types';
 import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
 import { cellId, comparisons, gives, pairsOf } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
@@ -25,7 +26,7 @@ import {
 import type { DataSet, Table } from '@/model/table';
 
 import { pPhrase, stars } from '@/ui/results/format';
-import { doseResponseWhy } from '@/ui/results/reading';
+import { doseResponseWhy, growthCurveWhy } from '@/ui/results/reading';
 
 import type { BracketInput, GroupInput } from './layout';
 import { paletteColor } from './palette';
@@ -347,8 +348,9 @@ type SeriesFit =
 
 /**
  * Each series' fit from the analysis behind a graph's fitted line — a
- * linear regression (note 31) or a dose-response curve (note 32), both
- * carrying the same band — or null while it isn't ready.
+ * linear regression (note 31), a dose-response curve (note 32) or a
+ * growth curve (note 33), all carrying the same band — or null while it
+ * isn't ready.
  */
 function fitsOf(
   id: Id,
@@ -371,6 +373,14 @@ function fitsOf(
       const o = v.series.find((s) => s.id === series)?.outcome;
       if (!o) return undefined;
       return o.ran ? { ran: true, band: o.band } : { ran: false, why: `${doseResponseWhy(o)}.` };
+    };
+  }
+  if (kind === 'growth-curve') {
+    const v = r.value as unknown as GrowthCurveResult;
+    return (series) => {
+      const o = v.series.find((s) => s.id === series)?.outcome;
+      if (!o) return undefined;
+      return o.ran ? { ran: true, band: o.band } : { ran: false, why: `${growthCurveWhy(o)}.` };
     };
   }
   return null;

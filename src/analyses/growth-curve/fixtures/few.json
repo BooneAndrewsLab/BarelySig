@@ -1,0 +1,21 @@
+{
+  "input": {
+    "t": [0, 1, 2],
+    "y": [0.10000000000000001, 0.5, 0.90000000000000002]
+  },
+  "expected": {
+    "n": 3,
+    "ran": false,
+    "why": "few",
+    "minimum": 4
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 3, ran = FALSE, why = \"few\", minimum = 4)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Three points for three parameters: nothing left to estimate scatter from."
+}

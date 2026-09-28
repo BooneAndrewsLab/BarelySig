@@ -62,7 +62,9 @@ export function GraphSettings({ project, graph }: Props) {
     table?.type === 'xy'
       ? project.order.analyses.flatMap((id) => {
           const a = project.analyses.get(id);
-          return (a?.kind === 'linear-regression' || a?.kind === 'nonlinear-regression') &&
+          return (a?.kind === 'linear-regression' ||
+            a?.kind === 'nonlinear-regression' ||
+            a?.kind === 'growth-curve') &&
             a.input.kind === 'table' &&
             a.input.table === table.id
             ? [a]

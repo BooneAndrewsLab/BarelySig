@@ -347,6 +347,86 @@ describe('an XY graph fitted from a dose-response curve (item 32, #37)', () => {
   });
 });
 
+describe('an XY graph fitted from a growth curve (item 33, #94)', () => {
+  function xySetup() {
+    const t = createXyTable({ title: 'Growth', groups: ['Culture 1', 'Too few'], rows: 1 });
+    const [, a, b] = t.dataSets;
+    if (!a || !b) throw new Error('unreachable');
+    let p: Project = applyEdit(createProject('P'), { op: 'addTable', table: t });
+    p = applyEdit(p, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_fit'),
+        title: 'Growth curve',
+        kind: 'growth-curve',
+        options: { model: 'gompertz' },
+        input: { kind: 'table', table: t.id, dataSets: [a.id, b.id] },
+      },
+    });
+    const graph: Graph = {
+      id: asId('g_fit'),
+      title: 'Growth',
+      source: { kind: 'table', table: t.id },
+      analyses: [asId('a_fit')],
+      ...GRAPH_DEFAULTS,
+      plot: { ...XY_DEFAULT, fit: true, band: 'confidence' },
+    };
+    p = applyEdit(p, { op: 'addGraph', graph });
+    const band = {
+      x: [0, 12, 24],
+      fit: [0, 0.5, 1],
+      confidence_lower: [-0.01, 0.45, 0.97],
+      confidence_upper: [0.01, 0.55, 1.01],
+      prediction_lower: [-0.05, 0.4, 0.9],
+      prediction_upper: [0.05, 0.6, 1.08],
+    };
+    const value = {
+      warnings: [],
+      series: [
+        {
+          id: a.id,
+          title: 'Culture 1',
+          outcome: {
+            ran: true,
+            band: {
+              x: band.x,
+              fit: band.fit,
+              confidenceLower: band.confidence_lower,
+              confidenceUpper: band.confidence_upper,
+              predictionLower: band.prediction_lower,
+              predictionUpper: band.prediction_upper,
+            },
+          },
+        },
+        {
+          id: b.id,
+          title: 'Too few',
+          outcome: { ran: false, n: 3, why: 'few', minimum: 4 },
+        },
+      ],
+    } as unknown as Json;
+    const entry: ResultEntry = { inputHash: 'h', ok: true, value };
+    return { p, graph: p.graphs.get(graph.id) ?? graph, entry, a, b };
+  }
+
+  it('draws its curve and band, and says why a series has none', () => {
+    const { p, graph, entry, a, b } = xySetup();
+    const r = graphInput(p, graph, (id) => (id === asId('a_fit') ? entry : undefined));
+    if (!r.ok || r.input.kind !== 'xy') throw new Error('expected an XY render input');
+    const [fitted, few] = r.input.input.series;
+    expect(fitted?.id).toBe(a.id);
+    expect(fitted?.fit).toEqual([
+      { x: 0, y: 0 },
+      { x: 12, y: 0.5 },
+      { x: 24, y: 1 },
+    ]);
+    expect(fitted?.band?.[1]).toEqual({ x: 12, y0: 0.45, y1: 0.55 });
+    expect(few?.id).toBe(b.id);
+    expect(few?.fit).toBeUndefined();
+    expect(few?.note).toMatch(/too few points to fit a growth curve/);
+  });
+});
+
 describe('grouped bar graphs (note 07)', () => {
   function grouped(family: 'within-rows' | 'within-columns' | 'main-rows' = 'within-rows') {
     const t = createGroupedTable({

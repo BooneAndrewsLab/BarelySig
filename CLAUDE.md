@@ -289,9 +289,23 @@ how it got here.
   one Y data set at a time, base R `nls()` since `drc` isn't shippable
   to WebR, EC50/CI asymptotic, reuses the XY scatter graph's band
   rendering with no new graph code — more models, constraints, shared
-  parameters and model comparison filed as #95–#100 — note 32).
+  parameters and model comparison filed as #95–#100 — note 32); #94,
+  growth curve analysis (Zwietering's reparameterized Gompertz growth
+  model — asymptote, growth rate and lag time as the fitted parameters
+  themselves, so lag/exponential/stationary phases and doubling time
+  read directly off the fit's own tangent construction; a hand-rolled
+  Levenberg–Marquardt on the analytic Jacobian, not `nls()`, which
+  reported a singular gradient at plausible OD600 scales; reuses the XY
+  scatter graph's band rendering with no new graph code — a logistic
+  alternative, a windowed-regression alternative to the tangent-derived
+  phases, and phase shading on the graph filed as #101–#103 — note 33).
 - **Open issues:**
   - #36 — the user's release steps (above)
+  - #101 — growth curve: the reparameterized logistic model as an
+    alternative to Gompertz
+  - #102 — growth curve: a windowed-regression alternative to the
+    tangent-derived phases
+  - #103 — growth curve: phase shading on the graph
   - #95 — more dose-response models (log(inhibitor) vs. response,
     standard slope, normalized, curve library)
   - #96 — constrain nonlinear-regression parameters (fix or bound

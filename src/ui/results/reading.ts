@@ -9,6 +9,7 @@ import type { ContingencyChiSquareResult } from '@/analyses/contingency-chi-squa
 import type { ContingencyFisherResult } from '@/analyses/contingency-fisher/types';
 import type { CorrelationResult } from '@/analyses/correlation/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
+import type { GrowthCurveOutcome, GrowthCurveResult } from '@/analyses/growth-curve/types';
 import type { LinearRegressionResult } from '@/analyses/linear-regression/types';
 import type {
   DoseResponseOutcome,
@@ -708,4 +709,35 @@ export function nonlinearRegressionReading(r: NonlinearRegressionResult): string
       ? ` ${String(dropped)} ${dropped === 1 ? 'point with a zero or negative dose was' : 'points with a zero or negative dose were'} left out: a log scale has no place for 0.`
       : '';
   return `${joinAnd(clauses)}.${note}`;
+}
+
+/** Why a growth curve couldn't be fit, in words (item 33, #94); shared with the graph. */
+export function growthCurveWhy(o: Extract<GrowthCurveOutcome, { ran: false }>): string {
+  switch (o.why) {
+    case 'few':
+      return `it has too few points to fit a growth curve (needs at least ${String(o.minimum ?? 4)})`;
+    case 'few-t':
+      return `it has fewer than ${String(o.minimum ?? 3)} different times, too few to tell the curve’s three parameters apart`;
+    case 'constant-y':
+      return 'Y never varies, so there is no curve to fit';
+    case 'no-fit':
+      return 'the fit didn’t converge — the data may be declining rather than growing, or show too few points across the rise to pin down how fast it happens';
+  }
+}
+
+/**
+ * The growth curve fit of an XY table's Y data sets (item 33, #94): each
+ * series' growth rate and doubling time, and its phases.
+ */
+export function growthCurveReading(r: GrowthCurveResult): string {
+  const clauses = r.series.map((s) => {
+    const o = s.outcome;
+    if (!o.ran) return `${s.title} couldn’t be fit: ${growthCurveWhy(o)}`;
+    let text = `${s.title} grows at ${sig(o.growthRate.value)} per unit time (doubling time ${sig(o.doublingTime.value)}, 95% CI ${interval(o.doublingTime.lower, o.doublingTime.upper)}), reaching a plateau of ${sig(o.asymptote.value)} after a lag of ${sig(o.lag.value)}`;
+    if (o.runs.ran && o.runs.p < 0.05) {
+      text += ` — but the runs test finds the residuals run in the same direction more than chance would (${pPhrase(o.runs.p)}), so a Gompertz curve may not be the right shape`;
+    }
+    return text;
+  });
+  return `${joinAnd(clauses)}.`;
 }

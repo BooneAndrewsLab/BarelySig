@@ -1,0 +1,23 @@
+{
+  "input": {
+    "t": [0, 1, 2, 3, 4, 5],
+    "y": [
+      0.40000000000000002, 0.40000000000000002, 0.40000000000000002, 0.40000000000000002,
+      0.40000000000000002, 0.40000000000000002
+    ]
+  },
+  "expected": {
+    "n": 6,
+    "ran": false,
+    "why": "constant_y"
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 6, ran = FALSE, why = \"constant_y\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Y never varies: no curve to fit."
+}

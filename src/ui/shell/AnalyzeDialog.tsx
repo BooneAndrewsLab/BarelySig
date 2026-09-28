@@ -159,6 +159,13 @@ const KINDS: readonly KindInfo[] = [
     tables: ['xy'],
   },
   {
+    kind: 'growth-curve',
+    name: 'Growth curve',
+    blurb:
+      'Fit a bacterial or yeast growth curve, per Y data set: lag phase, growth rate and doubling time, and the plateau.',
+    tables: ['xy'],
+  },
+  {
     kind: 'rank-test',
     name: 'Mann-Whitney / Wilcoxon',
     blurb: 'Compare two groups by ranks, without assuming a bell-shaped distribution.',
@@ -1304,6 +1311,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return { kind, options: options['linear-regression'] };
       case 'nonlinear-regression':
         return { kind, options: options['nonlinear-regression'] };
+      case 'growth-curve':
+        return { kind, options: options['growth-curve'] };
     }
   };
 

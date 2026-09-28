@@ -28,6 +28,7 @@ import {
   type AnalysisSpec,
   type Comparisons,
   type CorrelationOptions,
+  type GrowthCurveOptions,
   type NonlinearRegressionOptions,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
@@ -155,6 +156,8 @@ function optionsJson(a: AnalysisSpec): Json {
       return { method: a.options.method };
     case 'nonlinear-regression':
       return { model: a.options.model, x: a.options.x };
+    case 'growth-curve':
+      return { model: a.options.model };
     case 'graph-summary':
       // Never in a project: graphs' summaries are made from the graph (note 07).
       return { whiskers: a.options.whiskers, kde: a.options.kde && { ...a.options.kde } };
@@ -492,6 +495,12 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       const options: NonlinearRegressionOptions = {
         model: oneOf(opts['model'], q.key('model'), ['log-agonist-variable-slope'] as const),
         x: oneOf(opts['x'], q.key('x'), ['log', 'concentration'] as const),
+      };
+      return { kind, options };
+    }
+    case 'growth-curve': {
+      const options: GrowthCurveOptions = {
+        model: oneOf(opts['model'], q.key('model'), ['gompertz'] as const),
       };
       return { kind, options };
     }

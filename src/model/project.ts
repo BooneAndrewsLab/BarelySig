@@ -41,6 +41,7 @@ export type AnalysisSpec =
   | { readonly kind: 'correlation'; readonly options: CorrelationOptions }
   | { readonly kind: 'linear-regression'; readonly options: LinearRegressionOptions }
   | { readonly kind: 'nonlinear-regression'; readonly options: NonlinearRegressionOptions }
+  | { readonly kind: 'growth-curve'; readonly options: GrowthCurveOptions }
   /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
   | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
 
@@ -113,6 +114,15 @@ export type LinearRegressionOptions = Readonly<Record<string, never>>;
 export interface NonlinearRegressionOptions {
   readonly model: 'log-agonist-variable-slope';
   readonly x: 'log' | 'concentration';
+}
+
+/**
+ * A growth curve fit (item 33, #94): Zwietering's reparameterized
+ * Gompertz growth model, with lag/exponential/stationary phases read off
+ * the fit. One model so far.
+ */
+export interface GrowthCurveOptions {
+  readonly model: 'gompertz';
 }
 
 /** Box-plot whiskers, as Prism offers them (note 07). */
@@ -341,6 +351,7 @@ export const DEFAULT_OPTIONS: {
   correlation: { method: 'pearson' },
   'linear-regression': {},
   'nonlinear-regression': { model: 'log-agonist-variable-slope', x: 'log' },
+  'growth-curve': { model: 'gompertz' },
   'graph-summary': { whiskers: null, kde: null },
 };
 

@@ -94,4 +94,5 @@ export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   correlation: '22-xy-tables',
   'linear-regression': '22-xy-tables',
   'nonlinear-regression': '22-xy-tables',
+  'growth-curve': '22-xy-tables',
 };

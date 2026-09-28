@@ -80,6 +80,7 @@ export const EVENTS = {
     'new-correlation',
     'new-linear-regression',
     'new-nonlinear-regression',
+    'new-growth-curve',
     // A new analysis made from Help me choose's suggestion (item 15).
     'guided',
   ],

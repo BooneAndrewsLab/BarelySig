@@ -1,0 +1,21 @@
+{
+  "input": {
+    "t": [1, 1, 2, 2],
+    "y": [0.10000000000000001, 0.12, 0.5, 0.53000000000000003]
+  },
+  "expected": {
+    "n": 4,
+    "ran": false,
+    "why": "few_t",
+    "minimum": 3
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 4, ran = FALSE, why = \"few_t\", minimum = 3)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Four points at only two distinct times: three parameters can't be told apart through two time points however many replicates."
+}

@@ -452,6 +452,18 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
+    case 'growth-curve':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Fits a bacterial or yeast growth curve (Gompertz) to each Y data set: the asymptote (plateau), growth rate and doubling time at its steepest, and the lag time before growth measurably starts.',
+            'Lag phase runs up to the lag time; exponential phase from there to where the curve reaches the asymptote (reported as “end of exponential phase”); stationary phase after that.',
+            'The CIs are asymptotic. If the data are declining, or don’t show enough of the rise, the fit says so instead of a number.',
+          ],
+        },
+      ];
     case 'graph-summary':
       return [];
   }

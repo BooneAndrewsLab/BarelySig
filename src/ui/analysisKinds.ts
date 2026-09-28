@@ -26,6 +26,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   correlation: 'curve-fit',
   'linear-regression': 'curve-fit',
   'nonlinear-regression': 'curve-fit',
+  'growth-curve': 'curve-fit',
   'graph-summary': 'bar-error',
 };
 
@@ -79,6 +80,8 @@ export function testName(spec: AnalysisSpec): string {
       return 'Linear regression';
     case 'nonlinear-regression':
       return 'Dose-response curve (variable slope)';
+    case 'growth-curve':
+      return 'Growth curve (Gompertz)';
     case 'graph-summary':
       return 'Graph statistics';
   }

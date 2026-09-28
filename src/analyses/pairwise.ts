@@ -152,6 +152,7 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     case 'correlation':
     case 'linear-regression':
     case 'nonlinear-regression':
+    case 'growth-curve':
       // No comparisons yet (design note 23's follow-up issue); both-factors-
       // repeated has no between-subjects stratum, a different problem.
       // Chi-square/Fisher give one number for the whole table (note 28);
@@ -237,6 +238,7 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     case 'correlation':
     case 'linear-regression':
     case 'nonlinear-regression':
+    case 'growth-curve':
       return [];
   }
 }
