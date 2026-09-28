@@ -67,15 +67,17 @@ fixture <- function(name, input, expr, setup = NULL, packages = character(),
     ok <- tryCatch(eval(check, envir = cenv), error = function(e) stop(name, ": check failed: ", conditionMessage(e)))
     if (!isTRUE(ok)) stop(name, ": check did not return TRUE")
   }
+  # A NULL kept as a list element (rather than left out of it) writes as `{}`
+  # in JSON (jsonlite's default for a NULL value, not the "missing key" the
+  # parity test's `!== undefined` check assumes) -- so a fixture with no
+  # `setup` builds the reference without that key at all, not with a NULL one.
+  reference <- list(r = R.version.string, packages = versions_of(c("stats", packages)))
+  if (!is.null(setup)) reference$setup <- code(setup)
+  reference$call <- code(expr)
   out <- list(
     input = as_arrays(input),
     expected = encode(expected),
-    reference = list(
-      r = R.version.string,
-      packages = versions_of(c("stats", packages)),
-      setup = if (is.null(setup)) NULL else code(setup),
-      call = code(expr)
-    ),
+    reference = reference,
     tolerance = tolerance
   )
   if (!is.null(check)) {

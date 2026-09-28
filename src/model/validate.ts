@@ -9,7 +9,7 @@
 import { analysisOrder } from './deps';
 import type { Id } from './ids';
 import type { Project } from './project';
-import { type Table, parseCellKey, subcolumnCount } from './table';
+import { type Table, XY_X_FORMAT, parseCellKey, subcolumnCount } from './table';
 
 const MAX_DECIMALS = 15;
 
@@ -32,6 +32,8 @@ export function validateTable(table: Table): string[] {
         `${where}: a Contingency table has one count per cell, not ${String(format.count)}`,
       );
     }
+  } else if (table.type === 'xy') {
+    // A summary format is fine for the Y data sets; X (dataSets[0]) is checked below regardless.
   } else if (table.type === 'column' && table.rows.length !== 1) {
     problems.push(
       `${where}: a Column table of summary data has one row, not ${String(table.rows.length)}`,
@@ -58,13 +60,16 @@ export function validateTable(table: Table): string[] {
 
   const expected = subcolumnCount(format);
   const dsIds = new Set<Id>();
-  for (const ds of table.dataSets) {
+  table.dataSets.forEach((ds, i) => {
     const at = `${where}, data set ${ds.id}`;
     if (dsIds.has(ds.id)) problems.push(`${at}: id is repeated`);
     dsIds.add(ds.id);
-    if (ds.subcolumns.length !== expected) {
+    // An XY table's X column (dataSets[0]) is always one value per row, whatever the
+    // table's own format says the Y data sets need.
+    const expectedHere = table.type === 'xy' && i === 0 ? subcolumnCount(XY_X_FORMAT) : expected;
+    if (ds.subcolumns.length !== expectedHere) {
       problems.push(
-        `${at}: has ${String(ds.subcolumns.length)} subcolumns, the format needs ${String(expected)}`,
+        `${at}: has ${String(ds.subcolumns.length)} subcolumns, the format needs ${String(expectedHere)}`,
       );
     }
     ds.subcolumns.forEach((col, s) => {
@@ -99,7 +104,7 @@ export function validateTable(table: Table): string[] {
         `${at}: decimals ${String(ds.decimals)} is not an integer from 0 to ${String(MAX_DECIMALS)}`,
       );
     }
-  }
+  });
   return problems;
 }
 

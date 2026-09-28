@@ -9,6 +9,7 @@ import {
   groupedCells,
   nestedGroups,
   pairedGroups,
+  xySeries,
 } from './selectors';
 import {
   type CellKey,
@@ -17,6 +18,8 @@ import {
   type GroupedTable,
   type NestedTable,
   type SummaryStats,
+  type XyTable,
+  XY_X_FORMAT,
   cellKey,
 } from './table';
 
@@ -369,5 +372,121 @@ describe('nestedGroups', () => {
   it('defaults to every data set in table order', () => {
     const t = nested(1, { a: [[1]], b: [[2]] });
     expect(nestedGroups(t).map((g) => g.title)).toEqual(['a', 'b']);
+  });
+});
+
+/**
+ * An XY table: `x` is the shared X column (`dataSets[0]`); `groups` are
+ * the Y data sets, each a list of subcolumns (replicates) at `format`'s
+ * count, or a single subcolumn for summary data.
+ */
+function xy(
+  x: readonly T[],
+  groups: Readonly<Record<string, readonly (readonly T[])[]>>,
+  format: EntryFormat = { kind: 'replicates', count: 1 },
+): XyTable {
+  const n = x.length;
+  return {
+    id: asId('t_1'),
+    type: 'xy',
+    title: 'T',
+    format,
+    rows: Array.from({ length: n }, (_, r) => ({ id: rowId(r), title: null })),
+    dataSets: [
+      dataSet('X', [x]),
+      ...Object.entries(groups).map(([name, subcolumns]) => dataSet(name, subcolumns)),
+    ],
+  };
+}
+
+describe('xySeries', () => {
+  it('pairs each Y value with its row’s X, one point per usable replicate', () => {
+    const t = xy([1, 2, 3], { a: [[10, 20, 30]] });
+    const [a] = xySeries(t, [asId('ds_a')]);
+    expect(a?.points).toEqual([
+      { row: rowId(0), x: 1, y: 10 },
+      { row: rowId(1), x: 2, y: 20 },
+      { row: rowId(2), x: 3, y: 30 },
+    ]);
+    expect(a?.droppedX).toBe(0);
+    expect(a?.droppedY).toBe(0);
+  });
+
+  it('drops the whole row from every series when X is missing, not just one', () => {
+    const t = xy([1, null, 3], { a: [[10, 20, 30]], b: [[100, 200, 300]] });
+    const [a, b] = xySeries(t, [asId('ds_a'), asId('ds_b')]);
+    expect(a?.points.map((p) => p.x)).toEqual([1, 3]);
+    expect(b?.points.map((p) => p.x)).toEqual([1, 3]);
+    expect(a?.droppedX).toBe(1);
+    expect(b?.droppedX).toBe(1);
+  });
+
+  it('drops only that series’ own point when a Y value is missing', () => {
+    const t = xy([1, 2, 3], { a: [[10, null, 30]] });
+    const [a] = xySeries(t, [asId('ds_a')]);
+    expect(a?.points).toEqual([
+      { row: rowId(0), x: 1, y: 10 },
+      { row: rowId(2), x: 3, y: 30 },
+    ]);
+    expect(a?.droppedY).toBe(1);
+  });
+
+  it('two Y series can have different usable counts (unequal n) from the same X', () => {
+    const t = xy([1, 2, 3, 4], { a: [[1, 2, 3, 4]], b: [[1, null, null, 4]] });
+    const [a, b] = xySeries(t, [asId('ds_a'), asId('ds_b')]);
+    expect(a?.points).toHaveLength(4);
+    expect(b?.points).toHaveLength(2);
+  });
+
+  it('gives one point per replicate, sharing the row’s x, for raw data with more than one replicate', () => {
+    // Column-major, like every DataSet: subcolumns[0] is replicate 1 at every
+    // row (10 at row 0, 11 at row 1); subcolumns[1] is replicate 2 (20, 21).
+    const t = xy(
+      [1, 2],
+      {
+        a: [
+          [10, 11],
+          [20, 21],
+        ],
+      },
+      { kind: 'replicates', count: 2 },
+    );
+    const [a] = xySeries(t, [asId('ds_a')]);
+    expect(a?.points).toEqual([
+      { row: rowId(0), x: 1, y: 10 },
+      { row: rowId(0), x: 1, y: 20 },
+      { row: rowId(1), x: 2, y: 11 },
+      { row: rowId(1), x: 2, y: 21 },
+    ]);
+  });
+
+  it('gives one point per row, its mean, for summary data', () => {
+    const t = xy(
+      [1, 2],
+      {
+        a: [
+          [10, 20],
+          [2, 2],
+          [3, 3],
+        ],
+      },
+      { kind: 'summary', stats: 'mean-sd-n' },
+    );
+    const [a] = xySeries(t, [asId('ds_a')]);
+    expect(a?.points).toEqual([
+      { row: rowId(0), x: 1, y: 10 },
+      { row: rowId(1), x: 2, y: 20 },
+    ]);
+  });
+
+  it('refuses the X column as a Y data set', () => {
+    const t = xy([1, 2], { a: [[10, 20]] });
+    const x = t.dataSets[0];
+    if (!x) throw new Error('table has no X column');
+    expect(() => xySeries(t, [x.id])).toThrow(DataError);
+  });
+
+  it('X format never changes shape (always one value per row)', () => {
+    expect(XY_X_FORMAT).toEqual({ kind: 'replicates', count: 1 });
   });
 });

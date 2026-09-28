@@ -1,0 +1,20 @@
+{
+  "input": {
+    "x": [5, 5, 5, 5, 5],
+    "y": [1, 4, 2, 8, 3]
+  },
+  "expected": {
+    "n": 5,
+    "ran": false,
+    "why": "constant_x"
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 5, ran = FALSE, why = \"constant_x\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Every X the same value: no line to fit (an undefined, vertical 'slope')."
+}

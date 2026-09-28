@@ -38,6 +38,8 @@ export type AnalysisSpec =
   | { readonly kind: 'paired-normality'; readonly options: PairedNormalityOptions }
   | { readonly kind: 'contingency-chi-square'; readonly options: ContingencyChiSquareOptions }
   | { readonly kind: 'contingency-fisher'; readonly options: ContingencyFisherOptions }
+  | { readonly kind: 'correlation'; readonly options: CorrelationOptions }
+  | { readonly kind: 'linear-regression'; readonly options: LinearRegressionOptions }
   /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
   | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
 
@@ -83,6 +85,24 @@ export type ContingencyChiSquareOptions = Readonly<Record<string, never>>;
  * Nothing to choose.
  */
 export type ContingencyFisherOptions = Readonly<Record<string, never>>;
+
+/**
+ * Pearson or Spearman correlation of an XY table's Y data sets against
+ * its shared X (item 29, #38), one method per analysis (Prism's own
+ * dialog picks one at a time too). No CI for Spearman: rho's sampling
+ * distribution has no closed form the way Pearson's Fisher z-transform
+ * gives one, and Prism doesn't offer one either.
+ */
+export interface CorrelationOptions {
+  readonly method: 'pearson' | 'spearman';
+}
+
+/**
+ * Simple linear regression of an XY table's Y data sets against its
+ * shared X (item 29, #38): slope, intercept, R², residuals and a runs
+ * test for lack of fit, `lm(y ~ x)`. Nothing to choose.
+ */
+export type LinearRegressionOptions = Readonly<Record<string, never>>;
 
 /** Box-plot whiskers, as Prism offers them (note 07). */
 export const WHISKERS = ['min-max', 'tukey', 'p10-90', 'p5-95', 'p2.5-97.5', 'p1-99'] as const;
@@ -307,6 +327,8 @@ export const DEFAULT_OPTIONS: {
   'paired-normality': {},
   'contingency-chi-square': {},
   'contingency-fisher': {},
+  correlation: { method: 'pearson' },
+  'linear-regression': {},
   'graph-summary': { whiskers: null, kde: null },
 };
 
@@ -365,7 +387,13 @@ export interface GroupedPlot {
   readonly points: boolean;
 }
 
-/** A graph's plot: Column-table plots, or grouped bars for a Grouped table. */
+/**
+ * A graph's plot: Column-table plots, or grouped bars for a Grouped table.
+ * An XY table has no graph yet (item 29, #38's own follow-up: the
+ * existing plots all draw on a categorical value axis, which an XY
+ * scatter's two continuous numeric axes don't fit — a rendering-
+ * architecture change of its own, filed separately).
+ */
 export type GraphPlot = ColumnPlot | GroupedPlot;
 
 /** The plots that draw error bars. */

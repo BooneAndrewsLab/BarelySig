@@ -103,28 +103,45 @@ export function subcolumnLabels(table: Table): readonly string[] {
     : Array.from({ length: format.count }, (_, i) => `Y${String(i + 1)}`);
 }
 
+/**
+ * How many subcolumns the data set at `dataSetIndex` has. Every table
+ * type but XY uses the table's own format for every data set; an XY
+ * table's X column (index 0) is always one value per row, whatever the
+ * format says its Y data sets (index 1+) need (item 29, #38).
+ */
+function perSetCount(table: Table, dataSetIndex: number): number {
+  if (table.type === 'xy' && dataSetIndex === 0) return 1;
+  return subcolumnCount(table.format);
+}
+
 export function makeLayout(table: Table, size: LayoutSize): GridLayout {
   const labels = subcolumnLabels(table);
+  const xLabels = ['']; // An XY table's X column never has replicates/summary subcolumns.
   const perSet = subcolumnCount(table.format);
-  const sets = Math.max(table.dataSets.length + 1, size.minDataSets);
+  // An XY table already has its X column (dataSets[0]); the spare column offered
+  // for "Add a Y data set" comes after it, not after an extra, non-existent one.
+  const minSets = table.type === 'xy' ? Math.max(1, size.minDataSets) : size.minDataSets;
+  const sets = Math.max(table.dataSets.length + 1, minSets);
   const columns: GridColumn[] = [];
   const spans: DataSetSpan[] = [];
   for (let d = 0; d < sets; d += 1) {
     const ds = table.dataSets[d];
+    const count = perSetCount(table, d);
     spans.push({
       dataSetIndex: d,
       dataSet: ds?.id ?? null,
-      title: ds ? ds.title : defaultTitle(d),
+      title: ds ? ds.title : defaultTitle(table.type === 'xy' ? d - 1 : d),
       spare: !ds,
       start: columns.length,
-      count: perSet,
+      count,
     });
-    for (let s = 0; s < perSet; s += 1) {
+    const setLabels = table.type === 'xy' && d === 0 ? xLabels : labels;
+    for (let s = 0; s < count; s += 1) {
       columns.push({
         dataSetIndex: d,
         dataSet: ds?.id ?? null,
         subcolumn: s,
-        label: labels[s] ?? '',
+        label: setLabels[s] ?? '',
       });
     }
   }

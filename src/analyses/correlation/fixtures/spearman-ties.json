@@ -1,0 +1,28 @@
+{
+  "input": {
+    "x": [1, 2, 2, 3, 4, 4, 4, 5, 6, 7],
+    "y": [2, 3, 5, 5, 6, 6, 9, 8, 9, 12]
+  },
+  "expected": {
+    "n": 10,
+    "ran": true,
+    "r": 0.94101194053116144,
+    "lower": null,
+    "upper": null,
+    "statistic": 9.7330298123583621,
+    "df": null,
+    "p": 4.9312376825233104e-5,
+    "exact": false,
+    "ties": true
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_pearson <- function(x, y) {\n        t <- cor.test(x, y, method = \"pearson\")\n        ci <- t$conf.int\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = unname(ci[1]), \n            upper = unname(ci[2]), statistic = unname(t$statistic), df = unname(t$parameter), \n            p = t$p.value)\n    }\n    run_spearman <- function(x, y) {\n        ties <- anyDuplicated(x) > 0 || anyDuplicated(y) > 0\n        exact <- !ties && length(x) < 1290\n        t <- suppressWarnings(cor.test(x, y, method = \"spearman\", exact = exact))\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = NA_real_, \n            upper = NA_real_, statistic = unname(t$statistic), df = NA_real_, p = t$p.value, \n            exact = exact, ties = ties)\n    }\n}",
+    "call": "run_spearman(x, y)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Repeated values in both X and Y: R's own exact Spearman P is unavailable with ties, so cor.test() falls back to its asymptotic approximation -- confirmed here rather than assumed (exact Spearman with ties is #48's own separate, deferred scope)."
+}

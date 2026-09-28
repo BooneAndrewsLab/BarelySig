@@ -11,6 +11,7 @@ import {
   createContingencyTable,
   createGroupedTable,
   createNestedTable,
+  createXyTable,
 } from '@/model/table';
 
 import { testName } from '../analysisKinds';
@@ -43,6 +44,7 @@ export function buildTable(
     entry === 'raw'
       ? { kind: 'replicates', count: type === 'column' ? 1 : replicates }
       : { kind: 'summary', stats: entry };
+  if (type === 'xy') return createXyTable({ title, groups: [], format });
   return type === 'column'
     ? createColumnTable({ title, groups: [], format })
     : createGroupedTable({ title, rowTitles: [], groups: [], format });

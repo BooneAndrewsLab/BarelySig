@@ -176,9 +176,12 @@ export function pasteInto(
   const height = cells.length;
   const width = Math.max(0, ...cells.map((r) => r.length));
   const perSet = subcolumnCount(table.format);
+  // An XY table's X column (dataSets[0]) is one subcolumn wide regardless of `perSet`,
+  // so a plain width/perSet estimate undercounts the data sets a wide paste needs by one.
+  const extraSets = table.type === 'xy' ? 2 : 1;
   const layout = makeLayout(table, {
     minRows: origin.row + height + 1,
-    minDataSets: Math.ceil((Math.max(origin.col, 0) + width) / perSet) + 1,
+    minDataSets: Math.ceil((Math.max(origin.col, 0) + width) / perSet) + extraSets,
   });
 
   const missing = new Map<string, number>();

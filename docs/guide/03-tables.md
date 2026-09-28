@@ -1,4 +1,4 @@
-# Column, Grouped, Nested and Contingency tables
+# Column, Grouped, Nested, Contingency and XY tables
 
 When you create a table you choose its kind. The kind fixes how the data
 are laid out, which analyses are offered and which graphs can be drawn.
@@ -58,6 +58,16 @@ row and column together. See
 [Contingency tables, the chi-square test and Fisher's exact test](21-contingency-tables.md)
 for when to use one and what the two tests report. A Contingency table
 always holds counts; there is no summary-data format for it.
+
+## XY tables
+
+One shared X column (time, dose, concentration — a number that means
+something, not just a group label) and one or more Y data sets measured
+at those X values. See
+[XY tables, correlation and linear regression](22-xy-tables.md) for when
+to use one and what correlation and linear regression report. Its Y data
+sets can hold replicates or summary data, exactly like a Column table's
+groups; X is always one value per row.
 
 ## Summary data
 

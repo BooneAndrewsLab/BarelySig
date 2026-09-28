@@ -24,6 +24,21 @@ const EMPTY_CELLS = 'An empty cell stays empty: it is not a zero.';
 /** The note beside section 1, from how the table's values are entered. */
 export function dataNotes(table: Table): Note[] {
   const kicker = 'About these data';
+  if (table.type === 'xy') {
+    return [
+      {
+        kicker,
+        title: 'X and Y',
+        text: [
+          'The first column is X, shared by every data set to its right; each Y data set is one series measured at those X values.',
+          'A row with no X value drops out everywhere in that row, since there’s nothing to plot or fit it against; a row with X but no Y just drops from that one series.',
+          table.format.kind === 'summary'
+            ? 'Each Y value here is a mean, not a replicate: regression and correlation use the mean at each X.'
+            : 'More than one replicate at the same X is fine — each one is its own point, sharing that X.',
+        ],
+      },
+    ];
+  }
   if (table.format.kind === 'summary') {
     const withN = table.format.stats.endsWith('-n');
     return [
@@ -393,6 +408,32 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           title,
           text: [
             'The exact version of the same question as the chi-square test: whether the row and column categories are associated, computed directly rather than approximated — the safer choice with small counts.',
+            NS,
+          ],
+        },
+      ];
+    case 'correlation':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            analysis.options.method === 'spearman'
+              ? 'Spearman’s rho asks whether Y tends to rise (or fall) as X does, using only their rank order — no straight-line shape assumed.'
+              : 'Pearson’s r asks how closely X and Y follow a straight line, and in which direction; it is not the same question as whether that line’s slope is exactly right.',
+            'One number for the whole series, per Y data set chosen — not a comparison between data sets.',
+            NS,
+          ],
+        },
+      ];
+    case 'linear-regression':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Fits the straight line through each Y data set that best predicts it from X, and tests whether its slope differs from zero.',
+            'The runs test alongside it checks whether the line actually fits: a run of residuals on the same side of the line for a stretch of X suggests the true relationship curves, even when the slope’s own P value is small.',
             NS,
           ],
         },

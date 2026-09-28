@@ -87,6 +87,16 @@ function comparisonsWord(
 }
 
 export function suggest(a: ChooserAnswers, ctx: ChooserContext): Suggestion {
+  // Not wired for a Contingency or an XY table (notes 28, 29): a third and
+  // fourth data shape each touch this whole question tree on their own.
+  // Degrades safely to "no suggestion" rather than guessing group-count
+  // logic that doesn't fit either shape ("Pick a test myself" still works).
+  if (ctx.tableType === 'contingency' || ctx.tableType === 'xy') {
+    return {
+      kind: 'none',
+      why: 'Pick a test yourself for this table — there’s no guide for it yet.',
+    };
+  }
   // Descriptive statistics can describe a Column or Grouped table (item 18, #54).
   const describable = ctx.tableType === 'column' || ctx.tableType === 'grouped';
   if (describable && a.goal === null) return { kind: 'ask', question: 'goal' };

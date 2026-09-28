@@ -1,0 +1,58 @@
+{
+  "input": {
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    "y": [
+      8.2420000000000009, 6.8710000000000004, 11.226000000000001, 14.266, 16.309000000000001,
+      17.788, 23.523, 22.811, 29.536999999999999, 27.875, 33.109999999999999, 37.573
+    ]
+  },
+  "expected": {
+    "n": 12,
+    "ran": true,
+    "intercept": 3.1033939393939489,
+    "slope": 2.7165419580419576,
+    "intercept_lower": 0.69929420531079955,
+    "intercept_upper": 5.5074936734770983,
+    "slope_lower": 2.3898891280385,
+    "slope_upper": 3.0431947880454153,
+    "r2": 0.97169991895544883,
+    "f": 343.35587853114652,
+    "df_num": 1,
+    "df_den": 10,
+    "p": 4.5208917383904025e-9,
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    "y": [
+      8.2420000000000009, 6.8710000000000004, 11.226000000000001, 14.266, 16.309000000000001,
+      17.788, 23.523, 22.811, 29.536999999999999, 27.875, 33.109999999999999, 37.573
+    ],
+    "fitted": [
+      5.8199358974358804, 8.5364778554778642, 11.253019813519819, 13.969561771561775,
+      16.686103729603733, 19.402645687645691, 22.119187645687646, 24.835729603729604,
+      27.552271561771562, 30.268813519813516, 32.985355477855478, 35.701897435897436
+    ],
+    "residual": [
+      2.4220641025641205, -1.6654778554778633, -0.027019813519818192, 0.29643822843822409,
+      -0.37710372960373184, -1.6146456876456896, 1.4038123543123526, -2.0247296037296052,
+      1.9847284382284371, -2.3938135198135178, 0.12464452214452415, 1.8711025641025674
+    ],
+    "runs": {
+      "ran": true,
+      "n_runs": 9,
+      "n_pos": 6,
+      "n_neg": 6,
+      "z": 1.2110601416389966,
+      "p": 0.22587235588913823
+    }
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0",
+      "randtests": "1.0.2"
+    },
+    "setup": "{\n    run_linreg <- function(x, y) {\n        m <- lm(y ~ x)\n        s <- summary(m)\n        ci <- confint(m)\n        f <- s$fstatistic\n        ord <- order(x)\n        resid_ord <- unname(resid(m))[ord]\n        signs <- sign(resid_ord)\n        signs <- signs[signs != 0]\n        rt <- runs.test(signs, threshold = 0)\n        list(n = length(x), ran = TRUE, intercept = unname(coef(m)[1]), slope = unname(coef(m)[2]), \n            intercept_lower = unname(ci[1, 1]), intercept_upper = unname(ci[1, 2]), \n            slope_lower = unname(ci[2, 1]), slope_upper = unname(ci[2, 2]), r2 = s$r.squared, \n            f = unname(f[1]), df_num = unname(f[2]), df_den = unname(f[3]), p = unname(s$coefficients[2, \n                4]), x = x[ord], y = y[ord], fitted = unname(fitted(m))[ord], residual = resid_ord, \n            runs = list(ran = TRUE, n_runs = rt$runs, n_pos = sum(signs > 0), n_neg = sum(signs < \n                0), z = unname(rt$statistic), p = rt$p.value))\n    }\n}",
+    "call": "run_linreg(x, y)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "A clean linear relationship: unambiguous slope, sanity check for every reported number."
+}

@@ -21,7 +21,7 @@ import {
 
 import { paletteColor } from '@/graphs/palette';
 import type { Edit } from '@/model/edits';
-import { type Table, cellKey } from '@/model/table';
+import { type Table, cellKey, isXyX } from '@/model/table';
 
 import { copyText, describePaste, pasteInto } from './clipboard';
 import {
@@ -424,6 +424,8 @@ export function DataGrid({ table, onEdit, onNotice, onSelection, decimal }: Grid
       />
     ) : null;
 
+  const focusedDataSet = spanOf(layout, Math.max(focus.col, 0))?.dataSet;
+  const focusIsXyX = focusedDataSet != null && isXyX(table, focusedDataSet);
   const menuItems: MenuItem[] = [
     {
       label: 'Insert rows above',
@@ -444,6 +446,8 @@ export function DataGrid({ table, onEdit, onNotice, onSelection, decimal }: Grid
       run: () => {
         apply(insertDataSet(layout, Math.max(focus.col, 0), false));
       },
+      // An XY table's X column always stays first (item 29, #38).
+      disabled: focusIsXyX,
     },
     {
       label: 'Insert group after',
@@ -456,13 +460,14 @@ export function DataGrid({ table, onEdit, onNotice, onSelection, decimal }: Grid
       run: () => {
         apply(deleteDataSets(layout, range));
       },
-      disabled: !spanOf(layout, Math.max(focus.col, 0))?.dataSet,
+      disabled: !focusedDataSet || focusIsXyX,
     },
     {
       label: 'Exclude or include values (Ctrl+E)',
       run: () => {
         act({ type: 'exclude' });
       },
+      disabled: focusIsXyX,
     },
     {
       label: 'Fill down (Ctrl+D)',

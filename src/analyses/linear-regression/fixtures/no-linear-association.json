@@ -1,0 +1,50 @@
+{
+  "input": {
+    "x": [-3, -2, -1, 0, 1, 2, 3],
+    "y": [9, 4, 1, 0, 1, 4, 9]
+  },
+  "expected": {
+    "n": 7,
+    "ran": true,
+    "intercept": 3.9999999999999987,
+    "slope": 4.1962486042515759e-16,
+    "intercept_lower": 0.017671744206905871,
+    "intercept_upper": 7.9823282557930915,
+    "slope_lower": -1.991164127896546,
+    "slope_upper": 1.9911641278965468,
+    "r2": 1.3147681753683534e-31,
+    "f": 6.573840876841768e-31,
+    "df_num": 1,
+    "df_den": 5,
+    "p": 0.99999999999999956,
+    "x": [-3, -2, -1, 0, 1, 2, 3],
+    "y": [9, 4, 1, 0, 1, 4, 9],
+    "fitted": [
+      4.0000000000000036, 3.9999999999999991, 4, 4.0000000000000009, 4.0000000000000009,
+      4.0000000000000009, 4.0000000000000009
+    ],
+    "residual": [
+      4.9999999999999964, 6.6613381477509392e-16, -3, -4.0000000000000009, -3.0000000000000009,
+      -1.1102230246251565e-15, 4.9999999999999991
+    ],
+    "runs": {
+      "ran": true,
+      "n_runs": 3,
+      "n_pos": 3,
+      "n_neg": 4,
+      "z": -1.212678125181665,
+      "p": 0.22525290636065315
+    }
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0",
+      "randtests": "1.0.2"
+    },
+    "setup": "{\n    run_linreg <- function(x, y) {\n        m <- lm(y ~ x)\n        s <- summary(m)\n        ci <- confint(m)\n        f <- s$fstatistic\n        ord <- order(x)\n        resid_ord <- unname(resid(m))[ord]\n        signs <- sign(resid_ord)\n        signs <- signs[signs != 0]\n        rt <- runs.test(signs, threshold = 0)\n        list(n = length(x), ran = TRUE, intercept = unname(coef(m)[1]), slope = unname(coef(m)[2]), \n            intercept_lower = unname(ci[1, 1]), intercept_upper = unname(ci[1, 2]), \n            slope_lower = unname(ci[2, 1]), slope_upper = unname(ci[2, 2]), r2 = s$r.squared, \n            f = unname(f[1]), df_num = unname(f[2]), df_den = unname(f[3]), p = unname(s$coefficients[2, \n                4]), x = x[ord], y = y[ord], fitted = unname(fitted(m))[ord], residual = resid_ord, \n            runs = list(ran = TRUE, n_runs = rt$runs, n_pos = sum(signs > 0), n_neg = sum(signs < \n                0), z = unname(rt$statistic), p = rt$p.value))\n    }\n}",
+    "call": "run_linreg(x, y)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "A perfect parabola: Y varies, but the true linear R^2 is exactly 0 (not rounding noise) and the true slope exactly 0 -- CLAUDE.md's 'a statistic whose true value is 0' lesson, applied here instead of to skewness."
+}

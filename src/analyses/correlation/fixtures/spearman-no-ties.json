@@ -1,0 +1,34 @@
+{
+  "input": {
+    "x": [
+      2.1000000000000001, 5.4000000000000004, 1.2, 8.9000000000000004, 3.2999999999999998,
+      7.7000000000000002, 6.5999999999999996, 4.4000000000000004, 9.9000000000000004, 0.5
+    ],
+    "y": [
+      3, 6.0999999999999996, 0.90000000000000002, 9.5, 2.7999999999999998, 8, 7.2000000000000002,
+      5.0999999999999996, 9, 1.1000000000000001
+    ]
+  },
+  "expected": {
+    "n": 10,
+    "ran": true,
+    "r": 0.96363636363636362,
+    "lower": null,
+    "upper": null,
+    "statistic": 6.0000000000000027,
+    "df": null,
+    "p": 0,
+    "exact": true,
+    "ties": false
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_pearson <- function(x, y) {\n        t <- cor.test(x, y, method = \"pearson\")\n        ci <- t$conf.int\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = unname(ci[1]), \n            upper = unname(ci[2]), statistic = unname(t$statistic), df = unname(t$parameter), \n            p = t$p.value)\n    }\n    run_spearman <- function(x, y) {\n        ties <- anyDuplicated(x) > 0 || anyDuplicated(y) > 0\n        exact <- !ties && length(x) < 1290\n        t <- suppressWarnings(cor.test(x, y, method = \"spearman\", exact = exact))\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = NA_real_, \n            upper = NA_real_, statistic = unname(t$statistic), df = NA_real_, p = t$p.value, \n            exact = exact, ties = ties)\n    }\n}",
+    "call": "run_spearman(x, y)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "No ties in either column: R's exact Spearman P is available and used (exact = TRUE), the ordinary case."
+}

@@ -19,6 +19,7 @@ import shortcuts from '../../../docs/guide/16-shortcuts.md?raw';
 import tables from '../../../docs/guide/03-tables.md?raw';
 import tTests from '../../../docs/guide/05-t-tests.md?raw';
 import twoWay from '../../../docs/guide/09-two-way-anova.md?raw';
+import xyTables from '../../../docs/guide/22-xy-tables.md?raw';
 
 import type { UserAnalysisKind } from '@/model/project';
 
@@ -62,6 +63,7 @@ export const GUIDE: readonly GuidePage[] = [
   page('19-repeated-two-way', repeatedTwoWay),
   page('20-repeated-two-way-both', repeatedTwoWayBoth),
   page('21-contingency-tables', contingencyTables),
+  page('22-xy-tables', xyTables),
 ];
 
 export function guidePage(id: string): GuidePage | undefined {
@@ -89,4 +91,6 @@ export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   'paired-normality': '10-normality',
   'contingency-chi-square': '21-contingency-tables',
   'contingency-fisher': '21-contingency-tables',
+  correlation: '22-xy-tables',
+  'linear-regression': '22-xy-tables',
 };

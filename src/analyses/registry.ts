@@ -1,10 +1,12 @@
 /** Every analysis module, by kind (item 04). */
 import { contingencyChiSquare } from './contingency-chi-square';
 import { contingencyFisher } from './contingency-fisher';
+import { correlation } from './correlation';
 import { descriptive } from './descriptive';
 import { friedman } from './friedman';
 import { graphSummary } from './graphsummary';
 import { kruskal } from './kruskal';
+import { linearRegression } from './linear-regression';
 import type { Registry } from './module';
 import { nestedDescriptive } from './nested-descriptive';
 import { nestedNormality } from './nested-normality';
@@ -41,5 +43,7 @@ export const REGISTRY: Registry = {
   'paired-normality': pairedNormality,
   'contingency-chi-square': contingencyChiSquare,
   'contingency-fisher': contingencyFisher,
+  correlation,
+  'linear-regression': linearRegression,
   'graph-summary': graphSummary,
 };

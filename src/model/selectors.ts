@@ -23,6 +23,7 @@ import {
   type NestedTable,
   type SummaryStats,
   type Table,
+  type XyTable,
   cellKey,
   subcolumnCount,
   summarySubcolumns,
@@ -279,6 +280,72 @@ export function contingencyCells(
     columns: sets.map((d) => ({ id: d.id, title: d.title })),
     counts: table.rows.map((_, r) => sets.map((ds) => usable(table, ds, 0, r))),
   };
+}
+
+export interface XyPoint {
+  readonly row: Id;
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface XySeriesData {
+  readonly id: Id;
+  readonly title: string;
+  /** One per usable (x, y) pair — every replicate at a row is its own point, sharing that row's x. */
+  readonly points: readonly XyPoint[];
+  /** Rows dropped because X was empty at that row (every Y series loses the same rows, item 29). */
+  readonly droppedX: number;
+  /** This series' own values dropped (empty or excluded) at a row with a usable X. */
+  readonly droppedY: number;
+}
+
+/**
+ * An XY table's Y data sets as (x, y) pairs, x shared from `dataSets[0]`
+ * (item 29, #38): a row with no usable X drops out of every series
+ * (there is no such thing as a Y value with no X to plot it against,
+ * unlike an ordinary table's independent cells); a row with a usable X
+ * but no usable Y just drops from that one series, the ordinary rule.
+ * Summary Y data (mean/SD/n) gives one point per row, its mean; raw data
+ * gives one point per usable replicate, so a repeated X value is exactly
+ * as many points as it has replicates.
+ */
+export function xySeries(
+  table: XyTable,
+  dataSets: readonly Id[] = table.dataSets.slice(1).map((d) => d.id),
+): XySeriesData[] {
+  const x = table.dataSets[0];
+  if (!x) throw new DataError(`Table "${table.title}" has no X column.`);
+  if (dataSets.includes(x.id)) {
+    throw new DataError('The X column is not a Y data set.');
+  }
+  const sets = dataSets.map((id) => requireDataSet(table, id));
+  let droppedX = 0;
+  const xValues = table.rows.map((_, r) => {
+    const v = usable(table, x, 0, r);
+    if (v === null) droppedX += 1;
+    return v;
+  });
+  const { format } = table;
+  return sets.map((ds) => {
+    const points: XyPoint[] = [];
+    let droppedY = 0;
+    table.rows.forEach((row, r) => {
+      const xv = xValues[r];
+      if (xv === null || xv === undefined) return;
+      if (format.kind === 'summary') {
+        const g = summaryAt(table, ds, format.stats, r);
+        if (g.kind === 'summary' && g.mean !== null) points.push({ row: row.id, x: xv, y: g.mean });
+        else droppedY += 1;
+      } else {
+        for (let s = 0; s < format.count; s += 1) {
+          const v = usable(table, ds, s, r);
+          if (v !== null) points.push({ row: row.id, x: xv, y: v });
+          else droppedY += 1;
+        }
+      }
+    });
+    return { id: ds.id, title: ds.title, points, droppedX, droppedY };
+  });
 }
 
 export interface GroupedSubject {

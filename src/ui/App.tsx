@@ -249,7 +249,9 @@ export function App() {
                   ? 'new-grouped'
                   : t.type === 'nested'
                     ? 'new-nested'
-                    : 'new-contingency',
+                    : t.type === 'xy'
+                      ? 'new-xy'
+                      : 'new-contingency',
             );
           }}
         />

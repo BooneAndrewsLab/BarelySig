@@ -70,7 +70,7 @@ export function EntryFields({
         />
         Individual values
       </label>
-      {type === 'grouped' && entry === 'raw' && (
+      {(type === 'grouped' || type === 'xy') && entry === 'raw' && (
         <label className="indent">
           Replicates per cell{' '}
           <input

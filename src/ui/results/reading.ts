@@ -7,7 +7,9 @@
  */
 import type { ContingencyChiSquareResult } from '@/analyses/contingency-chi-square/types';
 import type { ContingencyFisherResult } from '@/analyses/contingency-fisher/types';
+import type { CorrelationResult } from '@/analyses/correlation/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
+import type { LinearRegressionResult } from '@/analyses/linear-regression/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
@@ -604,4 +606,59 @@ export function contingencyFisherReading(r: ContingencyFisherResult): string {
     return `The rows and columns are associated (${p}, two-tailed Fisher’s exact test). If they were truly independent, a difference in proportions at least this large would turn up in ${often} like this one.`;
   }
   return `There is no evidence that the rows and columns are associated (${p}, two-tailed Fisher’s exact test). If they were truly independent, a difference in proportions at least this large would turn up in ${often}. That doesn’t show they are independent; the table may be too small to see an association.`;
+}
+
+/**
+ * Pearson or Spearman correlation of an XY table's Y data sets against
+ * its shared X (item 29, #38): one clause per series, joined, never
+ * "the same" for a series with no evidence of correlation.
+ */
+export function correlationReading(r: CorrelationResult): string {
+  const word = r.method === 'spearman' ? 'rho' : 'r';
+  const clauses = r.series.map((s) => {
+    if (!s.outcome.ran) {
+      return `${s.title} has too few points (fewer than ${String(s.outcome.minimum)}) to correlate`;
+    }
+    const o = s.outcome;
+    const value = `${word} = ${sig(o.r)}`;
+    return o.p < 0.05
+      ? `${s.title} is correlated with X (${value}, ${pPhrase(o.p)})`
+      : `no evidence of correlation between ${s.title} and X (${value}, ${pPhrase(o.p)})`;
+  });
+  const method =
+    r.method === 'spearman'
+      ? ' (Spearman: a monotonic relationship, not necessarily a straight line)'
+      : '';
+  const ties = r.series.some((s) => s.outcome.ran && s.outcome.ties === true);
+  const tieNote =
+    r.method === 'spearman' && ties
+      ? ' Some values repeat, so the exact P isn’t available here; R’s usual large-sample approximation was used instead.'
+      : '';
+  return `${joinAnd(clauses)}${method}.${tieNote}`;
+}
+
+/**
+ * Simple linear regression of an XY table's Y data sets against its
+ * shared X (item 29, #38): the fitted line's slope and whether the runs
+ * test finds the fit unreliable, per series.
+ */
+export function linearRegressionReading(r: LinearRegressionResult): string {
+  const clauses = r.series.map((s) => {
+    const o = s.outcome;
+    if (!o.ran) {
+      if (o.why === 'constant-x') return `${s.title} can’t be fit: every X value is the same`;
+      if (o.why === 'constant-y') return `${s.title} never varies, so there is no line to test`;
+      return `${s.title} has too few points (fewer than ${String(o.minimum)}) to fit a line`;
+    }
+    const slope = `slope = ${sig(o.slope)}`;
+    const base =
+      o.p < 0.05
+        ? `${s.title}’s slope differs from zero (${slope}, ${pPhrase(o.p)}, R² = ${sig(o.r2)})`
+        : `no evidence ${s.title}’s slope differs from zero (${slope}, ${pPhrase(o.p)}, R² = ${sig(o.r2)})`;
+    if (o.runs.ran && o.runs.p < 0.05) {
+      return `${base} — but the runs test finds the residuals run in the same direction more than chance would (${pPhrase(o.runs.p)}), so a straight line may not be the right shape`;
+    }
+    return base;
+  });
+  return `${joinAnd(clauses)}.`;
 }

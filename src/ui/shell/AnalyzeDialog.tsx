@@ -15,6 +15,7 @@ import {
   type AllPairsTest,
   type Comparisons,
   type ControlTest,
+  type CorrelationOptions,
   DEFAULT_OPTIONS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
@@ -136,6 +137,18 @@ const KINDS: readonly KindInfo[] = [
     blurb:
       'The exact version of the same question, best for small counts or a table chi-square shouldn’t be trusted on.',
     tables: ['contingency'],
+  },
+  {
+    kind: 'correlation',
+    name: 'Correlation',
+    blurb: 'How closely X and Y move together, per Y data set: Pearson’s r or Spearman’s rho.',
+    tables: ['xy'],
+  },
+  {
+    kind: 'linear-regression',
+    name: 'Linear regression',
+    blurb: 'Fit a straight line to X and Y, per Y data set: slope, intercept, R² and a fit check.',
+    tables: ['xy'],
   },
   {
     kind: 'rank-test',
@@ -427,6 +440,37 @@ function RankTestFields(props: {
         }}
       />
     </>
+  );
+}
+
+/** Which correlation to run (item 29, #38): Pearson's r or Spearman's rho, one at a time (Prism's own dialog). */
+function CorrelationFields(props: {
+  readonly o: CorrelationOptions;
+  readonly set: (o: CorrelationOptions) => void;
+}) {
+  const { o, set } = props;
+  return (
+    <fieldset>
+      <legend>Method</legend>
+      <Radio
+        name="correlation-method"
+        checked={o.method === 'pearson'}
+        onPick={() => {
+          set({ ...o, method: 'pearson' });
+        }}
+      >
+        Pearson (assumes a straight-line relationship; gives a CI)
+      </Radio>
+      <Radio
+        name="correlation-method"
+        checked={o.method === 'spearman'}
+        onPick={() => {
+          set({ ...o, method: 'spearman' });
+        }}
+      >
+        Spearman (ranks only, no shape assumed; no CI)
+      </Radio>
+    </fieldset>
   );
 }
 
@@ -1069,8 +1113,10 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     setModeState(m);
     keepMode(m);
   };
+  // An XY table's X column (dataSets[0]) is never a Y data set to tick (item 29, #38).
+  const pickable = table.type === 'xy' ? table.dataSets.slice(1) : table.dataSets;
   const [chosen, setChosen] = useState<readonly Id[]>(
-    analysis?.input.kind === 'table' ? analysis.input.dataSets : table.dataSets.map((d) => d.id),
+    analysis?.input.kind === 'table' ? analysis.input.dataSets : pickable.map((d) => d.id),
   );
   const [options, setOptions] = useState<Options>(() => initialOptions(analysis));
   // Prism offers normality tests before a parametric test; so does the dialog (note 06).
@@ -1090,7 +1136,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
     analysis || summary ? null : companionForKind(s.kind, s.kind === 't-test' && s.options.paired);
   const companionKind = analysis || summary ? null : companionForKind(kind, pairedT);
   const offersNormality = companionKind !== null;
-  const picked = table.dataSets.filter((d) => chosen.includes(d.id)).map((d) => d.id);
+  const picked = pickable.filter((d) => chosen.includes(d.id)).map((d) => d.id);
   const info = KINDS.find((k) => k.kind === kind);
   const groups = info?.groups;
 
@@ -1213,6 +1259,10 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return { kind, options: options['contingency-chi-square'] };
       case 'contingency-fisher':
         return { kind, options: options['contingency-fisher'] };
+      case 'correlation':
+        return { kind, options: options.correlation };
+      case 'linear-regression':
+        return { kind, options: options['linear-regression'] };
     }
   };
 
@@ -1344,10 +1394,12 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
                 ? 'Which two groups?'
                 : table.type === 'grouped' || table.type === 'contingency'
                   ? 'Which data sets (columns)?'
-                  : 'Which groups?'}
+                  : table.type === 'xy'
+                    ? 'Which Y data sets?'
+                    : 'Which groups?'}
             </legend>
-            {table.dataSets.length === 0 && <p className="hint">This table has no groups yet.</p>}
-            {table.dataSets.map((d) => (
+            {pickable.length === 0 && <p className="hint">This table has no groups yet.</p>}
+            {pickable.map((d) => (
               <label key={d.id} className="option">
                 <input
                   type="checkbox"
@@ -1488,6 +1540,14 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               o={options['rank-test']}
               set={(o) => {
                 set('rank-test', o);
+              }}
+            />
+          )}
+          {kind === 'correlation' && (
+            <CorrelationFields
+              o={options.correlation}
+              set={(o) => {
+                set('correlation', o);
               }}
             />
           )}

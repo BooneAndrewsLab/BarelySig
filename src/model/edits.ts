@@ -20,6 +20,7 @@ import {
   type Table,
   cellKey,
   emptyColumn,
+  isXyX,
   parseCellKey,
   subcolumnCount,
   summarySubcolumns,
@@ -181,6 +182,9 @@ export function applyEdit(project: Project, edit: Edit): Project {
     case 'moveDataSet':
       return updateTable(project, edit.table, (t) => {
         const ds = requireDataSet(t, edit.dataSet);
+        if (t.type === 'xy' && (isXyX(t, ds.id) || edit.to < 1)) {
+          throw new EditError('The X column stays first.');
+        }
         const ids = move(
           t.dataSets.map((d) => d.id),
           ds.id,
@@ -508,6 +512,9 @@ function addDataSet(project: Project, tableId: Id, at: number, id: Id, title: st
   const t = requireTable(project, tableId);
   if (!Number.isInteger(at) || at < 0 || at > t.dataSets.length)
     throw new EditError(`Position ${String(at)} is out of range.`);
+  if (t.type === 'xy' && at < 1) {
+    throw new EditError('The X column stays first; a new Y data set goes after it.');
+  }
   requireFreshId(project, id);
   const ds: DataSet = {
     id,
@@ -526,6 +533,7 @@ function addDataSet(project: Project, tableId: Id, at: number, id: Id, title: st
 function removeDataSet(project: Project, tableId: Id, id: Id): Project {
   const t = requireTable(project, tableId);
   requireDataSet(t, id);
+  if (isXyX(t, id)) throw new EditError('The X column can’t be removed.');
   const analyses = new Map(project.analyses);
   analyses.forEach((a) => {
     if (a.input.kind === 'table' && a.input.table === tableId && a.input.dataSets.includes(id)) {
@@ -546,6 +554,9 @@ function removeDataSet(project: Project, tableId: Id, id: Id): Project {
 }
 
 function setExcluded(table: Table, id: Id, cells: readonly CellRef[], excluded: boolean): Table {
+  if (isXyX(table, id)) {
+    throw new EditError('The X column can’t be excluded; clear the cell instead.');
+  }
   const d = requireDataSet(table, id);
   const set = new Set(d.excluded);
   for (const c of cells) {
@@ -601,7 +612,7 @@ function setFormat(table: Table, format: EntryFormat): Table {
     }
     return null;
   });
-  const dataSets = table.dataSets.map((d) => {
+  const reshape = (d: DataSet): DataSet => {
     const excluded = new Set<CellKey>();
     const subcolumns = source.map((src, s) => {
       if (src === null) return emptyColumn(n);
@@ -609,7 +620,14 @@ function setFormat(table: Table, format: EntryFormat): Table {
       return (d.subcolumns[src] ?? emptyColumn(n)).slice(0, n);
     });
     return { ...d, subcolumns, excluded };
-  });
+  };
+  if (table.type === 'xy') {
+    // dataSets[0] (X) is always one value per row; only the Y data sets take the new format.
+    const [x, ...ys] = table.dataSets;
+    if (!x) return { ...table, format };
+    return { ...table, format, dataSets: [x, ...ys.map(reshape)] };
+  }
+  const dataSets = table.dataSets.map(reshape);
   if (table.type === 'nested' && table.replicateTitles) {
     const replicateTitles = source.map((src) =>
       src === null ? null : (table.replicateTitles?.[src] ?? null),

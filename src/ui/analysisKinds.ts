@@ -23,6 +23,8 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   'paired-normality': 'descriptive-stats',
   'contingency-chi-square': 't-test',
   'contingency-fisher': 't-test',
+  correlation: 'curve-fit',
+  'linear-regression': 'curve-fit',
   'graph-summary': 'bar-error',
 };
 
@@ -70,6 +72,10 @@ export function testName(spec: AnalysisSpec): string {
       return 'Chi-square test';
     case 'contingency-fisher':
       return 'Fisher’s exact test';
+    case 'correlation':
+      return spec.options.method === 'spearman' ? 'Spearman correlation' : 'Pearson correlation';
+    case 'linear-regression':
+      return 'Linear regression';
     case 'graph-summary':
       return 'Graph statistics';
   }

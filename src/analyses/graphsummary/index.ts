@@ -75,6 +75,11 @@ export const graphSummary: AnalysisModule<
       // Graphing a Contingency table's counts isn't wired up yet (design note 28's follow-up).
       return { ok: false, reason: 'There is no graph for a Contingency table yet.' };
     }
+    if (table.type === 'xy') {
+      // An XY scatter needs a continuous-axis rendering path this graph pipeline doesn't
+      // have yet (design note 29's follow-up).
+      return { ok: false, reason: 'There is no graph for an XY table yet.' };
+    }
     const cells =
       table.type === 'column'
         ? columnGroups(table, analysis.input.dataSets)

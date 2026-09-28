@@ -1,0 +1,20 @@
+{
+  "input": {
+    "x": [1, 2, 3, 4, 5, 6],
+    "y": [3, 3, 3, 3, 3, 3]
+  },
+  "expected": {
+    "n": 6,
+    "ran": false,
+    "why": "constant_y"
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 6, ran = FALSE, why = \"constant_y\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Y never varies: summary.lm()'s R^2/F/P on an exactly flat Y is floating-point noise on a 0/0 ratio (confirmed directly against R: R^2 came back 0.4667, not 0), so this is reported in words instead."
+}

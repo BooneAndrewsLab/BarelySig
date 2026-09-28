@@ -1,0 +1,29 @@
+{
+  "input": {
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    "y": [
+      8.2420000000000009, 6.8710000000000004, 11.226000000000001, 14.266, 16.309000000000001,
+      17.788, 23.523, 22.811, 29.536999999999999, 27.875, 33.109999999999999, 37.573
+    ]
+  },
+  "expected": {
+    "n": 12,
+    "ran": true,
+    "r": 0.98574840550489828,
+    "lower": 0.9483495852615863,
+    "upper": 0.99612154710272183,
+    "statistic": 18.52986450385303,
+    "df": 10,
+    "p": 4.5208917383900153e-9
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_pearson <- function(x, y) {\n        t <- cor.test(x, y, method = \"pearson\")\n        ci <- t$conf.int\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = unname(ci[1]), \n            upper = unname(ci[2]), statistic = unname(t$statistic), df = unname(t$parameter), \n            p = t$p.value)\n    }\n    run_spearman <- function(x, y) {\n        ties <- anyDuplicated(x) > 0 || anyDuplicated(y) > 0\n        exact <- !ties && length(x) < 1290\n        t <- suppressWarnings(cor.test(x, y, method = \"spearman\", exact = exact))\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = NA_real_, \n            upper = NA_real_, statistic = unname(t$statistic), df = NA_real_, p = t$p.value, \n            exact = exact, ties = ties)\n    }\n}",
+    "call": "run_pearson(x, y)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "A clean linear relationship: unambiguous r and CI, sanity check for Pearson."
+}

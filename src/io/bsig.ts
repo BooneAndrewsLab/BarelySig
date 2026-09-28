@@ -27,6 +27,7 @@ import {
   type AnalysisInput,
   type AnalysisSpec,
   type Comparisons,
+  type CorrelationOptions,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
   type KruskalWallisOptions,
@@ -147,7 +148,10 @@ function optionsJson(a: AnalysisSpec): Json {
     case 'paired-normality':
     case 'contingency-chi-square':
     case 'contingency-fisher':
+    case 'linear-regression':
       return {};
+    case 'correlation':
+      return { method: a.options.method };
     case 'graph-summary':
       // Never in a project: graphs' summaries are made from the graph (note 07).
       return { whiskers: a.options.whiskers, kde: a.options.kde && { ...a.options.kde } };
@@ -424,7 +428,13 @@ function table(v: Json, p: Path): Table {
   const o = obj(v, p);
   const typePath: Path = p.key('type');
   const type = str(o['type'], typePath);
-  if (type !== 'column' && type !== 'grouped' && type !== 'nested' && type !== 'contingency') {
+  if (
+    type !== 'column' &&
+    type !== 'grouped' &&
+    type !== 'nested' &&
+    type !== 'contingency' &&
+    type !== 'xy'
+  ) {
     typePath.fail(`is a table type this version does not know ("${type}")`);
   }
   const base: Table = {
@@ -459,7 +469,14 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     case 'paired-normality':
     case 'contingency-chi-square':
     case 'contingency-fisher':
+    case 'linear-regression':
       return { kind, options: {} };
+    case 'correlation': {
+      const options: CorrelationOptions = {
+        method: oneOf(opts['method'], q.key('method'), ['pearson', 'spearman'] as const),
+      };
+      return { kind, options };
+    }
     case 't-test': {
       const tailsPath: Path = q.key('tails');
       const tails = str(opts['tails'], tailsPath);

@@ -1,0 +1,20 @@
+{
+  "input": {
+    "x": [1, 2, 3, 4, 5],
+    "y": [3, 3, 3, 3, 3]
+  },
+  "expected": {
+    "n": 5,
+    "ran": false,
+    "why": "constant"
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 5, ran = FALSE, why = \"constant\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Y never varies: cor.test() itself returns NA for r and P here (with a warning) rather than erroring, so the app checks for zero variance first and reports it in words."
+}

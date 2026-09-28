@@ -40,6 +40,13 @@ export const TABLE_TYPES: readonly TableTypeInfo[] = [
     blurb:
       'Counts in a rows × columns grid, e.g. outcome vs. treatment. For the chi-square test of independence and Fisher’s exact test.',
   },
+  {
+    type: 'xy',
+    name: 'XY',
+    icon: 'xy',
+    blurb:
+      'An X column shared by one or more Y data sets, e.g. time or dose vs. response. For linear regression and correlation.',
+  },
 ];
 
 export function tableTypeInfo(type: TableType): TableTypeInfo {

@@ -1,0 +1,64 @@
+{
+  "input": {
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "y": [
+      57.948999999999998, 42.813000000000002, 43.622999999999998, 43.551000000000002,
+      40.116999999999997, 39.011000000000003, 44.593000000000004, 39.932000000000002, 39.811,
+      46.759999999999998, 38.228000000000002, 46.466999999999999, 83.525999999999996,
+      34.496000000000002, 39.584000000000003
+    ]
+  },
+  "expected": {
+    "n": 15,
+    "ran": true,
+    "intercept": 44.28489523809521,
+    "slope": 0.13489642857143003,
+    "intercept_lower": 29.882805741161263,
+    "intercept_upper": 58.686984735029156,
+    "slope_lower": -1.4491222276820928,
+    "slope_upper": 1.7189150848249528,
+    "r2": 0.0025969488419038253,
+    "f": 0.033848237084847708,
+    "df_num": 1,
+    "df_den": 13,
+    "p": 0.8568687647549954,
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "y": [
+      57.948999999999998, 42.813000000000002, 43.622999999999998, 43.551000000000002,
+      40.116999999999997, 39.011000000000003, 44.593000000000004, 39.932000000000002, 39.811,
+      46.759999999999998, 38.228000000000002, 46.466999999999999, 83.525999999999996,
+      34.496000000000002, 39.584000000000003
+    ],
+    "fitted": [
+      44.419791666666704, 44.554688095238085, 44.689584523809515, 44.824480952380945,
+      44.959377380952375, 45.094273809523806, 45.229170238095236, 45.364066666666666,
+      45.498963095238096, 45.633859523809527, 45.768755952380957, 45.903652380952387,
+      46.038548809523817, 46.17344523809524, 46.308341666666671
+    ],
+    "residual": [
+      13.529208333333296, -1.7416880952380827, -1.0665845238095164, -1.2734809523809418,
+      -4.8423773809523762, -6.083273809523801, -0.6361702380952301, -5.4320666666666622,
+      -5.6879630952380928, 1.1261404761904745, -7.5407559523809518, 0.56334761904761477,
+      37.487451190476179, -11.677445238095242, -6.7243416666666693
+    ],
+    "runs": {
+      "ran": true,
+      "n_runs": 6,
+      "n_pos": 4,
+      "n_neg": 11,
+      "z": -0.60688248548056078,
+      "p": 0.54392890222570334
+    }
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0",
+      "randtests": "1.0.2"
+    },
+    "setup": "{\n    run_linreg <- function(x, y) {\n        m <- lm(y ~ x)\n        s <- summary(m)\n        ci <- confint(m)\n        f <- s$fstatistic\n        ord <- order(x)\n        resid_ord <- unname(resid(m))[ord]\n        signs <- sign(resid_ord)\n        signs <- signs[signs != 0]\n        rt <- runs.test(signs, threshold = 0)\n        list(n = length(x), ran = TRUE, intercept = unname(coef(m)[1]), slope = unname(coef(m)[2]), \n            intercept_lower = unname(ci[1, 1]), intercept_upper = unname(ci[1, 2]), \n            slope_lower = unname(ci[2, 1]), slope_upper = unname(ci[2, 2]), r2 = s$r.squared, \n            f = unname(f[1]), df_num = unname(f[2]), df_den = unname(f[3]), p = unname(s$coefficients[2, \n                4]), x = x[ord], y = y[ord], fitted = unname(fitted(m))[ord], residual = resid_ord, \n            runs = list(ran = TRUE, n_runs = rt$runs, n_pos = sum(signs > 0), n_neg = sum(signs < \n                0), z = unname(rt$statistic), p = rt$p.value))\n    }\n}",
+    "call": "run_linreg(x, y)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "One point (x=13) is a large outlier: exercises the runs test's ability to find alternating residual signs among the rest despite one residual that breaks up what would otherwise be one long run."
+}

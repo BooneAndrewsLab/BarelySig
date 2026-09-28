@@ -276,19 +276,31 @@ how it got here.
   (#39: rows × columns of counts, chi-square test of independence with
   Yates' correction for 2×2, Fisher's exact test with r×c support and a
   2×2 odds ratio — graph, relative risk and "Help me choose" wiring
-  filed as #86 — note 28).
+  filed as #86 — note 28); the second Phase 2 table type, XY tables,
+  with linear regression and correlation (#38: X shared across one or
+  more Y data sets; `lm(y ~ x)` slope/intercept/CIs/R²/residuals with a
+  Wald–Wolfowitz runs test for lack of fit (independently verified
+  against CRAN's `randtests`, reference-only); Pearson r (Fisher
+  z-transform CI) and Spearman rho (R's own asymptotic fallback with
+  ties, exact deferred to #48) — graph, "Help me choose" wiring and
+  nonlinear regression filed as #87/#86/#37 — note 29).
 - **Open issues:**
   - #36 — the user's release steps (above)
+  - #37 — XY nonlinear regression (dose-response models, EC50/IC50,
+    curve library, AICc comparison) on top of the XY table type #38 built
   - #44 — real clipboard captures (needs the sibling apps)
   - #46 — engine-change comparison for reopened figures
-  - #48 — exact Spearman (deferred to Phase 2)
+  - #48 — exact Spearman with ties (deferred to Phase 2)
   - #52 — two-way comparisons with empty cells (low priority: summary-data
     entry currently requires every cell filled)
   - #72 — keep the conservative REML unmatched nested test, or switch to
     Prism's method? Needs the user's decision
   - #74 — SuperPlot over a violin with replicates joined, Phase 2
-  - #86 — Contingency tables' graph, relative risk, and "Help me choose"
-    wiring (#39's follow-up)
+  - #86 — Contingency and XY tables' graphs, relative risk, and "Help me
+    choose" wiring (#39/#38's follow-up)
+  - #87 — XY scatter graph with a fitted line and confidence/prediction
+    band (#38's follow-up; needs a continuous-axis rendering path the
+    existing categorical-axis graphs don't have)
   - comparisons for both-factors-repeated two-way ANOVA (#84's own
     follow-up, no between-subjects stratum exists there)
   - comparing repeated levels within one between-subjects group at a

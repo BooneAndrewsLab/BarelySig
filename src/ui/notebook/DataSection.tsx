@@ -90,15 +90,17 @@ export function NextSteps({
       >
         <Icon name="analyze" size={16} /> Analyze…
       </button>
-      <button
-        type="button"
-        className="pill"
-        onClick={() => {
-          addGraph(project, table);
-        }}
-      >
-        <Icon name="new-graph" size={16} /> New graph
-      </button>
+      {table.type !== 'xy' && (
+        <button
+          type="button"
+          className="pill"
+          onClick={() => {
+            addGraph(project, table);
+          }}
+        >
+          <Icon name="new-graph" size={16} /> New graph
+        </button>
+      )}
       <span className="rule" aria-hidden="true" />
       {analyzing && (
         <AnalyzeDialog

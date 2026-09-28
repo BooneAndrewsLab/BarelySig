@@ -54,7 +54,7 @@ export const EVENTS = {
   /** Once per visit: `start` (the version), `layout` (desktop/tablet). */
   app: ['start', 'layout'],
   history: ['undo', 'redo'],
-  table: ['new-column', 'new-grouped', 'new-nested', 'new-contingency'],
+  table: ['new-column', 'new-grouped', 'new-nested', 'new-contingency', 'new-xy'],
   data: ['paste', 'fill-down', 'exclude'],
   file: ['open', 'open-data', 'download'],
   analysis: [
@@ -77,6 +77,8 @@ export const EVENTS = {
     'new-paired-normality',
     'new-contingency-chi-square',
     'new-contingency-fisher',
+    'new-correlation',
+    'new-linear-regression',
     // A new analysis made from Help me choose's suggestion (item 15).
     'guided',
   ],

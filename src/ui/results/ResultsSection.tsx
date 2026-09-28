@@ -11,9 +11,14 @@ import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
 import type { ContingencyChiSquareResult } from '@/analyses/contingency-chi-square/types';
 import type { ContingencyFisherResult } from '@/analyses/contingency-fisher/types';
+import type { CorrelationResult, CorrelationSeries } from '@/analyses/correlation/types';
 import type { DescribedGroup, DescriptiveResult } from '@/analyses/descriptive/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
+import type {
+  LinearRegressionResult,
+  LinearRegressionSeries,
+} from '@/analyses/linear-regression/types';
 import type {
   DescribedReplicate,
   NestedDescriptiveResult,
@@ -49,10 +54,12 @@ import {
   COMPARISON_TEST,
   contingencyChiSquareReading,
   contingencyFisherReading,
+  correlationReading,
   friedmanMethod,
   friedmanReading,
   kruskalMethod,
   kruskalReading,
+  linearRegressionReading,
   nestedNormalityReading,
   nestedOneWayMethod,
   nestedOneWayReading,
@@ -796,6 +803,125 @@ function ContingencyFisherView({ r }: { readonly r: ContingencyFisherResult }) {
         />
       </div>
       <p className="legend">Asterisks: {STAR_SCHEME}.</p>
+    </>
+  );
+}
+
+/**
+ * Pearson or Spearman correlation of an XY table's Y data sets against
+ * its shared X (item 29, #38): one column per Y data set chosen, the
+ * same "series as columns" layout `NormalityView` uses for its groups.
+ * No CI for Spearman (design note 29): rho has none the way Pearson's
+ * Fisher z-transform gives one.
+ */
+function CorrelationView({ r }: { readonly r: CorrelationResult }) {
+  const head = ['', ...r.series.map((s) => s.title)];
+  const row = (label: string, f: (s: CorrelationSeries) => string) => [label, ...r.series.map(f)];
+  const anyRan = r.series.some((s) => s.outcome.ran);
+  const word = r.method === 'spearman' ? 'rho' : 'r';
+  return (
+    <>
+      <Headline reading={correlationReading(r)} />
+      <p className="method">
+        {r.method === 'spearman' ? 'Spearman correlation' : 'Pearson correlation'} of each Y data
+        set against X.
+      </p>
+      {anyRan && (
+        <div className="results-grid">
+          <Grid
+            label="Correlation"
+            head={head}
+            rows={[
+              row(word, (s) => (s.outcome.ran ? sig(s.outcome.r) : '—')),
+              ...(r.method === 'pearson'
+                ? [
+                    row('95% CI', (s) =>
+                      s.outcome.ran && s.outcome.lower !== null && s.outcome.upper !== null
+                        ? interval(s.outcome.lower, s.outcome.upper)
+                        : '—',
+                    ),
+                  ]
+                : []),
+              row('P value', (s) => (s.outcome.ran ? pValue(s.outcome.p) : '—')),
+              row('P value summary', (s) => (s.outcome.ran ? stars(s.outcome.p) : '—')),
+              row('Significantly correlated (P < 0.05)?', (s) =>
+                s.outcome.ran ? yesNo(s.outcome.p) : '—',
+              ),
+              row('Number of XY pairs (n)', (s) =>
+                s.outcome.ran ? sig(s.outcome.n, 0) : `${String(s.outcome.n)} (too few)`,
+              ),
+            ]}
+          />
+        </div>
+      )}
+      <p className="legend">
+        {r.method === 'spearman'
+          ? 'Spearman’s rho asks only whether Y tends to rise or fall with X, by rank — not whether the relationship is a straight line.'
+          : 'Pearson’s r assumes a straight-line relationship; it can be small even when X and Y are strongly related in a curved way.'}{' '}
+        Asterisks: {STAR_SCHEME}.
+      </p>
+    </>
+  );
+}
+
+/**
+ * Simple linear regression of an XY table's Y data sets against its
+ * shared X (item 29, #38): `lm(y ~ x)`, one column per Y data set, with
+ * the runs test for lack of fit beside it. No graph yet (design note 29's
+ * follow-up): the numbers stand on their own here.
+ */
+function LinearRegressionView({ r }: { readonly r: LinearRegressionResult }) {
+  const head = ['', ...r.series.map((s) => s.title)];
+  const row = (label: string, f: (s: LinearRegressionSeries) => string) => [
+    label,
+    ...r.series.map(f),
+  ];
+  const anyRan = r.series.some((s) => s.outcome.ran);
+  const runsWhy = (s: LinearRegressionSeries): string => {
+    if (!s.outcome.ran) return '—';
+    const t = s.outcome.runs;
+    if (t.ran) return pValue(t.p);
+    return t.why === 'same' ? 'Every residual on one side' : 'Too few residuals';
+  };
+  return (
+    <>
+      <Headline reading={linearRegressionReading(r)} />
+      <p className="method">Simple linear regression (least squares), Y on X.</p>
+      {anyRan && (
+        <div className="results-grid">
+          <Grid
+            label="Linear regression"
+            head={head}
+            rows={[
+              row('Slope', (s) => (s.outcome.ran ? sig(s.outcome.slope) : '—')),
+              row('95% CI of slope', (s) =>
+                s.outcome.ran ? interval(s.outcome.slopeLower, s.outcome.slopeUpper) : '—',
+              ),
+              row('Intercept', (s) => (s.outcome.ran ? sig(s.outcome.intercept) : '—')),
+              row('95% CI of intercept', (s) =>
+                s.outcome.ran ? interval(s.outcome.interceptLower, s.outcome.interceptUpper) : '—',
+              ),
+              row('R²', (s) => (s.outcome.ran ? sig(s.outcome.r2) : '—')),
+              row('P value (slope ≠ 0)', (s) => (s.outcome.ran ? pValue(s.outcome.p) : '—')),
+              row('P value summary', (s) => (s.outcome.ran ? stars(s.outcome.p) : '—')),
+              row('F (DFn, DFd)', (s) =>
+                s.outcome.ran
+                  ? `F (${dfText(s.outcome.dfNum)}, ${dfText(s.outcome.dfDen)}) = ${sig(s.outcome.f)}`
+                  : '—',
+              ),
+              row('Number of XY pairs (n)', (s) =>
+                s.outcome.ran ? sig(s.outcome.n, 0) : `${String(s.outcome.n)} (too few)`,
+              ),
+              row('Runs test (lack of fit), P value', runsWhy),
+            ]}
+          />
+        </div>
+      )}
+      <p className="legend">
+        The runs test asks whether the residuals (the points above and below the fitted line)
+        alternate about as often as chance would; a small runs-test P suggests the true relationship
+        curves, even when the slope’s own P value is small. Asterisks: {STAR_SCHEME}.
+      </p>
     </>
   );
 }
@@ -2398,6 +2524,12 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'contingency-fisher' && (
           <ContingencyFisherView r={value as unknown as ContingencyFisherResult} />
+        )}
+        {value !== null && analysis.kind === 'correlation' && (
+          <CorrelationView r={value as unknown as CorrelationResult} />
+        )}
+        {value !== null && analysis.kind === 'linear-regression' && (
+          <LinearRegressionView r={value as unknown as LinearRegressionResult} />
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
           <TwoWayView r={value as unknown as TwoWayResult} id={analysis.id} />

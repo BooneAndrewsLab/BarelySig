@@ -1,0 +1,21 @@
+{
+  "input": {
+    "x": [1, 2],
+    "y": [2, 4]
+  },
+  "expected": {
+    "n": 2,
+    "ran": false,
+    "why": "few",
+    "minimum": 3
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 2, ran = FALSE, why = \"few\", minimum = 3)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Two points: R's own cor.test(method = \"pearson\") errors outright ('not enough finite observations', confirmed directly against R), so the app reports why rather than crashing."
+}

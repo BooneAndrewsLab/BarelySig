@@ -26,6 +26,7 @@ import {
   createContingencyTable,
   createGroupedTable,
   createNestedTable,
+  createXyTable,
   subcolumnCount,
 } from '@/model/table';
 
@@ -118,6 +119,13 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     kind: 'contingency-fisher',
     options: DEFAULT_OPTIONS['contingency-fisher'],
   }),
+  fc.constant<AnalysisSpec>({
+    kind: 'linear-regression',
+    options: DEFAULT_OPTIONS['linear-regression'],
+  }),
+  fc
+    .record({ method: fc.constantFrom('pearson' as const, 'spearman' as const) })
+    .map((o): AnalysisSpec => ({ kind: 'correlation', options: { ...o } })),
   fc
     .record({ paired: fc.boolean(), welch: fc.boolean(), tails })
     .map((o): AnalysisSpec => ({ kind: 't-test', options: { ...o } })),
@@ -207,6 +215,12 @@ export type Shape =
       readonly k: 'contingency';
       readonly levels: number;
       readonly groups: number;
+    }
+  | {
+      readonly k: 'xy';
+      readonly groups: number;
+      readonly rows: number;
+      readonly format: EntryFormat;
     }
   | {
       readonly k: 'cells';
@@ -300,6 +314,15 @@ export const shapeArb: fc.Arbitrary<Shape> = fc.oneof(
       k: fc.constant('contingency'),
       levels: small,
       groups: small,
+    }),
+    weight: 2,
+  },
+  {
+    arbitrary: fc.record({
+      k: fc.constant('xy'),
+      groups: small,
+      rows: small,
+      format: formatArb,
     }),
     weight: 2,
   },
@@ -434,6 +457,16 @@ export function resolve(p: Project, s: Shape): Edit | null {
           title: 'X',
           rowTitles: Array.from({ length: s.levels }, (_, i) => `R${String(i)}`),
           groups: Array.from({ length: s.groups }, (_, i) => `G${String(i)}`),
+        }),
+      };
+    case 'xy':
+      return {
+        op: 'addTable',
+        table: createXyTable({
+          title: 'XY',
+          groups: Array.from({ length: s.groups }, (_, i) => `G${String(i)}`),
+          rows: s.rows,
+          format: s.format,
         }),
       };
     case 'nested': {

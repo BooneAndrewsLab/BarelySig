@@ -1,0 +1,31 @@
+{
+  "input": {
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "y": [
+      57.948999999999998, 42.813000000000002, 43.622999999999998, 43.551000000000002,
+      40.116999999999997, 39.011000000000003, 44.593000000000004, 39.932000000000002, 39.811,
+      46.759999999999998, 38.228000000000002, 46.466999999999999, 83.525999999999996,
+      34.496000000000002, 39.584000000000003
+    ]
+  },
+  "expected": {
+    "n": 15,
+    "ran": true,
+    "r": 0.050960267286424443,
+    "lower": -0.47366769622421123,
+    "upper": 0.54889419989056831,
+    "statistic": 0.18397890391250746,
+    "df": 13,
+    "p": 0.85686876475499696
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_pearson <- function(x, y) {\n        t <- cor.test(x, y, method = \"pearson\")\n        ci <- t$conf.int\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = unname(ci[1]), \n            upper = unname(ci[2]), statistic = unname(t$statistic), df = unname(t$parameter), \n            p = t$p.value)\n    }\n    run_spearman <- function(x, y) {\n        ties <- anyDuplicated(x) > 0 || anyDuplicated(y) > 0\n        exact <- !ties && length(x) < 1290\n        t <- suppressWarnings(cor.test(x, y, method = \"spearman\", exact = exact))\n        list(n = length(x), ran = TRUE, r = unname(t$estimate), lower = NA_real_, \n            upper = NA_real_, statistic = unname(t$statistic), df = NA_real_, p = t$p.value, \n            exact = exact, ties = ties)\n    }\n}",
+    "call": "run_pearson(x, y)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "One point (x=13) is a large outlier: Pearson r is sensitive to it in a way Spearman would not be -- the results text says so."
+}

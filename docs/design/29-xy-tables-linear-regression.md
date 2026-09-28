@@ -253,14 +253,24 @@ Correctness section and #38's own text:
   drop from every series)
 - unequal n between two Y data sets of the same table
 - ties in X and/or Y (Spearman's asymptotic fallback)
-- n = 2 (regression's `why: 'few'` outcome; correlation still computes,
-  since Pearson/Spearman are defined at n = 2, just with a very wide or
-  degenerate CI where R gives one)
-- zero variance in X (undefined slope: `lm` gives `NA`/`Inf` coefficients
-  — reported as "can't fit a line: every X is the same value") and in Y
-  (a valid, flat fit: slope 0, R² 0 exactly, not rounding noise per
-  CLAUDE.md's own "true value is 0" lesson — the fixture's X values are
-  distinct so R² lands on an exact, not-nearly-zero 0)
+- n = 2 (both modules report `why: 'few'`: R's own `cor.test(method =
+  "pearson")` errors outright below n = 3 — "not enough finite
+  observations" — so correlation uses the same n ≥ 3 floor for both
+  methods rather than letting Spearman run at n = 2 while Pearson can't;
+  `lm()` at n = 2 gives `NaN` standard errors/CI and an `NA` P, confirmed
+  directly against R before writing this, so regression's own `why:
+  'few'` floor matches)
+- zero variance in X (`why: 'constant-x'`: every X the same, no line to
+  fit) and an exactly constant Y (`why: 'constant-y'`: confirmed directly
+  against R first — `summary.lm()`'s R²/F/P on an exactly flat Y is
+  floating-point noise on a 0/0 ratio, not a trustworthy R² of exactly 0,
+  so this is reported in words rather than a precise-looking wrong
+  number, guarded before `lm()`'s own numbers are trusted)
+- a real, exact R² = 0 case that *isn't* the constant-Y trap above: X
+  symmetric around 0 with Y a perfect parabola (zero linear correlation
+  by construction, Y still varies) — CLAUDE.md's "a statistic whose true
+  value is 0 is rounding noise the fixture must nudge off" lesson,
+  applied to R² rather than skewness
 - an outlier (large residual; exercises the runs test's ability to still
   find alternating signs among the rest, and a case where the outlier's
   residual sign breaks up what would otherwise be one long run)

@@ -140,7 +140,19 @@ export interface ContingencyTable extends TableBase {
   readonly format: EntryFormat;
 }
 
-export type Table = ColumnTable | GroupedTable | NestedTable | ContingencyTable;
+/**
+ * X (`dataSets[0]`) and one or more Y data sets (`dataSets[1:]`), sharing
+ * rows: row *r* is one X value, with each Y data set's replicate(s) or
+ * summary at that X (item 29, #38). `format` governs the Y data sets only
+ * (any `EntryFormat`, as a Grouped table's cells); X is always pinned to
+ * `XY_X_FORMAT`, one value per row, never replicated or summarized.
+ */
+export interface XyTable extends TableBase {
+  readonly type: 'xy';
+  readonly format: EntryFormat;
+}
+
+export type Table = ColumnTable | GroupedTable | NestedTable | ContingencyTable | XyTable;
 export type TableType = Table['type'];
 
 /** How many subcolumns each data set has under a format. */
@@ -251,6 +263,38 @@ export function createContingencyTable(spec: NewContingencyTable): ContingencyTa
     dataSets: spec.groups.map((g) => emptyDataSet(newId('ds'), g, rows.length, CONTINGENCY_FORMAT)),
   };
 }
+
+/** The only legal format of an XY table's X data set (`dataSets[0]`): one value per row. */
+export const XY_X_FORMAT: EntryFormat = { kind: 'replicates', count: 1 };
+
+export interface NewXyTable {
+  readonly title: string;
+  /** The X column's title, e.g. "Time"; unit goes in `unit`/`valueTitle` (X-side) below if wanted. */
+  readonly xTitle?: string;
+  /** Y data set titles. */
+  readonly groups: readonly string[];
+  readonly rows?: number;
+  readonly format?: EntryFormat;
+}
+
+export function createXyTable(spec: NewXyTable): XyTable {
+  const format = spec.format ?? { kind: 'replicates', count: 1 };
+  const rows = newRows(spec.rows ?? 0);
+  const x = emptyDataSet(newId('ds'), spec.xTitle ?? 'X', rows.length, XY_X_FORMAT);
+  const ys = spec.groups.map((g) => emptyDataSet(newId('ds'), g, rows.length, format));
+  return {
+    id: newId('t'),
+    type: 'xy',
+    title: spec.title,
+    format,
+    rows,
+    dataSets: [x, ...ys],
+  };
+}
+
+/** Whether `dataSetId` is an XY table's X column (`dataSets[0]`), never removable/movable/excludable. */
+export const isXyX = (table: Table, dataSetId: Id): boolean =>
+  table.type === 'xy' && table.dataSets[0]?.id === dataSetId;
 
 export const findDataSet = (table: Table, id: Id): DataSet | undefined =>
   table.dataSets.find((d) => d.id === id);
