@@ -208,22 +208,121 @@ select {
   text-align: left;
 }
 
-/* --- home ------------------------------------------------------------- */
+/* --- front page ------------------------------------------------------ */
 
-.home {
-  margin: auto;
-  max-width: 720px;
-  padding: 32px;
+.app-landing {
+  display: block;
 }
 
-.home h1 {
+.app-landing .main {
+  height: 100%;
+}
+
+/* Notices float over the front page instead of taking a row of it. */
+.app-landing .status {
+  grid-area: auto;
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 6px 14px;
+  background: var(--sheet);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgb(32 30 29 / 14%);
+}
+
+.app-landing .status:empty {
+  visibility: hidden;
+}
+
+.landing-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  /* Lined up with the page's column below. */
+  padding: 0 max(24px, calc((100% - 880px) / 2 + 32px));
+  background: var(--bs-ground);
+  border-bottom: 1px solid var(--rule);
+}
+
+.home {
+  margin: 0 auto;
+  max-width: 880px;
+  padding: 0 32px 32px;
+}
+
+.hero {
+  padding: 64px 0 40px;
+}
+
+.hero-tag {
+  margin: 0 0 14px;
+  color: var(--ink-2);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.hero-star {
+  color: var(--bs-accent);
+  font-weight: 700;
+}
+
+.hero-title {
+  margin: 0 0 14px;
+  max-width: 14em;
+  font-size: clamp(30px, 4.4vw, 44px);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.hero-lead {
+  margin: 0 0 24px;
+  max-width: 36em;
+  color: var(--ink-2);
+  font-size: 16px;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hero-actions button {
+  padding: 8px 18px;
+  font-weight: 600;
+}
+
+button.outline {
+  border-color: var(--rule-strong);
+  background: var(--sheet);
+}
+
+.hero-note {
+  margin: 12px 0 0;
+  max-width: 44em;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.home .projects {
+  margin: 0 0 40px;
+}
+
+.start h2 {
   margin: 0 0 6px;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
 }
 
 .home-lead {
-  margin: 0 0 24px;
+  margin: 0 0 16px;
   color: var(--ink-2);
 }
 
@@ -268,9 +367,31 @@ select {
   font-size: 13px;
 }
 
-.home-more {
-  margin-top: 20px;
+.promises {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  margin: 48px 0 0;
+  padding: 24px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.promises li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.promises span {
   color: var(--ink-2);
+  font-size: 13px;
+}
+
+.landing-foot {
+  margin-top: 40px;
+  color: var(--ink-3);
+  font-size: 12px;
 }
 
 /* --- dialogs ---------------------------------------------------------- */

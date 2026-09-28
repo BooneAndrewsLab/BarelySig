@@ -137,7 +137,12 @@ export class Session {
   }
 
   async openStored(id: Id): Promise<void> {
-    if (this.isOpen(id)) return;
+    if (this.isOpen(id)) {
+      // Open but on the front page (its last experiment deleted): show its first one.
+      const first = project(this.appStore.getState()).order.tables[0];
+      if (first !== undefined) this.appStore.show({ kind: 'table', id: first });
+      return;
+    }
     await this.autosaver.flush();
     const saved = await this.storage.load(id);
     if (!saved) {

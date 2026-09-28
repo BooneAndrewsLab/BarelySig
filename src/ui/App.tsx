@@ -129,90 +129,23 @@ export function App() {
   };
   const table = experiment === null ? undefined : p.tables.get(experiment);
 
-  return (
-    <div className="app">
-      <Sidebar
-        project={p}
-        sheet={state.sheet}
-        experiment={table ? table.id : null}
-        onNewExperiment={() => {
-          setNewTable('column');
-        }}
-      >
-        <HomeButton />
-        <button
-          type="button"
-          title="Open a .bsig project, a figure exported from BarelySig, or a data file such as .csv or .xlsx (Ctrl+O); or drop one on the window"
-          onClick={() => fileInput.current?.click()}
-        >
-          Open…
-        </button>
-        <button
-          type="button"
-          title="Download this project as a .bsig file (Ctrl+S)"
-          onClick={() => {
-            void getSession().download();
-          }}
-        >
-          Download
-        </button>
-        {!blank && <SaveState downloaded={state.downloaded === p} />}
-        <input
-          ref={fileInput}
-          type="file"
-          accept={`.bsig,application/json,.svg,image/svg+xml,.png,image/png,${DATA_EXTENSIONS.join(',')}`}
-          hidden
-          aria-label="Open a project or data file"
-          onChange={(e) => {
-            const files = [...(e.currentTarget.files ?? [])];
-            e.currentTarget.value = '';
-            routeFiles(files, setDataFile);
-          }}
-        />
-      </Sidebar>
-      <TopBar
-        project={p.name}
-        experiment={table ? table.title : null}
-        undoLabel={store.undoLabel()}
-        redoLabel={store.redoLabel()}
-      >
-        <NotesSwitch />
-        <HelpButton />
-      </TopBar>
-      <main className="main">
-        {table ? (
-          <ExperimentPage
-            key={table.id}
-            project={p}
-            table={table}
-            sheet={state.sheet}
-            grid={
-              <DataGrid
-                key={table.id}
-                table={table}
-                onEdit={(edit) => {
-                  store.clearNotice();
-                  return store.edit(edit);
-                }}
-                onNotice={(text, tone) => {
-                  store.notify(text, tone);
-                }}
-                onSelection={setSummary}
-              />
-            }
-          />
-        ) : (
-          <Home
-            current={p.id}
-            onNewTable={setNewTable}
-            onOpenFile={() => fileInput.current?.click()}
-            onExample={() => {
-              void getSession().openExample();
-            }}
-          />
-        )}
-      </main>
-      <StatusLine notice={state.notice}>{table ? summary : null}</StatusLine>
+  const fileInputEl = (
+    <input
+      ref={fileInput}
+      type="file"
+      accept={`.bsig,application/json,.svg,image/svg+xml,.png,image/png,${DATA_EXTENSIONS.join(',')}`}
+      hidden
+      aria-label="Open a project or data file"
+      onChange={(e) => {
+        const files = [...(e.currentTarget.files ?? [])];
+        e.currentTarget.value = '';
+        routeFiles(files, setDataFile);
+      }}
+    />
+  );
+
+  const dialogs = (
+    <>
       {dropping && (
         <div className="drop-hint" aria-hidden="true">
           Drop a data file (.csv, .xlsx, …), a .bsig project or an exported figure to open it
@@ -259,6 +192,94 @@ export function App() {
           }}
         />
       )}
+    </>
+  );
+
+  if (!table) {
+    return (
+      <div className="app app-landing">
+        <main className="main">
+          <Home
+            current={blank ? p.id : null}
+            onNewTable={setNewTable}
+            onOpenFile={() => fileInput.current?.click()}
+            onExample={() => {
+              void getSession().openExample();
+            }}
+          >
+            <HelpButton />
+          </Home>
+        </main>
+        <StatusLine notice={state.notice} />
+        {fileInputEl}
+        {dialogs}
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <Sidebar
+        project={p}
+        sheet={state.sheet}
+        experiment={table.id}
+        onNewExperiment={() => {
+          setNewTable('column');
+        }}
+      >
+        <HomeButton />
+        <button
+          type="button"
+          title="Open a .bsig project, a figure exported from BarelySig, or a data file such as .csv or .xlsx (Ctrl+O); or drop one on the window"
+          onClick={() => fileInput.current?.click()}
+        >
+          Open…
+        </button>
+        <button
+          type="button"
+          title="Download this project as a .bsig file (Ctrl+S)"
+          onClick={() => {
+            void getSession().download();
+          }}
+        >
+          Download
+        </button>
+        {!blank && <SaveState downloaded={state.downloaded === p} />}
+      </Sidebar>
+      <TopBar
+        project={p.name}
+        experiment={table.title}
+        undoLabel={store.undoLabel()}
+        redoLabel={store.redoLabel()}
+      >
+        <NotesSwitch />
+        <HelpButton />
+      </TopBar>
+      <main className="main">
+        <ExperimentPage
+          key={table.id}
+          project={p}
+          table={table}
+          sheet={state.sheet}
+          grid={
+            <DataGrid
+              key={table.id}
+              table={table}
+              onEdit={(edit) => {
+                store.clearNotice();
+                return store.edit(edit);
+              }}
+              onNotice={(text, tone) => {
+                store.notify(text, tone);
+              }}
+              onSelection={setSummary}
+            />
+          }
+        />
+      </main>
+      <StatusLine notice={state.notice}>{summary}</StatusLine>
+      {fileInputEl}
+      {dialogs}
     </div>
   );
 }

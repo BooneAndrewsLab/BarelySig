@@ -211,9 +211,11 @@ describe('closing a project', () => {
 
   it('returns to the start screen, which lists it to reopen', async () => {
     render(<App />);
-    // Nothing to close yet: a no-op, still on the start screen.
-    fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    // No project is open on the front page: nothing to close, undo or name.
     expect(screen.getByRole('heading', { name: 'Start with a table' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Projects' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
+    expect(screen.queryByText('Untitled project')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Try an example' }));
     await screen.findByRole('heading', { level: 1, name: 'Cell viability (example data)' }, slow);
     fireEvent.click(screen.getByRole('button', { name: 'Projects' }));

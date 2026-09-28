@@ -1,7 +1,10 @@
+import type { ReactNode } from 'react';
+
 import type { Id } from '@/model/ids';
 import type { TableType } from '@/model/table';
 
 import { Icon } from '../Icon';
+import { Logo } from '../Logo';
 import { TABLE_TYPES } from '../formats';
 import { ProjectList } from './ProjectList';
 import { useProjects } from './recent';
@@ -11,50 +14,112 @@ interface Props {
   readonly onExample: () => void;
   /** Open… for a data file (item 10). */
   readonly onOpenFile: () => void;
-  /** The open (empty) project, left out of the list. */
-  readonly current: Id;
+  /** The open project when it is blank, left out of the list. */
+  readonly current: Id | null;
+  /** Header actions at the right (the guide), filled in by the app. */
+  readonly children?: ReactNode;
 }
 
-/** The start screen: start a project with a table, or open one kept in this browser (item 09). */
-export function Home({ onNewTable, onExample, onOpenFile, current }: Props) {
-  const projects = useProjects(current);
+const PROMISES = [
+  {
+    title: 'Numbers you can trust',
+    text: 'Every test runs in R, in your browser, and is checked against desktop R before it ships.',
+  },
+  {
+    title: 'Figures ready for the journal',
+    text: 'Bars, dots, boxes and violins with significance brackets; SVG or PNG at exact size.',
+  },
+  {
+    title: 'Your data stay here',
+    text: 'No account, no upload. Projects are kept in this browser; download a file any time.',
+  },
+];
+
+/**
+ * The front page (item 09): what BarelySig is, start a project with a
+ * table or a data file, or open one kept in this browser. No project is
+ * open here, so there is no sidebar, project name or undo.
+ */
+export function Home({ onNewTable, onExample, onOpenFile, current, children }: Props) {
+  const projects = useProjects(current ?? undefined);
   return (
-    <div className="home">
-      <h1>Start with a table</h1>
-      <p className="home-lead">
-        Pick how your data are laid out. You can paste straight from Excel once it is open.
-      </p>
-      <div className="home-types">
-        {TABLE_TYPES.map((t) => (
+    <div className="landing">
+      <header className="landing-bar">
+        <Logo height={24} />
+        <div className="bar-actions">
           <button
-            key={t.type}
             type="button"
-            className="type-tile"
-            onClick={() => {
-              onNewTable(t.type);
-            }}
+            onClick={onOpenFile}
+            title="Open a .bsig project, a figure exported from BarelySig, or a data file (Ctrl+O)"
           >
-            <Icon name={t.icon} size={40} />
-            <span className="type-name">{t.name} table</span>
-            <span className="type-blurb">{t.blurb}</span>
+            Open…
           </button>
-        ))}
+          {children}
+        </div>
+      </header>
+      <div className="home">
+        <section className="hero">
+          <p className="hero-tag">
+            No license required. Asterisks included<span className="hero-star">*</span>
+          </p>
+          <h1 className="hero-title">Statistics and graphs for the bench.</h1>
+          <p className="hero-lead">
+            Enter your data, click an analysis, get a publishable graph with its P values. Free,
+            open source, and it runs entirely in your browser.
+          </p>
+          <div className="hero-actions">
+            <button type="button" className="primary" onClick={onExample}>
+              Try an example
+            </button>
+            <button type="button" className="outline" onClick={onOpenFile}>
+              Open a data file
+            </button>
+          </div>
+          <p className="hero-note">
+            .csv, .xlsx, .xls, .ods or .txt, or drop it on the window: BarelySig works out how it is
+            laid out and shows you before making anything.
+          </p>
+        </section>
+
+        {projects !== null && projects.length > 0 && <ProjectList projects={projects} />}
+
+        <section className="start" aria-labelledby="start-title">
+          <h2 id="start-title">Start with a table</h2>
+          <p className="home-lead">
+            Pick how your data are laid out. You can paste straight from Excel once it is open.
+          </p>
+          <div className="home-types">
+            {TABLE_TYPES.map((t) => (
+              <button
+                key={t.type}
+                type="button"
+                className="type-tile"
+                onClick={() => {
+                  onNewTable(t.type);
+                }}
+              >
+                <Icon name={t.icon} size={40} />
+                <span className="type-name">{t.name} table</span>
+                <span className="type-blurb">{t.blurb}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <ul className="promises">
+          {PROMISES.map((p) => (
+            <li key={p.title}>
+              <strong>{p.title}</strong>
+              <span>{p.text}</span>
+            </li>
+          ))}
+        </ul>
+
+        <footer className="landing-foot">
+          BarelySig {__APP_VERSION__} · MIT licence · <span className="hero-star">*</span> P &lt;
+          0.05
+        </footer>
       </div>
-      <p className="home-more">
-        Data already in a file?{' '}
-        <button type="button" className="link" onClick={onOpenFile}>
-          Open a data file
-        </button>{' '}
-        (.csv, .xlsx, .xls, .ods, .txt) or drop it on the window: BarelySig works out how it is laid
-        out and shows you before making anything.
-      </p>
-      <p className="home-more">
-        <button type="button" className="link" onClick={onExample}>
-          Try an example
-        </button>{' '}
-        with made-up numbers.
-      </p>
-      {projects !== null && projects.length > 0 && <ProjectList projects={projects} />}
     </div>
   );
 }
