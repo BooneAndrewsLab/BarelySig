@@ -249,7 +249,7 @@ qPCR, plate readers).
 storage, accounts, mobile-first layouts (tablets must not break; desktop is
 the target).
 
-## Status (2026-09-27)
+## Status (2026-09-28)
 
 Session-by-session narrative lives in `docs/design/NN-*.md` (notes 01–24)
 and in git/GitHub history — this section tracks current state only, not
@@ -283,11 +283,28 @@ how it got here.
   against CRAN's `randtests`, reference-only); Pearson r (Fisher
   z-transform CI) and Spearman rho (R's own asymptotic fallback with
   ties, exact deferred to #48) — graph, "Help me choose" wiring and
-  nonlinear regression filed as #87/#86/#37 — note 29).
+  nonlinear regression filed as #87/#86/#37 — note 29); #37's first
+  slice, nonlinear regression (dose-response curve fitting: Prism's
+  "log(agonist) vs. response — Variable slope" four-parameter logistic,
+  one Y data set at a time, base R `nls()` since `drc` isn't shippable
+  to WebR, EC50/CI asymptotic, reuses the XY scatter graph's band
+  rendering with no new graph code — more models, constraints, shared
+  parameters and model comparison filed as #95–#100 — note 32).
 - **Open issues:**
   - #36 — the user's release steps (above)
-  - #37 — XY nonlinear regression (dose-response models, EC50/IC50,
-    curve library, AICc comparison) on top of the XY table type #38 built
+  - #95 — more dose-response models (log(inhibitor) vs. response,
+    standard slope, normalized, curve library)
+  - #96 — constrain nonlinear-regression parameters (fix or bound
+    Bottom, Top, HillSlope)
+  - #97 — share nonlinear-regression parameters across data sets
+    (global fit)
+  - #98 — compare nonlinear-regression models: extra sum-of-squares F
+    test and AICc
+  - #99 — profile-likelihood (asymmetric) CIs for nonlinear regression;
+    needs the user's decision on asymptotic vs. profile-likelihood as
+    the default (#37's first slice ships asymptotic only)
+  - #100 — nonlinear-regression weighting, and interpolating unknowns
+    from a standard curve
   - #44 — real clipboard captures (needs the sibling apps)
   - #46 — engine-change comparison for reopened figures
   - #48 — exact Spearman with ties (deferred to Phase 2)
