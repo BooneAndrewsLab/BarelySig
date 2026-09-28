@@ -33,3 +33,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 25 | [UI font: bundle Archivo or keep the system font?](25-ui-font.md) | #58 |
 | 26 | [Descriptive statistics of Nested tables](26-nested-descriptive.md) | #75 |
 | 27 | [Normality check for nested analyses](27-nested-normality.md) | #77 |
+| 28 | [Contingency tables](28-contingency-tables.md) | #39 |
