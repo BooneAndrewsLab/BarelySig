@@ -1,0 +1,25 @@
+{
+  "input": {
+    "dose": [-8, -7, -6, -5],
+    "y": [2, 20, 80, 98]
+  },
+  "expected": {
+    "n": 4,
+    "dropped": 0,
+    "ran": false,
+    "why": "few",
+    "minimum": 5
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 4, dropped = 0, ran = FALSE, why = \"few\", minimum = 5)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Four points for four parameters: nothing left to estimate scatter from.",
+  "options": {
+    "x": "log"
+  }
+}

@@ -62,7 +62,7 @@ export function GraphSettings({ project, graph }: Props) {
     table?.type === 'xy'
       ? project.order.analyses.flatMap((id) => {
           const a = project.analyses.get(id);
-          return a?.kind === 'linear-regression' &&
+          return (a?.kind === 'linear-regression' || a?.kind === 'nonlinear-regression') &&
             a.input.kind === 'table' &&
             a.input.table === table.id
             ? [a]
@@ -164,7 +164,9 @@ export function GraphSettings({ project, graph }: Props) {
                 ))}
               </select>
               {plot.fit && regressions.length === 0 && (
-                <span className="hint">Run a linear regression on this table to fit a line.</span>
+                <span className="hint">
+                  Run a linear regression or a dose-response curve on this table to fit one.
+                </span>
               )}
             </label>
             {plot.fit && (

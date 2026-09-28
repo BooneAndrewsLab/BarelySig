@@ -40,6 +40,7 @@ export type AnalysisSpec =
   | { readonly kind: 'contingency-fisher'; readonly options: ContingencyFisherOptions }
   | { readonly kind: 'correlation'; readonly options: CorrelationOptions }
   | { readonly kind: 'linear-regression'; readonly options: LinearRegressionOptions }
+  | { readonly kind: 'nonlinear-regression'; readonly options: NonlinearRegressionOptions }
   /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
   | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
 
@@ -103,6 +104,16 @@ export interface CorrelationOptions {
  * test for lack of fit, `lm(y ~ x)`. Nothing to choose.
  */
 export type LinearRegressionOptions = Readonly<Record<string, never>>;
+
+/**
+ * A dose-response curve fit (item 32, #37). One model so far, Prism's
+ * "log(agonist) vs. response — Variable slope"; `x` says whether the
+ * table's X is already log10(dose) (Prism's model) or a dose the fit logs.
+ */
+export interface NonlinearRegressionOptions {
+  readonly model: 'log-agonist-variable-slope';
+  readonly x: 'log' | 'concentration';
+}
 
 /** Box-plot whiskers, as Prism offers them (note 07). */
 export const WHISKERS = ['min-max', 'tukey', 'p10-90', 'p5-95', 'p2.5-97.5', 'p1-99'] as const;
@@ -329,6 +340,7 @@ export const DEFAULT_OPTIONS: {
   'contingency-fisher': {},
   correlation: { method: 'pearson' },
   'linear-regression': {},
+  'nonlinear-regression': { model: 'log-agonist-variable-slope', x: 'log' },
   'graph-summary': { whiskers: null, kde: null },
 };
 

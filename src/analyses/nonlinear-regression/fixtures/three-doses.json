@@ -1,0 +1,25 @@
+{
+  "input": {
+    "dose": [-8, -8, -7, -7, -6, -6],
+    "y": [2, 4, 48, 53, 96, 99]
+  },
+  "expected": {
+    "n": 6,
+    "dropped": 0,
+    "ran": false,
+    "why": "few_x",
+    "minimum": 4
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 6, dropped = 0, ran = FALSE, why = \"few_x\", minimum = 4)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Six points at only three doses: four parameters can't be told apart through three dose levels.",
+  "options": {
+    "x": "log"
+  }
+}

@@ -10,6 +10,10 @@ import type { ContingencyFisherResult } from '@/analyses/contingency-fisher/type
 import type { CorrelationResult } from '@/analyses/correlation/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { LinearRegressionResult } from '@/analyses/linear-regression/types';
+import type {
+  DoseResponseOutcome,
+  NonlinearRegressionResult,
+} from '@/analyses/nonlinear-regression/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
@@ -25,7 +29,7 @@ import type { RepeatedTwoWayBothResult } from '@/analyses/repeatedTwowayBoth/typ
 import type { TwoWayResult } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
-import { howOften, pPhrase, sig } from './format';
+import { howOften, interval, pPhrase, sig } from './format';
 
 export function tTestMethod(r: TTestResult): string {
   const tails = r.tails === 'two' ? 'two-tailed' : 'one-tailed';
@@ -661,4 +665,47 @@ export function linearRegressionReading(r: LinearRegressionResult): string {
     return base;
   });
   return `${joinAnd(clauses)}.`;
+}
+
+/** Why a dose-response curve couldn't be fit, in words (item 32, #37); shared with the graph. */
+export function doseResponseWhy(o: Extract<DoseResponseOutcome, { ran: false }>): string {
+  switch (o.why) {
+    case 'few':
+      return `it has too few points to fit a four-parameter curve (needs at least ${String(o.minimum ?? 5)})`;
+    case 'few-x':
+      return `it has fewer than ${String(o.minimum ?? 4)} different X values, too few doses to tell four parameters apart`;
+    case 'constant-y':
+      return 'Y never varies, so there is no curve to fit';
+    case 'no-fit':
+      return 'the fit didn’t converge — usually because the doses don’t reach both plateaus of the curve; a wider dose range, or fixing a plateau, helps';
+  }
+}
+
+/**
+ * The dose-response fit of an XY table's Y data sets (item 32, #37): each
+ * series' EC50 with its CI, and what to be careful about.
+ */
+export function nonlinearRegressionReading(r: NonlinearRegressionResult): string {
+  const clauses = r.series.map((s) => {
+    const o = s.outcome;
+    if (!o.ran) return `${s.title} couldn’t be fit: ${doseResponseWhy(o)}`;
+    const tilde = o.logEc50.ambiguous ? '~' : '';
+    const ci = o.logEc50.ambiguous
+      ? 'CI very wide'
+      : `95% CI ${interval(o.ec50Lower, o.ec50Upper)}`;
+    let text = `${s.title}’s EC50 = ${tilde}${sig(o.ec50)} (${ci}), Hill slope ${sig(o.hillSlope.value)}, R² = ${sig(o.r2)}`;
+    const vague = [o.bottom, o.top, o.logEc50, o.hillSlope].some((p) => p.ambiguous);
+    if (vague)
+      text +=
+        ' — but the fit is ambiguous: the data don’t pin down every parameter (“~”), usually because a plateau has no points on it';
+    else if (o.runs.ran && o.runs.p < 0.05)
+      text += ` — but the runs test finds the residuals run in the same direction more than chance would (${pPhrase(o.runs.p)}), so this curve shape may not fit the data`;
+    return text;
+  });
+  const dropped = r.series.reduce((n, s) => n + s.outcome.dropped, 0);
+  const note =
+    dropped > 0
+      ? ` ${String(dropped)} ${dropped === 1 ? 'point with a zero or negative dose was' : 'points with a zero or negative dose were'} left out: a log scale has no place for 0.`
+      : '';
+  return `${joinAnd(clauses)}.${note}`;
 }

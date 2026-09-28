@@ -4,11 +4,16 @@
  * error bars (a virtual descriptive analysis run by R), and the brackets
  * of the comparisons it draws.
  */
-import type { LinearRegressionResult, RegressionOutcome } from '@/analyses/linear-regression/types';
+import type {
+  LinearRegressionResult,
+  RegressionBand,
+  RegressionOutcome,
+} from '@/analyses/linear-regression/types';
+import type { NonlinearRegressionResult } from '@/analyses/nonlinear-regression/types';
 import type { GraphSummaryResult } from '@/analyses/graphsummary/types';
 import { cellId, comparisons, gives, pairsOf } from '@/analyses/pairwise';
 import { type Id, asId } from '@/model/ids';
-import type { Analysis, Graph, GraphSummaryOptions, Project } from '@/model/project';
+import type { Analysis, AnalysisKind, Graph, GraphSummaryOptions, Project } from '@/model/project';
 import type { ResultEntry } from '@/model/recompute';
 import {
   type GroupData,
@@ -20,6 +25,7 @@ import {
 import type { DataSet, Table } from '@/model/table';
 
 import { pPhrase, stars } from '@/ui/results/format';
+import { doseResponseWhy } from '@/ui/results/reading';
 
 import type { BracketInput, GroupInput } from './layout';
 import { paletteColor } from './palette';
@@ -142,7 +148,17 @@ function makeGraphInput(
     return {
       ok: true,
       summaryReady: true,
-      input: { kind: 'xy', input: xyGraphInput(table, graph, result) },
+      input: {
+        kind: 'xy',
+        input: xyGraphInput(
+          table,
+          graph,
+          result,
+          graph.analyses[0] === undefined
+            ? undefined
+            : project.analyses.get(graph.analyses[0])?.kind,
+        ),
+      },
     };
   }
   const sets = plotted(table, graph);
@@ -324,13 +340,40 @@ function regressionWhy(outcome: Extract<RegressionOutcome, { ran: false }>): str
   return `it has too few points to fit a line (needs at least ${String(outcome.minimum ?? 3)}).`;
 }
 
-/** The regression analysis result behind a graph's fitted line, or null while it isn't ready. */
-function regressionResultOf(
+/** One series' fit behind a graph's fitted line: its curve and bands, or why there is none. */
+type SeriesFit =
+  | { readonly ran: true; readonly band: RegressionBand }
+  | { readonly ran: false; readonly why: string };
+
+/**
+ * Each series' fit from the analysis behind a graph's fitted line — a
+ * linear regression (note 31) or a dose-response curve (note 32), both
+ * carrying the same band — or null while it isn't ready.
+ */
+function fitsOf(
   id: Id,
+  kind: AnalysisKind | undefined,
   result: (id: Id) => ResultEntry | undefined,
-): LinearRegressionResult | null {
+): ((series: Id) => SeriesFit | undefined) | null {
   const r = result(id);
-  return r?.ok ? (r.value as unknown as LinearRegressionResult) : null;
+  if (!r?.ok) return null;
+  if (kind === 'linear-regression') {
+    const v = r.value as unknown as LinearRegressionResult;
+    return (series) => {
+      const o = v.series.find((s) => s.id === series)?.outcome;
+      if (!o) return undefined;
+      return o.ran ? { ran: true, band: o.band } : { ran: false, why: regressionWhy(o) };
+    };
+  }
+  if (kind === 'nonlinear-regression') {
+    const v = r.value as unknown as NonlinearRegressionResult;
+    return (series) => {
+      const o = v.series.find((s) => s.id === series)?.outcome;
+      if (!o) return undefined;
+      return o.ran ? { ran: true, band: o.band } : { ran: false, why: `${doseResponseWhy(o)}.` };
+    };
+  }
+  return null;
 }
 
 /** An XY table's x-axis title; unset = the X data set's own title. */
@@ -344,6 +387,7 @@ function xyGraphInput(
   table: Table,
   graph: Graph,
   result: (id: Id) => ResultEntry | undefined,
+  fitKind: AnalysisKind | undefined,
 ): XyGraphInput {
   const plot = graph.plot;
   if (table.type !== 'xy' || plot.kind !== 'xy-scatter') {
@@ -355,15 +399,14 @@ function xyGraphInput(
     sets.map((x) => x.ds.id),
   );
   const analysisId = graph.analyses[0];
-  const regression =
-    plot.fit && analysisId !== undefined ? regressionResultOf(analysisId, result) : null;
+  const fits = plot.fit && analysisId !== undefined ? fitsOf(analysisId, fitKind, result) : null;
   const series: XySeriesInput[] = sets.map((x) => {
     const points = (dataPoints.find((d) => d.id === x.ds.id)?.points ?? []).map((p) => ({
       x: p.x,
       y: p.y,
     }));
     const color = x.ds.color ?? paletteColor(x.index);
-    const outcome = regression?.series.find((s) => s.id === x.ds.id)?.outcome;
+    const outcome = fits?.(x.ds.id);
     if (!plot.fit || !outcome) return { id: x.ds.id, title: x.ds.title, color, points };
     if (!outcome.ran) {
       return {
@@ -371,7 +414,7 @@ function xyGraphInput(
         title: x.ds.title,
         color,
         points,
-        note: `${x.ds.title}: no fitted line — ${regressionWhy(outcome)}`,
+        note: `${x.ds.title}: no fitted line — ${outcome.why}`,
       };
     }
     const { band: b } = outcome;

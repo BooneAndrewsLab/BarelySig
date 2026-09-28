@@ -25,6 +25,7 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   'contingency-fisher': 't-test',
   correlation: 'curve-fit',
   'linear-regression': 'curve-fit',
+  'nonlinear-regression': 'curve-fit',
   'graph-summary': 'bar-error',
 };
 
@@ -76,6 +77,8 @@ export function testName(spec: AnalysisSpec): string {
       return spec.options.method === 'spearman' ? 'Spearman correlation' : 'Pearson correlation';
     case 'linear-regression':
       return 'Linear regression';
+    case 'nonlinear-regression':
+      return 'Dose-response curve (variable slope)';
     case 'graph-summary':
       return 'Graph statistics';
   }

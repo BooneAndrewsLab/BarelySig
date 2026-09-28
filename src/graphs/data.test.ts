@@ -9,6 +9,7 @@ import {
   GRAPH_DEFAULTS,
   GROUPED_DEFAULT,
   NESTED_DEFAULT,
+  XY_DEFAULT,
   type Graph,
   type Project,
   createProject,
@@ -262,6 +263,87 @@ describe('plotted (item 31, #87)', () => {
       ...GRAPH_DEFAULTS,
     };
     expect(plotted(t, graph).map((x) => x.ds.id)).toEqual([t.dataSets[0]?.id, t.dataSets[1]?.id]);
+  });
+});
+
+describe('an XY graph fitted from a dose-response curve (item 32, #37)', () => {
+  function xySetup() {
+    const t = createXyTable({ title: 'Dose response', groups: ['Agonist', 'Too few'], rows: 1 });
+    const [, a, b] = t.dataSets;
+    if (!a || !b) throw new Error('unreachable');
+    let p: Project = applyEdit(createProject('P'), { op: 'addTable', table: t });
+    p = applyEdit(p, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_fit'),
+        title: 'Dose-response',
+        kind: 'nonlinear-regression',
+        options: { model: 'log-agonist-variable-slope', x: 'log' },
+        input: { kind: 'table', table: t.id, dataSets: [a.id, b.id] },
+      },
+    });
+    const graph: Graph = {
+      id: asId('g_fit'),
+      title: 'Dose response',
+      source: { kind: 'table', table: t.id },
+      analyses: [asId('a_fit')],
+      ...GRAPH_DEFAULTS,
+      plot: { ...XY_DEFAULT, fit: true, band: 'confidence' },
+    };
+    p = applyEdit(p, { op: 'addGraph', graph });
+    const band = {
+      x: [-9, -7, -5],
+      fit: [1, 50, 99],
+      confidence_lower: [0, 45, 97],
+      confidence_upper: [2, 55, 101],
+      prediction_lower: [-5, 40, 90],
+      prediction_upper: [7, 60, 108],
+    };
+    const value = {
+      logX: true,
+      warnings: [],
+      series: [
+        {
+          id: a.id,
+          title: 'Agonist',
+          outcome: {
+            ran: true,
+            band: {
+              x: band.x,
+              fit: band.fit,
+              confidenceLower: band.confidence_lower,
+              confidenceUpper: band.confidence_upper,
+              predictionLower: band.prediction_lower,
+              predictionUpper: band.prediction_upper,
+            },
+          },
+        },
+        {
+          id: b.id,
+          title: 'Too few',
+          outcome: { ran: false, n: 3, dropped: 0, why: 'few', minimum: 5 },
+        },
+      ],
+    } as unknown as Json;
+    const entry: ResultEntry = { inputHash: 'h', ok: true, value };
+    return { p, graph: p.graphs.get(graph.id) ?? graph, entry, a, b };
+  }
+
+  it('draws its curve and band, and says why a series has none', () => {
+    const { p, graph, entry, a, b } = xySetup();
+    const r = graphInput(p, graph, (id) => (id === asId('a_fit') ? entry : undefined));
+    if (!r.ok || r.input.kind !== 'xy') throw new Error('expected an XY render input');
+    const [fitted, few] = r.input.input.series;
+    expect(fitted?.id).toBe(a.id);
+    expect(fitted?.fit).toEqual([
+      { x: -9, y: 1 },
+      { x: -7, y: 50 },
+      { x: -5, y: 99 },
+    ]);
+    expect(fitted?.band?.[1]).toEqual({ x: -7, y0: 45, y1: 55 });
+    expect(few?.id).toBe(b.id);
+    expect(few?.fit).toBeUndefined();
+    expect(few?.note).toMatch(/too few points to fit a four-parameter curve/);
   });
 });
 

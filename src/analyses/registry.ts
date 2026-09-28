@@ -13,6 +13,7 @@ import { nestedNormality } from './nested-normality';
 import { nestedOneway } from './nested-oneway';
 import { nestedRepeated } from './nested-repeated';
 import { nestedTTest } from './nested-ttest';
+import { nonlinearRegression } from './nonlinear-regression';
 import { normality } from './normality';
 import { oneway } from './oneway';
 import { pairedNormality } from './paired-normality';
@@ -45,5 +46,6 @@ export const REGISTRY: Registry = {
   'contingency-fisher': contingencyFisher,
   correlation,
   'linear-regression': linearRegression,
+  'nonlinear-regression': nonlinearRegression,
   'graph-summary': graphSummary,
 };

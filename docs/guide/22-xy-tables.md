@@ -55,15 +55,48 @@ own P value looks convincing. Needs at least 3 points; with every X the
 same value, or every Y the same value, there's no line to fit and the
 results say so instead of a number.
 
-Neither analysis produces significance brackets: each is one number per Y
+### Dose-response curve
+
+Fits an S-shaped curve — Prism's "log(agonist) vs. response, variable
+slope", the four-parameter logistic — to each Y data set:
+
+- **Bottom** and **Top**: the two plateaus;
+- **EC50**: the dose giving a response halfway between them, with its 95%
+  CI (also shown as LogEC50, the value the fit actually estimates);
+- **HillSlope**: how steep the rise is — about 1 for a textbook curve,
+  negative when the response falls as the dose rises (an inhibition
+  curve fits this same model).
+
+In the settings, say what your X values are: **logs of the dose** (−9
+for 1 nM, the way Prism expects them) or **doses/concentrations**
+(1e-9). With doses, the fit uses their log, so a zero dose — usually the
+untreated control — has nowhere to go and is left out; the results say
+how many points that was.
+
+Every replicate counts as its own point; with summary data, the fit uses
+the mean at each dose. The results also give R², Sy.x and a runs test
+(as for linear regression, a small runs-test P means the points
+systematically miss the curve). The CIs are _asymptotic_ — symmetric
+around LogEC50, the kind Prism 6 and most programs report; Prism 7+ can
+also give profile-likelihood CIs, which BarelySig doesn't yet.
+
+When the fit can't be trusted, the results say so instead of giving a
+number: fewer than 5 points or 4 different doses, a Y that never varies,
+or a fit that doesn't converge — usually because the doses don't reach
+both plateaus, so there's no top (or bottom) to estimate. A value marked
+**~** (and a CI "very wide") is one the data barely pin down, Prism's
+"ambiguous"; again, usually a plateau with no points on it.
+
+To draw the curve, make an XY graph and choose this analysis under
+**Fitted line**, with an optional confidence or prediction band.
+
+None of these analyses produces significance brackets: each is one number per Y
 data set, not a pairwise comparison.
 
 ## What's not here yet
 
-There's no graph for an XY table yet — the existing bar/dot/box/violin
-graphs all use a categorical axis, and an XY scatter needs two continuous
-numeric axes, which is its own piece of work. You can still read every
-number from the results sheet. "Help me choose" also doesn't yet suggest
-these analyses — pick them directly from the **Analyze…** dialog.
-Nonlinear (dose-response) regression isn't here either: it's a separate,
-larger piece of work built on this same table type.
+"Help me choose" doesn't yet suggest these analyses — pick them directly
+from the **Analyze…** dialog. The dose-response fit has one model so far:
+no fixed or shared parameters, no comparing curves ("do these EC50s
+differ?"), no other curve shapes, weighting or interpolating unknowns
+from a standard curve yet.

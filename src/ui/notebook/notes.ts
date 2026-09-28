@@ -438,6 +438,20 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
+    case 'nonlinear-regression':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Fits an S-shaped dose-response curve to each Y data set: a bottom and a top plateau, the EC50 (the dose giving a response halfway between them) and the Hill slope (how steep the rise is; negative for a falling curve).',
+            analysis.options.x === 'concentration'
+              ? 'X is read as a dose and fitted on a log scale; a zero dose has no log, so it is left out of the fit.'
+              : 'X is read as the log of the dose (−9 for 1 nM); choose “concentrations” in the settings if you typed doses.',
+            'The CIs are asymptotic (symmetric around LogEC50). A “~” marks a value the data barely pin down, usually because a plateau has no points on it.',
+          ],
+        },
+      ];
     case 'graph-summary':
       return [];
   }

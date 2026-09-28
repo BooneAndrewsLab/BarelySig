@@ -28,6 +28,7 @@ import {
   type AnalysisSpec,
   type Comparisons,
   type CorrelationOptions,
+  type NonlinearRegressionOptions,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
   type KruskalWallisOptions,
@@ -152,6 +153,8 @@ function optionsJson(a: AnalysisSpec): Json {
       return {};
     case 'correlation':
       return { method: a.options.method };
+    case 'nonlinear-regression':
+      return { model: a.options.model, x: a.options.x };
     case 'graph-summary':
       // Never in a project: graphs' summaries are made from the graph (note 07).
       return { whiskers: a.options.whiskers, kde: a.options.kde && { ...a.options.kde } };
@@ -482,6 +485,13 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     case 'correlation': {
       const options: CorrelationOptions = {
         method: oneOf(opts['method'], q.key('method'), ['pearson', 'spearman'] as const),
+      };
+      return { kind, options };
+    }
+    case 'nonlinear-regression': {
+      const options: NonlinearRegressionOptions = {
+        model: oneOf(opts['model'], q.key('model'), ['log-agonist-variable-slope'] as const),
+        x: oneOf(opts['x'], q.key('x'), ['log', 'concentration'] as const),
       };
       return { kind, options };
     }

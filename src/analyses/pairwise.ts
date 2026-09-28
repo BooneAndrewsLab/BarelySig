@@ -151,11 +151,12 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     case 'contingency-fisher':
     case 'correlation':
     case 'linear-regression':
+    case 'nonlinear-regression':
       // No comparisons yet (design note 23's follow-up issue); both-factors-
       // repeated has no between-subjects stratum, a different problem.
       // Chi-square/Fisher give one number for the whole table (note 28);
       // correlation/regression give one number per Y data set, not per
-      // pair of them (note 29).
+      // pair of them (notes 29, 32).
       return [];
   }
 }
@@ -235,6 +236,7 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     case 'contingency-fisher':
     case 'correlation':
     case 'linear-regression':
+    case 'nonlinear-regression':
       return [];
   }
 }

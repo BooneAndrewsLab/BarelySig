@@ -93,4 +93,5 @@ export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   'contingency-fisher': '21-contingency-tables',
   correlation: '22-xy-tables',
   'linear-regression': '22-xy-tables',
+  'nonlinear-regression': '22-xy-tables',
 };

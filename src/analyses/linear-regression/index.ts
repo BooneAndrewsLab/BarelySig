@@ -20,7 +20,7 @@ import type {
 
 const list = (v: Plain | undefined): readonly Plain[] => (Array.isArray(v) ? v : []);
 
-function runsOutcome(o: PlainObject): RunsOutcome {
+export function runsOutcome(o: PlainObject): RunsOutcome {
   const why = o['why'];
   if (why === 'few' || why === 'same') {
     return {
@@ -40,7 +40,7 @@ function runsOutcome(o: PlainObject): RunsOutcome {
   };
 }
 
-function regressionBand(o: PlainObject): RegressionBand {
+export function regressionBand(o: PlainObject): RegressionBand {
   return {
     x: list(o['x']).map((v) => num(v) ?? 0),
     fit: list(o['fit']).map((v) => num(v) ?? 0),

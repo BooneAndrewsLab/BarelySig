@@ -79,6 +79,7 @@ export const EVENTS = {
     'new-contingency-fisher',
     'new-correlation',
     'new-linear-regression',
+    'new-nonlinear-regression',
     // A new analysis made from Help me choose's suggestion (item 15).
     'guided',
   ],

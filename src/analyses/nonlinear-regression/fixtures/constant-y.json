@@ -1,0 +1,24 @@
+{
+  "input": {
+    "dose": [-9, -8, -7, -6, -5, -4],
+    "y": [5, 5, 5, 5, 5, 5]
+  },
+  "expected": {
+    "n": 6,
+    "dropped": 0,
+    "ran": false,
+    "why": "constant_y"
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 6, dropped = 0, ran = FALSE, why = \"constant_y\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Y never varies: no curve to fit.",
+  "options": {
+    "x": "log"
+  }
+}

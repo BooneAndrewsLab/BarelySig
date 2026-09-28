@@ -22,6 +22,7 @@ import {
   type KruskalWallisOptions,
   type NestedComparisons,
   type NestedTTestOptions,
+  type NonlinearRegressionOptions,
   type OneWayOptions,
   type RankTestOptions,
   REPEATED_TWO_WAY_FAMILIES,
@@ -148,6 +149,13 @@ const KINDS: readonly KindInfo[] = [
     kind: 'linear-regression',
     name: 'Linear regression',
     blurb: 'Fit a straight line to X and Y, per Y data set: slope, intercept, R² and a fit check.',
+    tables: ['xy'],
+  },
+  {
+    kind: 'nonlinear-regression',
+    name: 'Dose-response curve',
+    blurb:
+      'Fit an S-shaped dose-response curve, per Y data set: EC50 with its CI, Hill slope, bottom and top.',
     tables: ['xy'],
   },
   {
@@ -469,6 +477,37 @@ function CorrelationFields(props: {
         }}
       >
         Spearman (ranks only, no shape assumed; no CI)
+      </Radio>
+    </fieldset>
+  );
+}
+
+/** How the table's X relates to dose (item 32, #37): already log10 (Prism's model), or a dose to log. */
+function DoseResponseFields(props: {
+  readonly o: NonlinearRegressionOptions;
+  readonly set: (o: NonlinearRegressionOptions) => void;
+}) {
+  const { o, set } = props;
+  return (
+    <fieldset>
+      <legend>My X values are</legend>
+      <Radio
+        name="dose-response-x"
+        checked={o.x === 'log'}
+        onPick={() => {
+          set({ ...o, x: 'log' });
+        }}
+      >
+        Logs of the dose (e.g. −9 for 1 nM)
+      </Radio>
+      <Radio
+        name="dose-response-x"
+        checked={o.x === 'concentration'}
+        onPick={() => {
+          set({ ...o, x: 'concentration' });
+        }}
+      >
+        Doses or concentrations (e.g. 1e-9); a zero dose is left out, since it has no log
       </Radio>
     </fieldset>
   );
@@ -1263,6 +1302,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return { kind, options: options.correlation };
       case 'linear-regression':
         return { kind, options: options['linear-regression'] };
+      case 'nonlinear-regression':
+        return { kind, options: options['nonlinear-regression'] };
     }
   };
 
@@ -1548,6 +1589,14 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               o={options.correlation}
               set={(o) => {
                 set('correlation', o);
+              }}
+            />
+          )}
+          {kind === 'nonlinear-regression' && (
+            <DoseResponseFields
+              o={options['nonlinear-regression']}
+              set={(o) => {
+                set('nonlinear-regression', o);
               }}
             />
           )}

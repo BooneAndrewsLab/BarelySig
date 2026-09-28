@@ -23,6 +23,11 @@ import type {
   DescribedReplicate,
   NestedDescriptiveResult,
 } from '@/analyses/nested-descriptive/types';
+import type {
+  FitParameter,
+  NonlinearRegressionResult,
+  NonlinearRegressionSeries,
+} from '@/analyses/nonlinear-regression/types';
 import type { NestedNormalityResult } from '@/analyses/nested-normality/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
@@ -61,6 +66,7 @@ import {
   kruskalReading,
   linearRegressionReading,
   nestedNormalityReading,
+  nonlinearRegressionReading,
   nestedOneWayMethod,
   nestedOneWayReading,
   nestedRepeatedMethod,
@@ -921,6 +927,106 @@ function LinearRegressionView({ r }: { readonly r: LinearRegressionResult }) {
         The runs test asks whether the residuals (the points above and below the fitted line)
         alternate about as often as chance would; a small runs-test P suggests the true relationship
         curves, even when the slope’s own P value is small. Asterisks: {STAR_SCHEME}.
+      </p>
+    </>
+  );
+}
+
+/**
+ * The dose-response fit of an XY table's Y data sets (item 32, #37): one
+ * column per Y data set, Prism's "Best-fit values / 95% CI / Goodness of
+ * fit" layout. An ambiguous parameter (dependency > 0.9999) shows as
+ * Prism does: "~" before the value, CI "very wide".
+ */
+function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult }) {
+  const head = ['', ...r.series.map((s) => s.title)];
+  type Fit = Extract<NonlinearRegressionSeries['outcome'], { ran: true }>;
+  const row = (label: string, f: (o: Fit) => string) => [
+    label,
+    ...r.series.map((s) => (s.outcome.ran ? f(s.outcome) : '—')),
+  ];
+  const value = (p: FitParameter) => `${p.ambiguous ? '~' : ''}${sig(p.value)}`;
+  const ci = (p: FitParameter) => (p.ambiguous ? 'very wide' : interval(p.lower, p.upper));
+  const anyRan = r.series.some((s) => s.outcome.ran);
+  const runs = (o: Fit): string => {
+    const t = o.runs;
+    if (t.ran) return pValue(t.p);
+    return t.why === 'same' ? 'Every residual on one side' : 'Too few residuals';
+  };
+  return (
+    <>
+      <Headline reading={nonlinearRegressionReading(r)} />
+      <p className="method">
+        Nonlinear regression (least squares): log(agonist) vs. response, variable slope (four
+        parameters), Y = Bottom + (Top − Bottom) / (1 + 10^((LogEC50 − X) × HillSlope)).{' '}
+        {r.logX
+          ? 'X is the log of the dose.'
+          : 'X is a dose, fitted on a log scale (log₁₀); a zero or negative dose is left out.'}{' '}
+        Asymptotic 95% CIs; no weighting; each replicate is its own point.
+      </p>
+      {anyRan && (
+        <div className="results-grid">
+          <Grid
+            label="Best-fit values"
+            head={head}
+            rows={[
+              row('Bottom', (o) => value(o.bottom)),
+              row('Top', (o) => value(o.top)),
+              row('LogEC50', (o) => value(o.logEc50)),
+              row('HillSlope', (o) => value(o.hillSlope)),
+              row('EC50', (o) => `${o.logEc50.ambiguous ? '~' : ''}${sig(o.ec50)}`),
+              row('Span (Top − Bottom)', (o) => sig(o.top.value - o.bottom.value)),
+            ]}
+          />
+          <Grid
+            label="Standard errors"
+            head={head}
+            rows={[
+              row('Bottom', (o) => `${o.bottom.ambiguous ? '~' : ''}${sig(o.bottom.se)}`),
+              row('Top', (o) => `${o.top.ambiguous ? '~' : ''}${sig(o.top.se)}`),
+              row('LogEC50', (o) => `${o.logEc50.ambiguous ? '~' : ''}${sig(o.logEc50.se)}`),
+              row('HillSlope', (o) => `${o.hillSlope.ambiguous ? '~' : ''}${sig(o.hillSlope.se)}`),
+            ]}
+          />
+          <Grid
+            label="95% CI (asymptotic)"
+            head={head}
+            rows={[
+              row('Bottom', (o) => ci(o.bottom)),
+              row('Top', (o) => ci(o.top)),
+              row('LogEC50', (o) => ci(o.logEc50)),
+              row('HillSlope', (o) => ci(o.hillSlope)),
+              row('EC50', (o) =>
+                o.logEc50.ambiguous ? 'very wide' : interval(o.ec50Lower, o.ec50Upper),
+              ),
+            ]}
+          />
+          <Grid
+            label="Goodness of fit"
+            head={head}
+            rows={[
+              row('Degrees of freedom', (o) => sig(o.df, 0)),
+              row('R squared', (o) => sig(o.r2)),
+              row('Sum of squares', (o) => sig(o.ss)),
+              row('Sy.x', (o) => sig(o.syx)),
+              row('Runs test (lack of fit), P value', runs),
+              [
+                'Number of points analyzed',
+                ...r.series.map((s) =>
+                  s.outcome.ran
+                    ? sig(s.outcome.n, 0)
+                    : `${String(s.outcome.n)} (${s.outcome.why === 'no-fit' ? 'didn’t converge' : 'too few'})`,
+                ),
+              ],
+            ]}
+          />
+        </div>
+      )}
+      <p className="legend">
+        EC50 is the dose giving a response halfway between Bottom and Top; its CI is 10 to the power
+        of LogEC50’s, so it isn’t symmetric around EC50. A nonlinear fit’s R² is not a test of the
+        curve: a small runs-test P says the points systematically miss the curve. “~” marks a value
+        the data barely pin down (dependency above 0.9999).
       </p>
     </>
   );
@@ -2502,6 +2608,9 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'linear-regression' && (
           <LinearRegressionView r={value as unknown as LinearRegressionResult} />
+        )}
+        {value !== null && analysis.kind === 'nonlinear-regression' && (
+          <NonlinearRegressionView r={value as unknown as NonlinearRegressionResult} />
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
           <TwoWayView r={value as unknown as TwoWayResult} id={analysis.id} />

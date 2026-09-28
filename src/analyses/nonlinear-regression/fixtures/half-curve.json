@@ -1,0 +1,38 @@
+{
+  "input": {
+    "dose": [
+      -9, -8.6999999999999993, -8.4000000000000004, -8.0999999999999996, -7.7999999999999998, -7.5,
+      -7.2000000000000002, -6.9000000000000004, -6.5999999999999996, -6.2999999999999998, -6
+    ],
+    "y": [
+      2.5129999999999999, 1.7170000000000001, 1.3859999999999999, 5.1289999999999996,
+      3.2989999999999999, 5.7469999999999999, 4.7809999999999997, 5.4269999999999996,
+      11.595000000000001, 15.920999999999999, 25.989000000000001
+    ]
+  },
+  "expected": {
+    "n": 11,
+    "dropped": 0,
+    "ran": false,
+    "why": "no_fit"
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    ref_curve <- function(x, p) p[1] + (p[2] - p[1])/(1 + 10^((p[3] - x) * p[4]))\n    ref_jacobian <- function(x, p) {\n        sapply(1:4, function(j) {\n            h <- 1e-04\n            at <- function(k) {\n                q <- p\n                q[j] <- p[j] + k * h\n                ref_curve(x, q)\n            }\n            (at(-2) - 8 * at(-1) + 8 * at(1) - at(2))/(12 * h)\n        })\n    }\n    ref_runs <- function(s) {\n        n1 <- sum(s > 0)\n        n2 <- sum(s < 0)\n        r <- 1 + sum(s[-1] != s[-length(s)])\n        m <- 2 * n1 * n2/(n1 + n2) + 1\n        v <- (m - 1) * (m - 2)/(n1 + n2 - 1)\n        z <- (r - m)/sqrt(v)\n        list(ran = TRUE, n_runs = r, n_pos = n1, n_neg = n2, z = z, p = 2 * pnorm(-abs(z)))\n    }\n    ref_optimum <- function(x, y, start = NULL) {\n        best <- c(Inf, NA, NA, NA, NA)\n        if (!is.null(start)) \n            best <- c(0, start)\n        if (is.null(start)) \n            for (l in seq(min(x), max(x), length.out = 41)) {\n                for (h in c(-seq(0.1, 5, by = 0.05), seq(0.1, 5, by = 0.05))) {\n                  f <- 1/(1 + 10^((l - x) * h))\n                  X <- cbind(1 - f, f)\n                  co <- qr.coef(qr(X), y)\n                  if (any(!is.finite(co))) \n                    next\n                  rss <- sum((y - X %*% co)^2)\n                  if (rss < best[1]) \n                    best <- c(rss, co, l, h)\n                }\n            }\n        p <- unname(best[2:5])\n        rss <- function(p) sum((y - ref_curve(x, p))^2)\n        lambda <- 0.001\n        for (it in 1:1000) {\n            J <- ref_jacobian(x, p)\n            A <- crossprod(J)\n            step <- unname(drop(solve(A + lambda * diag(diag(A)), crossprod(J, y - \n                ref_curve(x, p)))))\n            if (rss(p + step) <= rss(p)) {\n                p <- p + step\n                lambda <- lambda/10\n            }\n            else {\n                lambda <- lambda * 10\n            }\n            if (max(abs(step)/pmax(abs(p), 1e-08)) < 1e-14 || lambda > 1e+12) \n                break\n        }\n        for (it in 1:5) {\n            J <- ref_jacobian(x, p)\n            p <- p + unname(drop(qr.coef(qr(J), y - ref_curve(x, p))))\n        }\n        if (p[1] > p[2]) \n            p <- c(p[2], p[1], p[3], -p[4])\n        p\n    }\n    ref_param <- function(value, se, t, dependency) {\n        list(value = value, se = se, lower = value - t * se, upper = value + t * \n            se, dependency = dependency, ambiguous = dependency > 0.9999)\n    }\n    run_fpl <- function(dose, y, log_x = TRUE) {\n        dropped <- if (log_x) \n            0\n        else sum(dose <= 0)\n        if (!log_x) {\n            y <- y[dose > 0]\n            dose <- dose[dose > 0]\n        }\n        x <- if (log_x) \n            dose\n        else log10(dose)\n        back <- if (log_x) \n            function(v) v\n        else function(v) 10^v\n        n <- length(x)\n        p <- ref_optimum(x, y)\n        J <- ref_jacobian(x, p)\n        A <- crossprod(J)\n        Ainv <- solve(A)\n        fitted <- ref_curve(x, p)\n        resid <- y - fitted\n        df <- n - 4\n        ss <- sum(resid^2)\n        s2 <- ss/df\n        se <- sqrt(s2 * diag(Ainv))\n        dependency <- 1 - 1/(diag(A) * diag(Ainv))\n        t <- qt(0.975, df)\n        ord <- order(x)\n        signs <- sign(resid[ord])\n        grid <- seq(min(x), max(x), length.out = 100)\n        G <- ref_jacobian(grid, p)\n        var_fit <- vapply(seq_along(grid), function(i) drop(G[i, ] %*% Ainv %*% G[i, \n            ]), 0) * s2\n        fit_grid <- ref_curve(grid, p)\n        list(n = n, dropped = dropped, ran = TRUE, bottom = ref_param(p[1], se[1], \n            t, dependency[1]), top = ref_param(p[2], se[2], t, dependency[2]), logec50 = ref_param(p[3], \n            se[3], t, dependency[3]), hill = ref_param(p[4], se[4], t, dependency[4]), \n            ec50 = 10^p[3], ec50_lower = 10^(p[3] - t * se[3]), ec50_upper = 10^(p[3] + \n                t * se[3]), df = df, ss = ss, syx = sqrt(s2), r2 = 1 - ss/sum((y - \n                mean(y))^2), x = back(x[ord]), y = y[ord], fitted = fitted[ord], \n            residual = resid[ord], runs = ref_runs(signs[signs != 0]), band = list(x = back(grid), \n                fit = fit_grid, confidence_lower = fit_grid - t * sqrt(var_fit), \n                confidence_upper = fit_grid + t * sqrt(var_fit), prediction_lower = fit_grid - \n                  t * sqrt(var_fit + s2), prediction_upper = fit_grid + t * sqrt(var_fit + \n                  s2)))\n    }\n}",
+    "call": "list(n = 11, dropped = 0, ran = FALSE, why = \"no_fit\")",
+    "checked": {
+      "packages": {
+        "stats": "4.6.0"
+      },
+      "code": "{\n    p <- tryCatch(ref_optimum(dose, y), error = function(e) NA)\n    any(!is.finite(p)) || abs(p[2] - p[1]) > 10 * diff(range(y))\n}"
+    }
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Doses that only reach the start of the rise: the data define no top plateau, the least-squares curve runs off to an unbounded Top, and the app reports that it could not fit rather than a number.",
+  "options": {
+    "x": "log"
+  }
+}
