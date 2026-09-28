@@ -19,6 +19,7 @@ import {
   createColumnTable,
   createGroupedTable,
   createNestedTable,
+  createXyTable,
   newRows,
 } from '@/model/table';
 
@@ -27,6 +28,7 @@ import {
   bracketChoices,
   graphInput,
   graphOfSummary,
+  plotted,
   summaryAnalysis,
   summaryId,
   withBracket,
@@ -234,6 +236,32 @@ describe('graph data', () => {
     ]);
     const back = readBsig(writeBsig({ project: p, results, engine: null, app: '0.5.0' }));
     expect([...back.results.keys()]).toEqual([summaryId(graph.id)]);
+  });
+});
+
+describe('plotted (item 31, #87)', () => {
+  it('excludes an XY table X column from a graph that plots "all" data sets', () => {
+    const t = createXyTable({ title: 'Dose response', groups: ['Y1', 'Y2'] });
+    const graph: Graph = {
+      id: asId('g_xy'),
+      title: 'Dose response',
+      source: { kind: 'table', table: t.id },
+      analyses: [],
+      ...GRAPH_DEFAULTS,
+    };
+    expect(plotted(t, graph).map((x) => x.ds.id)).toEqual([t.dataSets[1]?.id, t.dataSets[2]?.id]);
+  });
+
+  it('still plots every data set of a Column table (no X column to exclude)', () => {
+    const t = createColumnTable({ title: 'Viability', groups: ['WT', 'KO'], rows: 1 });
+    const graph: Graph = {
+      id: asId('g_col'),
+      title: 'Viability',
+      source: { kind: 'table', table: t.id },
+      analyses: [],
+      ...GRAPH_DEFAULTS,
+    };
+    expect(plotted(t, graph).map((x) => x.ds.id)).toEqual([t.dataSets[0]?.id, t.dataSets[1]?.id]);
   });
 });
 

@@ -46,7 +46,10 @@ export function plotted(
   graph: Graph,
 ): { readonly ds: DataSet; readonly index: number }[] {
   const all = table.dataSets.map((ds, index) => ({ ds, index }));
-  if (graph.dataSets === null) return all;
+  if (graph.dataSets === null) {
+    // An XY table's first data set is the shared X column, never a Y series (item 31, #87).
+    return table.type === 'xy' ? all.slice(1) : all;
+  }
   return graph.dataSets.flatMap((id) => all.filter((x) => x.ds.id === id));
 }
 
