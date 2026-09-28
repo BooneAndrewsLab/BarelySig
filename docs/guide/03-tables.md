@@ -1,4 +1,4 @@
-# Column, Grouped and Nested tables
+# Column, Grouped, Nested and Contingency tables
 
 When you create a table you choose its kind. The kind fixes how the data
 are laid out, which analyses are offered and which graphs can be drawn.
@@ -49,6 +49,15 @@ dishes), and each row within a replicate is one individual measurement
 for when to use one, what the nested tests report, and the SuperPlot
 graph. A Nested table always holds individual values; there is no
 summary-data format for it.
+
+## Contingency tables
+
+Counts, not measurements: each row is one level of a category, each
+column another, and each cell is how many observations fell into that
+row and column together. See
+[Contingency tables, the chi-square test and Fisher's exact test](21-contingency-tables.md)
+for when to use one and what the two tests report. A Contingency table
+always holds counts; there is no summary-data format for it.
 
 ## Summary data
 

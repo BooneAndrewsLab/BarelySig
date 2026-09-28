@@ -1,0 +1,24 @@
+{
+  "input": {
+    "drug": [1, 9],
+    "placebo": [6, 4]
+  },
+  "expected": {
+    "chi_sq": 3.5164835164835164,
+    "df": 1,
+    "p": 0.06076123666389787,
+    "corrected": true,
+    "low_expected": true,
+    "n": 20
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_chisq <- function(m) {\n        t <- chisq.test(m, correct = TRUE)\n        list(chi_sq = unname(t$statistic), df = unname(t$parameter), p = t$p.value, \n            corrected = isTRUE(nrow(m) == 2 && ncol(m) == 2), low_expected = any(t$expected < \n                5), n = sum(m))\n    }\n}",
+    "call": "run_chisq(cbind(drug, placebo))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Small counts with an expected count under 5: chi-square's own low_expected flag (and R's approximation warning) should surface here -- the case the issue calls out as where Fisher's exact is preferable."
+}

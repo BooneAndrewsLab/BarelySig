@@ -581,6 +581,9 @@ function setFormat(table: Table, format: EntryFormat): Table {
   if (table.type === 'nested' && format.kind === 'summary') {
     throw new EditError('A Nested table needs individual values, not summary data.');
   }
+  if (table.type === 'contingency' && (format.kind !== 'replicates' || format.count !== 1)) {
+    throw new EditError('A Contingency table has one count per cell.');
+  }
   let rows = table.rows;
   if (table.type === 'column' && format.kind === 'summary') {
     rows = rows.length > 0 ? rows.slice(0, 1) : [{ id: newId('r'), title: null }];

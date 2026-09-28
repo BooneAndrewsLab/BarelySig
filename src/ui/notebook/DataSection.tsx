@@ -36,21 +36,23 @@ export function DataSection({ table, project, note, children }: Props) {
         </span>
       }
       actions={
-        <button
-          type="button"
-          onClick={() => {
-            setFormatting(true);
-          }}
-        >
-          Change data format…
-        </button>
+        table.type === 'contingency' ? undefined : (
+          <button
+            type="button"
+            onClick={() => {
+              setFormatting(true);
+            }}
+          >
+            Change data format…
+          </button>
+        )
       }
       note={note}
     >
       <div className="grid-box" style={{ height: `${String(gridHeight(table))}px` }}>
         {children}
       </div>
-      {formatting && (
+      {formatting && table.type !== 'contingency' && (
         <FormatDialog
           project={project}
           table={table}

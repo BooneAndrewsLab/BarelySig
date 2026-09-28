@@ -21,6 +21,8 @@ export const KIND_ICON: Readonly<Record<AnalysisKind, IconName>> = {
   normality: 'descriptive-stats',
   'nested-normality': 'descriptive-stats',
   'paired-normality': 'descriptive-stats',
+  'contingency-chi-square': 't-test',
+  'contingency-fisher': 't-test',
   'graph-summary': 'bar-error',
 };
 
@@ -64,6 +66,10 @@ export function testName(spec: AnalysisSpec): string {
       return 'Normality tests';
     case 'paired-normality':
       return 'Normality of the differences';
+    case 'contingency-chi-square':
+      return 'Chi-square test';
+    case 'contingency-fisher':
+      return 'Fisher’s exact test';
     case 'graph-summary':
       return 'Graph statistics';
   }

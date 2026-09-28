@@ -1,4 +1,6 @@
 /** Every analysis module, by kind (item 04). */
+import { contingencyChiSquare } from './contingency-chi-square';
+import { contingencyFisher } from './contingency-fisher';
 import { descriptive } from './descriptive';
 import { friedman } from './friedman';
 import { graphSummary } from './graphsummary';
@@ -37,5 +39,7 @@ export const REGISTRY: Registry = {
   normality,
   'nested-normality': nestedNormality,
   'paired-normality': pairedNormality,
+  'contingency-chi-square': contingencyChiSquare,
+  'contingency-fisher': contingencyFisher,
   'graph-summary': graphSummary,
 };

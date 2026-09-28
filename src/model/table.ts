@@ -128,7 +128,19 @@ export interface NestedTable extends TableBase {
   readonly replicateTitles?: readonly (string | null)[];
 }
 
-export type Table = ColumnTable | GroupedTable | NestedTable;
+/**
+ * Rows × columns of counts (item 28, #39): each row a row-factor level,
+ * each data set a column-factor level, one subcolumn (the count) per
+ * cell — structurally a Grouped table pinned to one value per cell.
+ * For the chi-square test of independence and Fisher's exact test.
+ */
+export interface ContingencyTable extends TableBase {
+  readonly type: 'contingency';
+  /** Always `{kind:'replicates', count:1}`: one count per row × column cell. */
+  readonly format: EntryFormat;
+}
+
+export type Table = ColumnTable | GroupedTable | NestedTable | ContingencyTable;
 export type TableType = Table['type'];
 
 /** How many subcolumns each data set has under a format. */
@@ -214,6 +226,29 @@ export function createNestedTable(spec: NewNestedTable): NestedTable {
     rows,
     dataSets: spec.groups.map((g) => emptyDataSet(newId('ds'), g, rows.length, format)),
     ...(spec.replicateTitles ? { replicateTitles: spec.replicateTitles } : {}),
+  };
+}
+
+/** The only legal format of a Contingency table: one count per cell. */
+export const CONTINGENCY_FORMAT: EntryFormat = { kind: 'replicates', count: 1 };
+
+export interface NewContingencyTable {
+  readonly title: string;
+  /** The row factor's levels, e.g. "Responded", "Did not respond". */
+  readonly rowTitles: readonly string[];
+  /** The column factor's levels, e.g. "Drug", "Placebo". */
+  readonly groups: readonly string[];
+}
+
+export function createContingencyTable(spec: NewContingencyTable): ContingencyTable {
+  const rows = newRows(spec.rowTitles.length, spec.rowTitles);
+  return {
+    id: newId('t'),
+    type: 'contingency',
+    title: spec.title,
+    format: CONTINGENCY_FORMAT,
+    rows,
+    dataSets: spec.groups.map((g) => emptyDataSet(newId('ds'), g, rows.length, CONTINGENCY_FORMAT)),
   };
 }
 

@@ -36,6 +36,8 @@ export type AnalysisSpec =
   | { readonly kind: 'normality'; readonly options: NormalityOptions }
   | { readonly kind: 'nested-normality'; readonly options: NestedNormalityOptions }
   | { readonly kind: 'paired-normality'; readonly options: PairedNormalityOptions }
+  | { readonly kind: 'contingency-chi-square'; readonly options: ContingencyChiSquareOptions }
+  | { readonly kind: 'contingency-fisher'; readonly options: ContingencyFisherOptions }
   /** Internal: a graph's statistics (note 07), never listed or saved as an analysis. */
   | { readonly kind: 'graph-summary'; readonly options: GraphSummaryOptions };
 
@@ -67,6 +69,20 @@ export type NestedNormalityOptions = Readonly<Record<string, never>>;
  * differences are Gaussian, not the groups themselves. Nothing to choose.
  */
 export type PairedNormalityOptions = Readonly<Record<string, never>>;
+
+/**
+ * Chi-square test of independence on a Contingency table (item 28, #39):
+ * `chisq.test(m, correct = TRUE)`, Prism's default (Yates' continuity
+ * correction, which R applies only to a 2×2 table). Nothing to choose.
+ */
+export type ContingencyChiSquareOptions = Readonly<Record<string, never>>;
+
+/**
+ * Fisher's exact test on a Contingency table (item 28, #39):
+ * `fisher.test(m)`, two-tailed, any r×c size R's own function handles.
+ * Nothing to choose.
+ */
+export type ContingencyFisherOptions = Readonly<Record<string, never>>;
 
 /** Box-plot whiskers, as Prism offers them (note 07). */
 export const WHISKERS = ['min-max', 'tukey', 'p10-90', 'p5-95', 'p2.5-97.5', 'p1-99'] as const;
@@ -289,6 +305,8 @@ export const DEFAULT_OPTIONS: {
   normality: {},
   'nested-normality': {},
   'paired-normality': {},
+  'contingency-chi-square': {},
+  'contingency-fisher': {},
   'graph-summary': { whiskers: null, kde: null },
 };
 

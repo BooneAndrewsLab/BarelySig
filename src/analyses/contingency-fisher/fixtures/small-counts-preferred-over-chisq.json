@@ -1,0 +1,23 @@
+{
+  "input": {
+    "drug": [1, 9],
+    "placebo": [6, 4]
+  },
+  "expected": {
+    "p": 0.057275541795665671,
+    "n": 20,
+    "odds_ratio": 0.085935042953867183,
+    "or_lower": 0.0014610835367764798,
+    "or_upper": 1.053975989119883
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_fisher <- function(m) {\n        t <- fisher.test(m)\n        list(p = t$p.value, n = sum(m), odds_ratio = if (is.null(t$estimate)) NA_real_ else unname(t$estimate), \n            or_lower = if (is.null(t$conf.int)) NA_real_ else t$conf.int[1], or_upper = if (is.null(t$conf.int)) NA_real_ else t$conf.int[2])\n    }\n}",
+    "call": "run_fisher(cbind(drug, placebo))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "The same small-count table as contingency-chi-square's low-expected-count fixture: the case the issue calls out as where Fisher's exact is the right choice instead."
+}

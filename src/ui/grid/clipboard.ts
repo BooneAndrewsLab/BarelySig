@@ -143,7 +143,7 @@ export function pasteInto(
 ): PasteResult {
   let cells = clipboardCells(clip);
   const dec = detectDecimal(cells, fallback);
-  const grouped = table.type === 'grouped';
+  const grouped = table.type === 'grouped' || table.type === 'contingency';
   let origin = at;
   let headerRow = false;
   let rowTitleColumn = false;

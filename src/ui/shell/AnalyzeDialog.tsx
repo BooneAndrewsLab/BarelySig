@@ -124,6 +124,20 @@ const KINDS: readonly KindInfo[] = [
     tables: ['nested'],
   },
   {
+    kind: 'contingency-chi-square',
+    name: 'Chi-square test',
+    blurb:
+      'Test whether the row and column categories are associated (Yates’ correction for a 2×2 table).',
+    tables: ['contingency'],
+  },
+  {
+    kind: 'contingency-fisher',
+    name: 'Fisher’s exact test',
+    blurb:
+      'The exact version of the same question, best for small counts or a table chi-square shouldn’t be trusted on.',
+    tables: ['contingency'],
+  },
+  {
     kind: 'rank-test',
     name: 'Mann-Whitney / Wilcoxon',
     blurb: 'Compare two groups by ranks, without assuming a bell-shaped distribution.',
@@ -1195,6 +1209,10 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
         return { kind, options: options['repeated-two-way-anova'] };
       case 'repeated-two-way-anova-both':
         return { kind, options: options['repeated-two-way-anova-both'] };
+      case 'contingency-chi-square':
+        return { kind, options: options['contingency-chi-square'] };
+      case 'contingency-fisher':
+        return { kind, options: options['contingency-fisher'] };
     }
   };
 
@@ -1324,7 +1342,7 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             <legend>
               {groups === 2
                 ? 'Which two groups?'
-                : table.type === 'grouped'
+                : table.type === 'grouped' || table.type === 'contingency'
                   ? 'Which data sets (columns)?'
                   : 'Which groups?'}
             </legend>

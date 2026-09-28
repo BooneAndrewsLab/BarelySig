@@ -25,6 +25,16 @@ export function EntryFields({
 }: Props) {
   const setEntry = onEntry;
   const setReplicates = onReplicates;
+  if (type === 'contingency') {
+    return (
+      <fieldset>
+        <legend>{legend}</legend>
+        <p className="hint flush">
+          One count per cell — how many observations fall in each row × column combination.
+        </p>
+      </fieldset>
+    );
+  }
   if (type === 'nested') {
     return (
       <fieldset>

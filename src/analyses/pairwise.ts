@@ -147,8 +147,11 @@ export function pairsOf(analysis: Analysis, project?: Project): readonly Pair[] 
     case 'paired-normality':
     case 'graph-summary':
     case 'repeated-two-way-anova-both':
+    case 'contingency-chi-square':
+    case 'contingency-fisher':
       // No comparisons yet (design note 23's follow-up issue); both-factors-
       // repeated has no between-subjects stratum, a different problem.
+      // Chi-square/Fisher give one number for the whole table (note 28).
       return [];
   }
 }
@@ -224,6 +227,8 @@ export function comparisons(analysis: Analysis, value: Json): readonly Compariso
     case 'paired-normality':
     case 'graph-summary':
     case 'repeated-two-way-anova-both':
+    case 'contingency-chi-square':
+    case 'contingency-fisher':
       return [];
   }
 }

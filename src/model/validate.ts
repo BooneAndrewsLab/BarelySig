@@ -27,12 +27,19 @@ export function validateTable(table: Table): string[] {
         `${where}: a Column table has one replicate subcolumn, not ${String(format.count)}`,
       );
     }
+    if (table.type === 'contingency' && format.count !== 1) {
+      problems.push(
+        `${where}: a Contingency table has one count per cell, not ${String(format.count)}`,
+      );
+    }
   } else if (table.type === 'column' && table.rows.length !== 1) {
     problems.push(
       `${where}: a Column table of summary data has one row, not ${String(table.rows.length)}`,
     );
   } else if (table.type === 'nested') {
     problems.push(`${where}: a Nested table needs individual values, not summary data`);
+  } else if (table.type === 'contingency') {
+    problems.push(`${where}: a Contingency table has one count per cell, not summary data`);
   }
 
   if (table.type === 'nested' && table.replicateTitles !== undefined) {
@@ -72,6 +79,9 @@ export function validateTable(table: Table): string[] {
             `${at}: cell ${String(s)}:${String(r)} is ${String(c)}, not a finite number or empty`,
           );
         }
+        // A negative or fractional count is nonsensical, the same way a negative SD is
+        // (this file's own scope note): not a structural invariant, refused in plain
+        // language by contingency-chi-square/contingency-fisher's own prepare().
       });
     });
     for (const key of ds.excluded) {

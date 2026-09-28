@@ -1,0 +1,23 @@
+{
+  "input": {
+    "drug": [0, 15],
+    "placebo": [6, 9]
+  },
+  "expected": {
+    "p": 0.016858237547892705,
+    "n": 30,
+    "odds_ratio": 0,
+    "or_lower": 0,
+    "or_upper": 0.67403427908869973
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_fisher <- function(m) {\n        t <- fisher.test(m)\n        list(p = t$p.value, n = sum(m), odds_ratio = if (is.null(t$estimate)) NA_real_ else unname(t$estimate), \n            or_lower = if (is.null(t$conf.int)) NA_real_ else t$conf.int[1], or_upper = if (is.null(t$conf.int)) NA_real_ else t$conf.int[2])\n    }\n}",
+    "call": "run_fisher(cbind(drug, placebo))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "One cell is 0: a legitimate count, and fisher.test must still run and give a real odds ratio."
+}

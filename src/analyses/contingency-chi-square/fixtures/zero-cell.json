@@ -1,0 +1,24 @@
+{
+  "input": {
+    "drug": [0, 15],
+    "placebo": [6, 9]
+  },
+  "expected": {
+    "chi_sq": 5.2083333333333339,
+    "df": 1,
+    "p": 0.022478873366125231,
+    "corrected": true,
+    "low_expected": true,
+    "n": 30
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_chisq <- function(m) {\n        t <- chisq.test(m, correct = TRUE)\n        list(chi_sq = unname(t$statistic), df = unname(t$parameter), p = t$p.value, \n            corrected = isTRUE(nrow(m) == 2 && ncol(m) == 2), low_expected = any(t$expected < \n                5), n = sum(m))\n    }\n}",
+    "call": "run_chisq(cbind(drug, placebo))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "One cell is 0: a legitimate count, not a missing value, and chisq.test must still run."
+}

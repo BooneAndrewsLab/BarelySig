@@ -52,6 +52,18 @@ export function dataNotes(table: Table): Note[] {
       },
     ];
   }
+  if (table.type === 'contingency') {
+    return [
+      {
+        kicker,
+        title: 'Counts, not values',
+        text: [
+          'Each row is one level of one category, each data set (column) one level of the other; each cell is how many observations fell into that row and column together.',
+          'Every cell needs a count before a test can run — 0 is a real count, an empty cell is not.',
+        ],
+      },
+    ];
+  }
   if (table.type === 'grouped') {
     return [
       {
@@ -359,6 +371,29 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           text: [
             'A paired t test assumes the row-by-row differences are Gaussian, not the two groups on their own, so this tests the differences instead.',
             'A small P suggests the differences don’t come from a normal (bell-shaped) distribution. A large P is not proof that they do: with a few pairs these tests rarely detect anything.',
+          ],
+        },
+      ];
+    case 'contingency-chi-square':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'Asks whether the row and column categories are associated — whether the proportions in each row differ across columns — not which cells drive it.',
+            'When some expected counts are small, this test’s P value can be unreliable; Fisher’s exact test doesn’t have that limitation.',
+            NS,
+          ],
+        },
+      ];
+    case 'contingency-fisher':
+      return [
+        {
+          kicker,
+          title,
+          text: [
+            'The exact version of the same question as the chi-square test: whether the row and column categories are associated, computed directly rather than approximated — the safer choice with small counts.',
+            NS,
           ],
         },
       ];

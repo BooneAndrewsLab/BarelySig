@@ -9,6 +9,8 @@ import { ANALYSIS_PAGE } from '../help/guide';
 import { openGuide } from '../help/openGuide';
 import { type ReactNode, useState, useSyncExternalStore } from 'react';
 
+import type { ContingencyChiSquareResult } from '@/analyses/contingency-chi-square/types';
+import type { ContingencyFisherResult } from '@/analyses/contingency-fisher/types';
 import type { DescribedGroup, DescriptiveResult } from '@/analyses/descriptive/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
@@ -45,6 +47,8 @@ import { STAR_SCHEME, dfText, interval, levelText, pPhrase, pValue, sig, stars }
 import { setAllNumbersOpen, useAllNumbersOpen } from './openNumbers';
 import {
   COMPARISON_TEST,
+  contingencyChiSquareReading,
+  contingencyFisherReading,
   friedmanMethod,
   friedmanReading,
   kruskalMethod,
@@ -691,6 +695,107 @@ function NestedNormalityView({ r }: { readonly r: NestedNormalityResult }) {
         one — and with this few replicates these tests have essentially no power to detect
         non-normality either way. Asterisks: {STAR_SCHEME}.
       </p>
+    </>
+  );
+}
+
+/** The row × column count grid itself, so a chi-square/Fisher result is read beside its table. */
+function CountsGrid({
+  rows,
+  columns,
+  counts,
+}: {
+  readonly rows: readonly { readonly title: string | null }[];
+  readonly columns: readonly { readonly title: string }[];
+  readonly counts: readonly (readonly number[])[];
+}) {
+  return (
+    <Grid
+      label="Counts"
+      head={['', ...columns.map((c) => c.title)]}
+      rows={rows.map((r, i) => [
+        r.title ?? `Row ${String(i + 1)}`,
+        ...columns.map((_, j) => sig(counts[i]?.[j] ?? null, 0)),
+      ])}
+    />
+  );
+}
+
+/**
+ * Chi-square test of independence on a Contingency table (item 28, #39):
+ * `chisq.test`, Prism's default (Yates' continuity correction, applied
+ * only to a 2×2 table). No comparisons or brackets — one number for the
+ * whole table (note 28).
+ */
+function ContingencyChiSquareView({ r }: { readonly r: ContingencyChiSquareResult }) {
+  return (
+    <>
+      <Headline reading={contingencyChiSquareReading(r)} />
+      <p className="method">
+        Chi-square test of independence{r.corrected ? ' with Yates’ continuity correction' : ''}.
+      </p>
+      <div className="results-grid">
+        <CountsGrid rows={r.rows} columns={r.columns} counts={r.counts} />
+        <Grid
+          label="Chi-square test"
+          head={['', 'Value']}
+          rows={[
+            ['Chi-square', sig(r.chiSq)],
+            ['df', dfText(r.df)],
+            ['P value', pValue(r.p)],
+            ['P value summary', stars(r.p)],
+            ['Significantly associated (P < 0.05)?', yesNo(r.p)],
+            ['Number of values (n)', sig(r.n, 0)],
+          ]}
+        />
+      </div>
+      {r.lowExpected && (
+        <p className="legend">
+          Some expected counts are below 5: this P value may not be very accurate. Fisher’s exact
+          test does not rely on this approximation.
+        </p>
+      )}
+      <p className="legend">Asterisks: {STAR_SCHEME}.</p>
+    </>
+  );
+}
+
+/**
+ * Fisher's exact test on a Contingency table (item 28, #39):
+ * `fisher.test`, two-tailed. Gives an odds ratio only for a 2×2 table
+ * (note 28's stated Prism difference: no one-tailed option here).
+ */
+function ContingencyFisherView({ r }: { readonly r: ContingencyFisherResult }) {
+  const twoByTwo = r.oddsRatio !== null;
+  return (
+    <>
+      <Headline reading={contingencyFisherReading(r)} />
+      <p className="method">Fisher’s exact test, two-tailed.</p>
+      <div className="results-grid">
+        <CountsGrid rows={r.rows} columns={r.columns} counts={r.counts} />
+        <Grid
+          label="Fisher’s exact test"
+          head={['', 'Value']}
+          rows={[
+            ['P value', pValue(r.p)],
+            ['P value summary', stars(r.p)],
+            ['Significantly associated (P < 0.05)?', yesNo(r.p)],
+            ...(twoByTwo
+              ? [
+                  ['Odds ratio', sig(r.oddsRatio)] as Row,
+                  [
+                    '95% CI of odds ratio',
+                    r.oddsRatioLower !== null && r.oddsRatioUpper !== null
+                      ? interval(r.oddsRatioLower, r.oddsRatioUpper)
+                      : '—',
+                  ] as Row,
+                ]
+              : []),
+            ['Number of values (n)', sig(r.n, 0)],
+          ]}
+        />
+      </div>
+      <p className="legend">Asterisks: {STAR_SCHEME}.</p>
     </>
   );
 }
@@ -2287,6 +2392,12 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         )}
         {value !== null && analysis.kind === 'paired-normality' && (
           <PairedNormalityView r={value as unknown as PairedNormalityResult} />
+        )}
+        {value !== null && analysis.kind === 'contingency-chi-square' && (
+          <ContingencyChiSquareView r={value as unknown as ContingencyChiSquareResult} />
+        )}
+        {value !== null && analysis.kind === 'contingency-fisher' && (
+          <ContingencyFisherView r={value as unknown as ContingencyFisherResult} />
         )}
         {value !== null && analysis.kind === 'two-way-anova' && (
           <TwoWayView r={value as unknown as TwoWayResult} id={analysis.id} />

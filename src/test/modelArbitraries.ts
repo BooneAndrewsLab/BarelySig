@@ -23,6 +23,7 @@ import {
   type EntryFormat,
   SUMMARY_STATS,
   createColumnTable,
+  createContingencyTable,
   createGroupedTable,
   createNestedTable,
   subcolumnCount,
@@ -108,6 +109,14 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
   fc.constant<AnalysisSpec>({
     kind: 'paired-normality',
     options: DEFAULT_OPTIONS['paired-normality'],
+  }),
+  fc.constant<AnalysisSpec>({
+    kind: 'contingency-chi-square',
+    options: DEFAULT_OPTIONS['contingency-chi-square'],
+  }),
+  fc.constant<AnalysisSpec>({
+    kind: 'contingency-fisher',
+    options: DEFAULT_OPTIONS['contingency-fisher'],
   }),
   fc
     .record({ paired: fc.boolean(), welch: fc.boolean(), tails })
@@ -195,6 +204,11 @@ export type Shape =
       readonly replicateTitles: readonly (string | null)[] | null;
     }
   | {
+      readonly k: 'contingency';
+      readonly levels: number;
+      readonly groups: number;
+    }
+  | {
       readonly k: 'cells';
       readonly t: number;
       readonly writes: readonly (readonly [number, number, number, Cell])[];
@@ -278,6 +292,14 @@ export const shapeArb: fc.Arbitrary<Shape> = fc.oneof(
       groups: small,
       format: nestedFormatArb,
       replicateTitles: fc.option(fc.array(title, { maxLength: 4 })),
+    }),
+    weight: 2,
+  },
+  {
+    arbitrary: fc.record({
+      k: fc.constant('contingency'),
+      levels: small,
+      groups: small,
     }),
     weight: 2,
   },
@@ -403,6 +425,15 @@ export function resolve(p: Project, s: Shape): Edit | null {
           rowTitles: Array.from({ length: s.levels }, (_, i) => `R${String(i)}`),
           groups: Array.from({ length: s.groups }, (_, i) => `G${String(i)}`),
           format: s.format,
+        }),
+      };
+    case 'contingency':
+      return {
+        op: 'addTable',
+        table: createContingencyTable({
+          title: 'X',
+          rowTitles: Array.from({ length: s.levels }, (_, i) => `R${String(i)}`),
+          groups: Array.from({ length: s.groups }, (_, i) => `G${String(i)}`),
         }),
       };
     case 'nested': {

@@ -17,6 +17,7 @@ import type { Id } from './ids';
 import type { Cell } from './missing';
 import {
   type ColumnTable,
+  type ContingencyTable,
   type DataSet,
   type GroupedTable,
   type NestedTable,
@@ -250,6 +251,33 @@ export function groupedCells(
             ),
       ),
     ),
+  };
+}
+
+export interface ContingencyData {
+  /** Row-factor levels. */
+  readonly rows: readonly { readonly id: Id; readonly title: string | null }[];
+  /** Column-factor levels (the chosen data sets). */
+  readonly columns: readonly { readonly id: Id; readonly title: string }[];
+  /** `counts[r][c]`: the count in row r, column c, or null when still empty/excluded. */
+  readonly counts: readonly (readonly (number | null)[])[];
+}
+
+/**
+ * The row × column count grid of a Contingency table (item 28, #39), for
+ * the chi-square test of independence and Fisher's exact test. A
+ * Contingency table's format is always one subcolumn per cell, so each
+ * cell is just `usable(table, ds, 0, r)`.
+ */
+export function contingencyCells(
+  table: ContingencyTable,
+  dataSets: readonly Id[] = table.dataSets.map((d) => d.id),
+): ContingencyData {
+  const sets = dataSets.map((id) => requireDataSet(table, id));
+  return {
+    rows: table.rows.map((r) => ({ id: r.id, title: r.title })),
+    columns: sets.map((d) => ({ id: d.id, title: d.title })),
+    counts: table.rows.map((_, r) => sets.map((ds) => usable(table, ds, 0, r))),
   };
 }
 

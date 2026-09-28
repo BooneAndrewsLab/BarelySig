@@ -1,0 +1,24 @@
+{
+  "input": {
+    "drug": [30, 10],
+    "placebo": [15, 25]
+  },
+  "expected": {
+    "chi_sq": 9.9555555555555557,
+    "df": 1,
+    "p": 0.0016036472624141051,
+    "corrected": true,
+    "low_expected": false,
+    "n": 80
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_chisq <- function(m) {\n        t <- chisq.test(m, correct = TRUE)\n        list(chi_sq = unname(t$statistic), df = unname(t$parameter), p = t$p.value, \n            corrected = isTRUE(nrow(m) == 2 && ncol(m) == 2), low_expected = any(t$expected < \n                5), n = sum(m))\n    }\n}",
+    "call": "run_chisq(cbind(drug, placebo))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "A classic 2x2 table with a clear association: Yates' correction applies (Prism's default)."
+}

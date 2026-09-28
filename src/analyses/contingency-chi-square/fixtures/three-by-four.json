@@ -1,0 +1,25 @@
+{
+  "input": {
+    "a": [12, 5, 8, 3],
+    "b": [7, 14, 4, 9],
+    "c": [3, 6, 11, 5]
+  },
+  "expected": {
+    "chi_sq": 16.328502425271434,
+    "df": 6,
+    "p": 0.012095264461479406,
+    "corrected": false,
+    "low_expected": true,
+    "n": 87
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_chisq <- function(m) {\n        t <- chisq.test(m, correct = TRUE)\n        list(chi_sq = unname(t$statistic), df = unname(t$parameter), p = t$p.value, \n            corrected = isTRUE(nrow(m) == 2 && ncol(m) == 2), low_expected = any(t$expected < \n                5), n = sum(m))\n    }\n}",
+    "call": "run_chisq(cbind(a, b, c))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "An r x c table (4 rows, 3 columns): chi-square's df and Yates' correction (ignored above 2x2) both depend on getting the shape right."
+}

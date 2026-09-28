@@ -71,6 +71,10 @@ export const graphSummary: AnalysisModule<
     if (analysis.input.kind !== 'table') return { ok: false, reason: 'A graph plots a table.' };
     const table = project.tables.get(analysis.input.table);
     if (!table) return { ok: false, reason: 'The table this graph plots no longer exists.' };
+    if (table.type === 'contingency') {
+      // Graphing a Contingency table's counts isn't wired up yet (design note 28's follow-up).
+      return { ok: false, reason: 'There is no graph for a Contingency table yet.' };
+    }
     const cells =
       table.type === 'column'
         ? columnGroups(table, analysis.input.dataSets)

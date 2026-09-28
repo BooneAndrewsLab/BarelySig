@@ -8,6 +8,7 @@ import {
   type Table,
   type TableType,
   createColumnTable,
+  createContingencyTable,
   createGroupedTable,
   createNestedTable,
 } from '@/model/table';
@@ -37,6 +38,7 @@ export function buildTable(
   replicates: number,
 ): Table {
   if (type === 'nested') return createNestedTable({ title, groups: [], replicates });
+  if (type === 'contingency') return createContingencyTable({ title, rowTitles: [], groups: [] });
   const format: EntryFormat =
     entry === 'raw'
       ? { kind: 'replicates', count: type === 'column' ? 1 : replicates }

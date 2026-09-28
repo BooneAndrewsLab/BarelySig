@@ -272,7 +272,11 @@ how it got here.
   for small tables (#82), repeated-measures two-way ANOVA (one factor
   repeated, #81, then both factors repeated, #84) with its own multiple
   comparisons (#85), self-hosted subsetted Archivo as the UI font (#58)
-  — notes 09–25).
+  — notes 09–25); the first Phase 2 table type, Contingency tables
+  (#39: rows × columns of counts, chi-square test of independence with
+  Yates' correction for 2×2, Fisher's exact test with r×c support and a
+  2×2 odds ratio — graph, relative risk and "Help me choose" wiring
+  filed as #86 — note 28).
 - **Open issues:**
   - #36 — the user's release steps (above)
   - #44 — real clipboard captures (needs the sibling apps)
@@ -283,6 +287,8 @@ how it got here.
   - #72 — keep the conservative REML unmatched nested test, or switch to
     Prism's method? Needs the user's decision
   - #74 — SuperPlot over a violin with replicates joined, Phase 2
+  - #86 — Contingency tables' graph, relative risk, and "Help me choose"
+    wiring (#39's follow-up)
   - comparisons for both-factors-repeated two-way ANOVA (#84's own
     follow-up, no between-subjects stratum exists there)
   - comparing repeated levels within one between-subjects group at a

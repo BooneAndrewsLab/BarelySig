@@ -247,7 +247,9 @@ export function App() {
                 ? 'new-column'
                 : t.type === 'grouped'
                   ? 'new-grouped'
-                  : 'new-nested',
+                  : t.type === 'nested'
+                    ? 'new-nested'
+                    : 'new-contingency',
             );
           }}
         />

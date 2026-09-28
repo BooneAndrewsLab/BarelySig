@@ -5,6 +5,8 @@
  * not the chance the result is "real", and a non-significant result is
  * no evidence of a difference, not evidence of none.
  */
+import type { ContingencyChiSquareResult } from '@/analyses/contingency-chi-square/types';
+import type { ContingencyFisherResult } from '@/analyses/contingency-fisher/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
@@ -570,4 +572,36 @@ export function nestedNormalityReading(r: NestedNormalityResult): string {
     return `No group’s replicate means depart clearly from a Gaussian (bell-shaped) distribution by these tests (P > 0.05 for each).${caution}`;
   }
   return `The replicate means of ${joinAnd(failed)} don’t look Gaussian (P ≤ 0.05).${caution}`;
+}
+
+/**
+ * Chi-square test of independence on a Contingency table (item 28, #39):
+ * whether the row and column categories are associated, in plain words —
+ * never "the same" for a non-significant result.
+ */
+export function contingencyChiSquareReading(r: ContingencyChiSquareResult): string {
+  const often = howOften(r.p);
+  const p = pPhrase(r.p);
+  const correction = r.corrected ? ' (with Yates’ continuity correction)' : '';
+  const low = r.lowExpected
+    ? ' Some expected counts are below 5: this P value may not be very accurate — Fisher’s exact test is the safer choice here.'
+    : '';
+  if (r.p < 0.05) {
+    return `The rows and columns are associated${correction} (${p}). If they were truly independent, a difference in proportions at least this large would turn up in ${often} like this one.${low}`;
+  }
+  return `There is no evidence that the rows and columns are associated${correction} (${p}). If they were truly independent, a difference in proportions at least this large would turn up in ${often}. That doesn’t show they are independent; the table may be too small to see an association.${low}`;
+}
+
+/**
+ * Fisher's exact test on a Contingency table (item 28, #39): the exact
+ * version of the same question, two-tailed (note 28's stated difference
+ * from Prism's own dialog).
+ */
+export function contingencyFisherReading(r: ContingencyFisherResult): string {
+  const often = howOften(r.p);
+  const p = pPhrase(r.p);
+  if (r.p < 0.05) {
+    return `The rows and columns are associated (${p}, two-tailed Fisher’s exact test). If they were truly independent, a difference in proportions at least this large would turn up in ${often} like this one.`;
+  }
+  return `There is no evidence that the rows and columns are associated (${p}, two-tailed Fisher’s exact test). If they were truly independent, a difference in proportions at least this large would turn up in ${often}. That doesn’t show they are independent; the table may be too small to see an association.`;
 }

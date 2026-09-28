@@ -1,4 +1,5 @@
 import choosing from '../../../docs/guide/04-choosing-a-test.md?raw';
+import contingencyTables from '../../../docs/guide/21-contingency-tables.md?raw';
 import dataEntry from '../../../docs/guide/02-data-entry.md?raw';
 import descriptive from '../../../docs/guide/11-descriptive.md?raw';
 import exporting from '../../../docs/guide/14-export.md?raw';
@@ -60,6 +61,7 @@ export const GUIDE: readonly GuidePage[] = [
   page('18-repeated-measures', repeatedMeasures),
   page('19-repeated-two-way', repeatedTwoWay),
   page('20-repeated-two-way-both', repeatedTwoWayBoth),
+  page('21-contingency-tables', contingencyTables),
 ];
 
 export function guidePage(id: string): GuidePage | undefined {
@@ -85,4 +87,6 @@ export const ANALYSIS_PAGE: Readonly<Record<UserAnalysisKind, string>> = {
   normality: '10-normality',
   'nested-normality': '17-nested-tables',
   'paired-normality': '10-normality',
+  'contingency-chi-square': '21-contingency-tables',
+  'contingency-fisher': '21-contingency-tables',
 };

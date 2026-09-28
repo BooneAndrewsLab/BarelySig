@@ -132,7 +132,7 @@ export function makeLayout(table: Table, size: LayoutSize): GridLayout {
   const modelRows = table.rows.length;
   return {
     table,
-    rowTitles: table.type === 'grouped',
+    rowTitles: table.type === 'grouped' || table.type === 'contingency',
     columns,
     spans,
     modelRows,

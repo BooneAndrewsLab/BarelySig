@@ -145,6 +145,8 @@ function optionsJson(a: AnalysisSpec): Json {
     case 'normality':
     case 'nested-normality':
     case 'paired-normality':
+    case 'contingency-chi-square':
+    case 'contingency-fisher':
       return {};
     case 'graph-summary':
       // Never in a project: graphs' summaries are made from the graph (note 07).
@@ -422,7 +424,7 @@ function table(v: Json, p: Path): Table {
   const o = obj(v, p);
   const typePath: Path = p.key('type');
   const type = str(o['type'], typePath);
-  if (type !== 'column' && type !== 'grouped' && type !== 'nested') {
+  if (type !== 'column' && type !== 'grouped' && type !== 'nested' && type !== 'contingency') {
     typePath.fail(`is a table type this version does not know ("${type}")`);
   }
   const base: Table = {
@@ -455,6 +457,8 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     case 'normality':
     case 'nested-normality':
     case 'paired-normality':
+    case 'contingency-chi-square':
+    case 'contingency-fisher':
       return { kind, options: {} };
     case 't-test': {
       const tailsPath: Path = q.key('tails');

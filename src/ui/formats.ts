@@ -33,6 +33,13 @@ export const TABLE_TYPES: readonly TableTypeInfo[] = [
     blurb:
       'Each column a group, subcolumns its biological replicates, rows the individual values within a replicate. For the nested t test, nested one-way ANOVA and SuperPlots.',
   },
+  {
+    type: 'contingency',
+    name: 'Contingency',
+    icon: 'contingency',
+    blurb:
+      'Counts in a rows × columns grid, e.g. outcome vs. treatment. For the chi-square test of independence and Fisher’s exact test.',
+  },
 ];
 
 export function tableTypeInfo(type: TableType): TableTypeInfo {

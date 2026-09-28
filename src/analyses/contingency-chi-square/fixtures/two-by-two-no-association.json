@@ -1,0 +1,24 @@
+{
+  "input": {
+    "drug": [20, 20],
+    "placebo": [20, 20]
+  },
+  "expected": {
+    "chi_sq": 0,
+    "df": 1,
+    "p": 1,
+    "corrected": true,
+    "low_expected": false,
+    "n": 80
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    run_chisq <- function(m) {\n        t <- chisq.test(m, correct = TRUE)\n        list(chi_sq = unname(t$statistic), df = unname(t$parameter), p = t$p.value, \n            corrected = isTRUE(nrow(m) == 2 && ncol(m) == 2), low_expected = any(t$expected < \n                5), n = sum(m))\n    }\n}",
+    "call": "run_chisq(cbind(drug, placebo))"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "No association at all (P near 1): catches a sign or direction bug that a significant-only fixture set would miss."
+}
