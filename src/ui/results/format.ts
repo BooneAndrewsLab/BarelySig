@@ -48,6 +48,9 @@ export function pPhrase(p: number): string {
 export function sig(x: number | null, digits = 4): string {
   if (x === null || !Number.isFinite(x)) return '—';
   if (x === 0) return '0';
+  // toPrecision only accepts 1-100: a count (n) asks for 0 decimals, not
+  // 0 significant digits, so round it as a plain integer instead.
+  if (digits <= 0) return String(Math.round(x));
   const abs = Math.abs(x);
   if (abs >= 1e6 || abs < 1e-4) return x.toExponential(digits - 1).replace('e+', 'e');
   return String(Number(x.toPrecision(digits)));

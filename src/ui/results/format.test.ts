@@ -60,6 +60,12 @@ describe('numbers', () => {
     expect(sig(null)).toBe('—');
   });
 
+  it('rounds a count (digits: 0) instead of asking toPrecision for 0 significant digits', () => {
+    // toPrecision(0) throws (it only accepts 1-100); a count like "n" wants
+    // a plain integer, not a 4-sig-fig truncation.
+    expect([12, 7.4, 0].map((x) => sig(x, 0))).toEqual(['12', '7', '0']);
+  });
+
   it('keeps whole degrees of freedom whole', () => {
     expect(dfText(8)).toBe('8');
     expect(dfText(6.8231)).toBe('6.823');
