@@ -104,7 +104,7 @@ describe('the Open data file dialog', () => {
     expect(preview().getByRole('columnheader', { name: 'Replicate 1' })).toBeInTheDocument();
     expect(preview().getAllByRole('columnheader', { name: 'Unbudded' })).toHaveLength(2);
     expect(dialog().getByText(/Nested table/)).toBeInTheDocument();
-    fireEvent.click(dialog().getByRole('checkbox', { name: 'Swap rows and groups' }));
+    fireEvent.click(dialog().getByRole('checkbox', { name: 'Swap groups and subgroups' }));
     expect(preview().getByRole('columnheader', { name: 'Unbudded' })).toBeInTheDocument();
     expect(preview().getAllByRole('columnheader', { name: 'Replicate 1' })).toHaveLength(2);
     fireEvent.click(dialog().getByRole('button', { name: 'Create' }));

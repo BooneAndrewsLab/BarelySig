@@ -61,6 +61,10 @@ will make before making anything:
   across the top. Repeated group names (`WT WT WT KO KO KO`), or one name
   over several columns (merged, or followed by blank titles), are
   replicates.
+- **Groups of named subgroups:** two header rows, group names on top
+  and the same subgroup names repeated under each (`WT` over
+  `Rep 1 Rep 2 Rep 3`, then `KO` over the same), individual values
+  below. This makes a [Nested table](17-nested-tables.md).
 - **Summary data:** means with SD, SEM or %CV and n, as columns named
   `Mean`, `SD`, `N` with one row per group, or as `WT mean`, `WT SD`, ….
 - **One row per measurement:** a column naming the group of each value
@@ -70,8 +74,15 @@ will make before making anything:
 Its best guess is marked; pick another layout if it guessed wrong. You
 can also choose the sheet of a workbook, skip rows above the table (an
 instrument's header lines), say whether the first row holds titles, swap
-rows and groups, and for text files set the separator and the decimal
+rows and groups (for a Nested table, groups and subgroups), and for text files set the separator and the decimal
 mark. The preview follows each change.
+
+Why swap groups and subgroups? A nested test compares the **groups**
+and counts each **subgroup** as one biological replicate within them.
+The two header rows alone don't say which is which, and many files are
+laid out the other way round: one block per experiment (`Rep 1` on top)
+with the conditions repeated under it. If the preview shows your
+replicates as the groups, tick **Swap groups and subgroups**.
 
 Cells are read as a paste reads them: `NA`, `#DIV/0!` and blanks become
 empty cells, never 0. A cell of other text is left empty too, and shown

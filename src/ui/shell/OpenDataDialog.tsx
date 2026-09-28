@@ -261,8 +261,15 @@ export function OpenDataDialog({
                     change({ swap: e.currentTarget.checked });
                   }}
                 />
-                Swap rows and groups
+                {choice.layout === 'nested' ? 'Swap groups and subgroups' : 'Swap rows and groups'}
               </label>
+            )}
+            {choice.layout === 'nested' && (twoFactor || choice.swap) && (
+              <p className="hint">
+                The test compares the groups and treats the subgroups as biological replicates
+                within each. Files often put each experiment on top with the conditions repeated
+                under it; if the preview shows your replicates as the groups, tick this.
+              </p>
             )}
             <label className="field">
               Skip rows at the top

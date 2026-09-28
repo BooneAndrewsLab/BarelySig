@@ -23,7 +23,7 @@ export const LAYOUT_INFO: Readonly<Record<LayoutKind, LayoutInfo>> = {
   nested: {
     name: 'Groups of named subgroups',
     blurb:
-      'Group names across the top (e.g. replicate), the same subgroup names repeated under each (e.g. cage, dish); raw values below.',
+      'Two header rows: groups (e.g. WT, KO) on top, the same subgroup names (e.g. replicate, dish) repeated under each; raw values below.',
   },
   summary: {
     name: 'Summary data',
