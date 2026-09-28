@@ -144,6 +144,29 @@ export function OpenDataDialog({
   const bestGuess = guess.possible[0];
   const twoFactor = result?.table.type === 'grouped' || result?.table.type === 'nested';
   const words = result ? describeImport(result.notes) : null;
+  // Which factor is which: shown under the chosen layout it applies to,
+  // not in the reading options, where it sat far from the choice it qualifies.
+  const swapControl = (twoFactor || choice.swap) && choice.layout !== 'columns' && (
+    <div className="layout-swap">
+      <label className="option">
+        <input
+          type="checkbox"
+          checked={choice.swap}
+          onChange={(e) => {
+            change({ swap: e.currentTarget.checked });
+          }}
+        />
+        {choice.layout === 'nested' ? 'Swap groups and subgroups' : 'Swap rows and groups'}
+      </label>
+      {choice.layout === 'nested' && (
+        <p className="hint">
+          The test compares the groups and treats the subgroups as biological replicates within
+          each. Files often put each experiment on top with the conditions repeated under it; if the
+          preview shows your replicates as the groups, tick this.
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <Dialog title="Open data file" onClose={onClose} wide>
@@ -182,25 +205,28 @@ export function OpenDataDialog({
             {LAYOUTS.map((l) => {
               const possible = guess.possible.includes(l);
               return (
-                <label key={l} className={possible ? 'layout-option' : 'layout-option unfit'}>
-                  <input
-                    type="radio"
-                    name="layout"
-                    value={l}
-                    checked={choice.layout === l}
-                    disabled={!possible}
-                    onChange={() => {
-                      change({ layout: l });
-                    }}
-                  />
-                  <span className="layout-name">
-                    {LAYOUT_INFO[l].name}
-                    {l === bestGuess && <span className="best-guess">best guess</span>}
-                  </span>
-                  <span className="layout-blurb">
-                    {possible ? LAYOUT_INFO[l].blurb : 'Doesn’t fit this sheet.'}
-                  </span>
-                </label>
+                <div key={l} className="layout-choice">
+                  <label className={possible ? 'layout-option' : 'layout-option unfit'}>
+                    <input
+                      type="radio"
+                      name="layout"
+                      value={l}
+                      checked={choice.layout === l}
+                      disabled={!possible}
+                      onChange={() => {
+                        change({ layout: l });
+                      }}
+                    />
+                    <span className="layout-name">
+                      {LAYOUT_INFO[l].name}
+                      {l === bestGuess && <span className="best-guess">best guess</span>}
+                    </span>
+                    <span className="layout-blurb">
+                      {possible ? LAYOUT_INFO[l].blurb : 'Doesn’t fit this sheet.'}
+                    </span>
+                  </label>
+                  {choice.layout === l && l !== 'long' && swapControl}
+                </div>
               );
             })}
           </fieldset>
@@ -225,6 +251,7 @@ export function OpenDataDialog({
                   change({ factorColumn: v });
                 }}
               />
+              {swapControl}
               <ColumnPick
                 label="Values"
                 value={choice.valueColumn}
@@ -251,25 +278,6 @@ export function OpenDataDialog({
                 />
                 The first row holds titles
               </label>
-            )}
-            {(twoFactor || choice.swap) && choice.layout !== 'columns' && (
-              <label className="option">
-                <input
-                  type="checkbox"
-                  checked={choice.swap}
-                  onChange={(e) => {
-                    change({ swap: e.currentTarget.checked });
-                  }}
-                />
-                {choice.layout === 'nested' ? 'Swap groups and subgroups' : 'Swap rows and groups'}
-              </label>
-            )}
-            {choice.layout === 'nested' && (twoFactor || choice.swap) && (
-              <p className="hint">
-                The test compares the groups and treats the subgroups as biological replicates
-                within each. Files often put each experiment on top with the conditions repeated
-                under it; if the preview shows your replicates as the groups, tick this.
-              </p>
             )}
             <label className="field">
               Skip rows at the top

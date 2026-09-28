@@ -406,6 +406,20 @@ select {
   margin-top: 3px;
 }
 
+/* The swap control under the chosen layout, aligned with its text. */
+.layout-choice > .layout-swap {
+  margin: 0 0 4px 21px;
+}
+
+.layout-swap .option {
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.layout-swap .hint {
+  margin: 0 0 2px 21px;
+}
+
 .layout-option.unfit {
   color: var(--ink-3);
   cursor: default;

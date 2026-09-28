@@ -71,11 +71,13 @@ will make before making anything:
   (and perhaps a second factor, such as treatment) and a column of
   values. BarelySig rearranges it into a table and says so.
 
-Its best guess is marked; pick another layout if it guessed wrong. You
-can also choose the sheet of a workbook, skip rows above the table (an
-instrument's header lines), say whether the first row holds titles, swap
-rows and groups (for a Nested table, groups and subgroups), and for text files set the separator and the decimal
-mark. The preview follows each change.
+Its best guess is marked; pick another layout if it guessed wrong. A
+two-factor layout shows a swap checkbox right under it, to swap rows and
+groups (for a Nested table, groups and subgroups). You can also choose
+the sheet of a workbook, skip rows above the table (an instrument's
+header lines), say whether the first row holds titles, and for text
+files set the separator and the decimal mark. The preview follows each
+change.
 
 Why swap groups and subgroups? A nested test compares the **groups**
 and counts each **subgroup** as one biological replicate within them.
