@@ -55,14 +55,14 @@ your computer.
 BarelySig works out how the file is laid out and shows you the table it
 will make before making anything.
 
-First, **where the table starts**: the top of the file is shown as it
-is, and you click the row with the table's titles. Rows above it (a
-title such as `Young cells`, an instrument's header lines) are struck
-through as skipped, and the rows read as titles are marked, so a file
-with a title over two header rows shows exactly which rows each one
-becomes. BarelySig picks a start itself; click another row if it's
-wrong. Untick **It starts with a row of titles** if the first row is
-already numbers.
+The preview also shows **where the table starts**: rows of the file
+above it (a title such as `Young cells`, an instrument's header lines)
+are struck through over the table, as skipped. The numbers down the
+left are the file's own row numbers: click a skipped row's number to
+start the table there, or a title row's number to skip it too.
+BarelySig picks a start itself, so you only need this if it's wrong.
+Untick **It starts with a row of titles** if the first row is already
+numbers.
 
 Then the layout:
 

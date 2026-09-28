@@ -113,7 +113,7 @@ describe('the Open data file dialog', () => {
     expect(t?.dataSets.map((d) => d.title)).toEqual(['Unbudded', 'Small']);
   });
 
-  it('starts the table at the row clicked, and marks the rows skipped and the titles', async () => {
+  it('shows the rows skipped over the preview, and moves the start from its row numbers', async () => {
     open(
       csv(
         'buds.csv',
@@ -121,26 +121,35 @@ describe('the Open data file dialog', () => {
       ),
     );
     await dialog().findByText('best guess');
-    const rows = within(dialog().getByRole('table', { name: 'Rows of the file' }));
-    expect(rows.getByRole('button', { name: 'Start at row 2' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    expect(screen.queryByRole('table', { name: 'Rows of the file' })).not.toBeInTheDocument();
+    expect(preview().getByText('Young cells')).toBeInTheDocument();
+    expect(preview().getByRole('button', { name: 'Start at row 1' })).toBeInTheDocument();
+    expect(preview().getByRole('button', { name: 'Skip row 2' })).toBeInTheDocument();
+    expect(preview().getByRole('button', { name: 'Skip row 3' })).toBeInTheDocument();
     expect(dialog().getByRole('radio', { name: /named subgroups/ })).toBeChecked();
-    expect(rows.getAllByText('skipped')).toHaveLength(1);
-    expect(rows.getAllByText('titles')).toHaveLength(2);
-    fireEvent.click(rows.getByRole('button', { name: 'Start at row 3' }));
-    expect(rows.getAllByText('skipped')).toHaveLength(2);
+    fireEvent.click(preview().getByRole('button', { name: 'Skip row 2' }));
+    expect(preview().getByRole('button', { name: 'Start at row 2' })).toBeInTheDocument();
+    expect(preview().getByText('Replicate 1')).toBeInTheDocument();
     expect(dialog().getByRole('radio', { name: /named subgroups/ })).not.toBeChecked();
+    fireEvent.click(preview().getByRole('button', { name: 'Start at row 1' }));
+    expect(preview().queryByRole('button', { name: /Start at row/ })).not.toBeInTheDocument();
+    expect(preview().getByRole('button', { name: 'Skip row 1' })).toBeInTheDocument();
+  });
+
+  it('folds a long run of skipped rows', async () => {
+    open(csv('long.csv', `${'Reader,Tecan\n'.repeat(7)}\nWT,KO,Het\n1,2,3\n4,5,6\n`));
+    await dialog().findByText('best guess');
+    expect(preview().getAllByRole('button', { name: /Start at row/ })).toHaveLength(5);
+    fireEvent.click(preview().getByRole('button', { name: 'Show 3 more skipped rows' }));
+    expect(preview().getAllByRole('button', { name: /Start at row/ })).toHaveLength(8);
+    expect(preview().getByRole('button', { name: 'Skip row 9' })).toBeInTheDocument();
   });
 
   it('skips rows and reads with another separator on request', async () => {
     open(csv('semi.txt', 'Exported\n\nWT;KO\n1,5;2,5\n'));
     await dialog().findByText('best guess');
-    expect(dialog().getByRole('button', { name: 'Start at row 3' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    expect(preview().getByRole('button', { name: 'Start at row 2' })).toBeInTheDocument();
+    expect(preview().getByRole('button', { name: 'Skip row 3' })).toBeInTheDocument();
     expect(dialog().getByRole('combobox', { name: 'Separated by' })).toHaveValue(';');
     expect(dialog().getByRole('combobox', { name: 'Decimal mark' })).toHaveValue(',');
     expect(preview().getByText('1,5')).toBeInTheDocument();
@@ -161,6 +170,11 @@ describe('the Open data file dialog', () => {
   it('says when a sheet has no numbers', async () => {
     open(csv('words.csv', 'a,b\nc,d\n'));
     expect(await dialog().findByText(/No numbers found/)).toBeInTheDocument();
+    fireEvent.click(dialog().getByRole('button', { name: 'Start at row 2' }));
+    expect(dialog().getByRole('button', { name: 'Start at row 2' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(dialog().getByRole('button', { name: 'Create' })).toBeDisabled();
   });
 });

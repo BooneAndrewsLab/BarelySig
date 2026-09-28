@@ -395,30 +395,32 @@ select {
 
 .import-start {
   display: grid;
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .import-start .hint {
   margin: 0;
 }
 
-/* The top of the sheet as it is, to click where the table starts. */
-.start-rows {
-  max-height: 232px;
-}
-
-.start-rows tr {
-  cursor: pointer;
-}
-
-.start-rows tbody th {
-  padding: 0;
-}
-
-.start-rows th button {
-  width: 100%;
+/* The file's row numbers, in the preview's gutter: click to move where the table starts. */
+.import-table .row-pick {
+  position: static;
   min-width: 2.6em;
+  padding: 0;
+  background: var(--header);
+}
+
+.import-table thead tr.titles .row-pick {
+  position: sticky;
+}
+
+.import-table thead tr.titles + tr.titles .row-pick {
+  top: 1.9em;
+}
+
+.row-pick button {
+  width: 100%;
   padding: 3px 6px;
   border: 0;
   border-radius: 0;
@@ -426,11 +428,21 @@ select {
   color: var(--ink-3);
   font: inherit;
   font-size: 12px;
+  font-weight: 400;
   text-align: right;
   cursor: pointer;
 }
 
-.start-rows th button[aria-pressed='true'] {
+.row-pick button:hover {
+  color: var(--ink);
+  background: var(--tint);
+}
+
+.start-rows {
+  max-height: 380px;
+}
+
+.start-rows th.row-pick button[aria-pressed='true'] {
   color: var(--ink);
   font-weight: 600;
   box-shadow: inset 3px 0 0 var(--bs-accent);
@@ -444,31 +456,29 @@ select {
   text-align: left;
 }
 
-.start-rows .import-table td.start-role {
-  padding: 3px 6px;
+/* Rows of the file above the table: skipped. */
+.import-table tr.start-skipped td {
+  max-width: 0;
+  overflow: hidden;
   color: var(--ink-3);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.start-rows tr.start-skipped td {
-  color: var(--ink-3);
+  font-weight: 400;
+  text-align: left;
+  text-overflow: ellipsis;
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--ink-3) 60%, transparent);
 }
 
-.start-rows tr.start-skipped td.start-role {
+.start-rows .import-table tr.start-skipped td {
+  max-width: 8em;
+}
+
+.import-table tr.start-skipped td span + span {
+  margin-left: 1.5em;
+}
+
+.import-table tr.start-skipped td button.link {
+  font-size: 12px;
   text-decoration: none;
-}
-
-.start-rows tr.start-titles td {
-  font-weight: 600;
-  background: var(--header);
-}
-
-.start-rows tr:hover td {
-  background: var(--tint);
 }
 
 .layout-option {

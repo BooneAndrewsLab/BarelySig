@@ -40,6 +40,8 @@ const PREVIEW_ROWS = 12;
 const START_ROWS = 30;
 /** Sheet columns shown there: enough to recognise the rows. */
 const START_COLUMNS = 12;
+/** Skipped rows shown over the preview; more on request. */
+const SKIPPED_SHOWN = 5;
 
 type Status =
   | { readonly kind: 'reading' }
@@ -172,6 +174,24 @@ export function OpenDataDialog({
     </div>
   );
 
+  const setSkip = (skip: number) => {
+    setGiven({ ...given, skip });
+  };
+  const headerControl = (choice.layout === 'columns' ||
+    choice.layout === 'grouped' ||
+    choice.layout === 'nested') && (
+    <label className="option">
+      <input
+        type="checkbox"
+        checked={choice.header}
+        onChange={(e) => {
+          change({ header: e.currentTarget.checked });
+        }}
+      />
+      It starts with a row of titles
+    </label>
+  );
+
   return (
     <Dialog title="Open data file" onClose={onClose} wide>
       <form
@@ -203,37 +223,6 @@ export function OpenDataDialog({
               </label>
             )}
           </p>
-
-          <fieldset className="import-start">
-            <legend>Where does the table start?</legend>
-            <p className="hint">
-              Click the row with the table’s titles. Rows above it (a title, an instrument’s notes)
-              are skipped.
-            </p>
-            <StartRows
-              sheet={sheet}
-              skip={choice.skip}
-              titleRows={result ? result.notes.titleRows : choice.header ? 1 : 0}
-              decimal={choice.decimal}
-              onPick={(skip) => {
-                setGiven({ ...given, skip });
-              }}
-            />
-            {(choice.layout === 'columns' ||
-              choice.layout === 'grouped' ||
-              choice.layout === 'nested') && (
-              <label className="option">
-                <input
-                  type="checkbox"
-                  checked={choice.header}
-                  onChange={(e) => {
-                    change({ header: e.currentTarget.checked });
-                  }}
-                />
-                It starts with a row of titles
-              </label>
-            )}
-          </fieldset>
 
           <fieldset>
             <legend>How is it laid out?</legend>
@@ -347,7 +336,20 @@ export function OpenDataDialog({
           {result ? (
             <>
               <p className="import-made">{madeLine(result.table)}</p>
-              <Preview result={result} decimal={choice.decimal} />
+              <div className="import-start">
+                <p className="hint flush">
+                  Struck-through rows at the top of the file are skipped (a title, an instrument’s
+                  notes). Click a row’s number to skip it or to bring it back.
+                </p>
+                {headerControl}
+              </div>
+              <Preview
+                result={result}
+                sheet={sheet}
+                skip={choice.skip}
+                decimal={choice.decimal}
+                onSkip={setSkip}
+              />
               {words && (
                 <ul className={words.warning ? 'import-notes warn' : 'import-notes'}>
                   {words.lines.map((l) => (
@@ -362,6 +364,22 @@ export function OpenDataDialog({
                 ? 'No numbers found in this sheet. Check where the table starts, the separator and the decimal mark.'
                 : 'This layout doesn’t make a table from the sheet. Pick another, or check the columns.'}
             </p>
+          )}
+          {!result && (
+            <>
+              <div className="import-start">
+                <p className="hint flush">
+                  Click the row with the table’s titles; rows above it are skipped.
+                </p>
+                {headerControl}
+              </div>
+              <StartRows
+                sheet={sheet}
+                skip={choice.skip}
+                decimal={choice.decimal}
+                onPick={setSkip}
+              />
+            </>
           )}
         </div>
 
@@ -386,26 +404,27 @@ function cellText(c: SourceCell | undefined, decimal: DecimalSeparator): string 
   return `${formatCell(c.percent, decimal)}%`;
 }
 
+/** A sheet row's filled cells as written. */
+function rowTexts(r: readonly SourceCell[] | undefined, decimal: DecimalSeparator): string[] {
+  return (r ?? []).map((c) => cellText(c, decimal)).filter((t) => t !== '');
+}
+
 /**
- * The top of the sheet as it is, each row a button: the one clicked is
- * where the table starts, rows above it are skipped and the rows the
- * layout reads as titles are marked, so the choice is made on the file
- * itself rather than by counting rows.
+ * The top of the sheet as it is, each row a button, for when no table
+ * can be made to preview: the one clicked is where the table starts.
  */
 function StartRows({
   sheet,
   skip,
-  titleRows,
   decimal,
   onPick,
 }: {
   readonly sheet: SourceSheet;
   readonly skip: number;
-  readonly titleRows: number;
   readonly decimal: DecimalSeparator;
   readonly onPick: (skip: number) => void;
 }) {
-  const shown = sheet.cells.slice(0, Math.max(START_ROWS, skip + titleRows + 5));
+  const shown = sheet.cells.slice(0, Math.max(START_ROWS, skip + 5));
   const width = Math.min(
     START_COLUMNS,
     Math.max(
@@ -421,38 +440,31 @@ function StartRows({
     <div className="import-scroll start-rows">
       <table className="import-table" aria-label="Rows of the file">
         <tbody>
-          {shown.map((r, i) => {
-            const role = i < skip ? 'skipped' : i < skip + titleRows ? 'titles' : 'data';
-            return (
-              <tr
-                key={i}
-                className={`start-${role}`}
-                onClick={() => {
-                  onPick(i);
-                }}
-              >
-                <th scope="row">
-                  <button
-                    type="button"
-                    aria-pressed={i === skip}
-                    aria-label={`Start at row ${String(i + 1)}`}
-                    title="Start the table here"
-                  >
-                    {i + 1}
-                  </button>
-                </th>
-                <td className="start-role">{role === 'data' ? '' : role}</td>
-                {Array.from({ length: width }, (_, j) => {
-                  const t = cellText(r[j], decimal);
-                  return (
-                    <td key={j} title={t.length > 14 ? t : undefined}>
-                      {t}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
+          {shown.map((r, i) => (
+            <tr key={i} className={i < skip ? 'start-skipped' : undefined}>
+              <th scope="row" className="row-pick">
+                <button
+                  type="button"
+                  aria-pressed={i === skip}
+                  aria-label={`Start at row ${String(i + 1)}`}
+                  title="Start the table here"
+                  onClick={() => {
+                    onPick(i);
+                  }}
+                >
+                  {i + 1}
+                </button>
+              </th>
+              {Array.from({ length: width }, (_, j) => {
+                const t = cellText(r[j], decimal);
+                return (
+                  <td key={j} title={t.length > 14 ? t : undefined}>
+                    {t}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -493,24 +505,114 @@ function ColumnPick({
   );
 }
 
-/** The first rows of the table as it will be made; cells that aren't numbers struck through. */
+/** A row-number button in the preview's gutter, to move where the table starts. */
+function RowPick({
+  row,
+  skipped,
+  onClick,
+}: {
+  /** The sheet row, from 0. */
+  readonly row: number;
+  readonly skipped: boolean;
+  readonly onClick: () => void;
+}) {
+  const n = String(row + 1);
+  return (
+    <th scope="row" className="row-pick">
+      <button
+        type="button"
+        aria-label={skipped ? `Start at row ${n}` : `Skip row ${n}`}
+        title={skipped ? 'Start the table here' : 'Skip this row'}
+        onClick={onClick}
+      >
+        {n}
+      </button>
+    </th>
+  );
+}
+
+/**
+ * The first rows of the table as it will be made, under the file's rows
+ * skipped above it (struck through) — one table to see both where the
+ * table starts and what it becomes. Row numbers in the gutter are the
+ * file's: a skipped row's starts the table there, a title row's skips it.
+ * Cells that aren't numbers are struck through.
+ */
 function Preview({
   result,
+  sheet,
+  skip,
   decimal,
+  onSkip,
 }: {
   readonly result: ImportResult;
+  readonly sheet: SourceSheet;
+  readonly skip: number;
   readonly decimal: DecimalSeparator;
+  readonly onSkip: (skip: number) => void;
 }) {
-  const { table, marks } = result;
+  const [allSkipped, setAllSkipped] = useState(false);
+  const { table, marks, notes } = result;
   const labels = subcolumnLabels(table);
   const sub = labels.length > 1;
   const rows = table.rows.slice(0, PREVIEW_ROWS);
   const grouped = table.type === 'grouped';
+  const width = (grouped ? 1 : 0) + table.dataSets.length * labels.length;
+  const hidden = allSkipped ? 0 : Math.max(0, skip - SKIPPED_SHOWN);
+  const skipped = Array.from({ length: skip - hidden }, (_, i) => hidden + i);
+  // Title rows are the sheet rows straight under the skipped ones; with
+  // none, the first data row is the first row of the sheet the table reads.
+  const pick = (k: number) =>
+    k < Math.max(1, notes.titleRows) ? (
+      <RowPick
+        row={skip + k}
+        skipped={false}
+        onClick={() => {
+          onSkip(skip + k + 1);
+        }}
+      />
+    ) : (
+      <th scope="row" className="row-pick" aria-hidden />
+    );
   return (
     <div className="import-scroll">
       <table className="import-table" aria-label="Preview">
         <thead>
-          <tr>
+          {hidden > 0 && (
+            <tr className="start-skipped">
+              <th className="row-pick" aria-hidden />
+              <td colSpan={width}>
+                <button
+                  type="button"
+                  className="link"
+                  aria-label={`Show ${String(hidden)} more skipped ${hidden === 1 ? 'row' : 'rows'}`}
+                  onClick={() => {
+                    setAllSkipped(true);
+                  }}
+                >
+                  ↑ {hidden} more
+                </button>
+              </td>
+            </tr>
+          )}
+          {skipped.map((i) => (
+            <tr key={`skip:${String(i)}`} className="start-skipped">
+              <RowPick
+                row={i}
+                skipped
+                onClick={() => {
+                  onSkip(i);
+                }}
+              />
+              <td colSpan={width} title={rowTexts(sheet.cells[i], decimal).join('  ')}>
+                {rowTexts(sheet.cells[i], decimal).map((t, j) => (
+                  <span key={j}>{t}</span>
+                ))}
+              </td>
+            </tr>
+          ))}
+          <tr className="titles">
+            {notes.titleRows > 0 ? pick(0) : <th scope="row" className="row-pick" aria-hidden />}
             {grouped && <th rowSpan={sub ? 2 : 1} aria-label="Row titles" />}
             {table.dataSets.map((d) => (
               <th key={d.id} colSpan={labels.length} scope="colgroup">
@@ -519,7 +621,8 @@ function Preview({
             ))}
           </tr>
           {sub && (
-            <tr>
+            <tr className="titles">
+              {notes.titleRows > 1 ? pick(1) : <th scope="row" className="row-pick" aria-hidden />}
               {table.dataSets.map((d) =>
                 labels.map((l, k) => (
                   <th key={`${d.id}:${String(k)}`} className="sub" scope="col">
@@ -533,6 +636,11 @@ function Preview({
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.id}>
+              {i === 0 && notes.titleRows === 0 ? (
+                pick(0)
+              ) : (
+                <th scope="row" className="row-pick" aria-hidden />
+              )}
               {grouped && <th scope="row">{r.title ?? ''}</th>}
               {table.dataSets.map((d, g) =>
                 d.subcolumns.map((col, k) => {
