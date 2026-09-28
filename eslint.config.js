@@ -9,7 +9,7 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   {
-    ignores: ['dist', 'coverage', 'node_modules', '.idea', 'design', 'public/webr'],
+    ignores: ['.claude', 'dist', 'coverage', 'node_modules', '.idea', 'design', 'public/webr'],
   },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
