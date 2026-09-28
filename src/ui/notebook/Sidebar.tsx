@@ -12,7 +12,7 @@ import { Logo } from '../Logo';
 import { tableTypeInfo } from '../formats';
 import { deletionNote } from '../shell/tables';
 import { getResults } from '../state/results';
-import { type Sheet, store } from '../state/store';
+import { HOME, type Sheet, store } from '../state/store';
 import { partsOf, sectionsOf, summaryLine } from './experiments';
 import { MoreMenu } from './MoreMenu';
 import { RenameInput } from './RenameInput';
@@ -155,9 +155,15 @@ function ProjectName({ name }: { readonly name: string }) {
     <button
       type="button"
       className="project-name"
-      title="Rename project"
+      title="Show the front page (double-click, or F2, to rename)"
       onClick={() => {
+        store.show(HOME);
+      }}
+      onDoubleClick={() => {
         setRenaming(true);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'F2') setRenaming(true);
       }}
     >
       {name}
@@ -183,7 +189,16 @@ export function Sidebar({ project, sheet, experiment, onNewExperiment, children 
   return (
     <div className="side">
       <div className="side-head">
-        <Logo height={20} />
+        <button
+          type="button"
+          className="logo-home"
+          title="BarelySig: the front page"
+          onClick={() => {
+            store.show(HOME);
+          }}
+        >
+          <Logo height={20} />
+        </button>
         <ProjectName name={project.name} />
       </div>
       <nav className="experiments" aria-label="Experiments">

@@ -2001,6 +2001,12 @@ button.danger:hover:not(:disabled) {
   padding: 0 6px;
 }
 
+.logo-home {
+  padding: 4px 6px;
+  margin: -4px -6px;
+  display: block;
+}
+
 .side-head .project-name {
   padding: 2px 6px;
   margin-left: -6px;
