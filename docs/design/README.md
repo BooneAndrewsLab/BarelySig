@@ -35,3 +35,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 27 | [Normality check for nested analyses](27-nested-normality.md) | #77 |
 | 28 | [Contingency tables](28-contingency-tables.md) | #39 |
 | 29 | [XY tables, linear regression and correlation](29-xy-tables-linear-regression.md) | #38 |
+| 30 | [Import: a Nested-table layout](30-nested-import-layout.md) | #88 |

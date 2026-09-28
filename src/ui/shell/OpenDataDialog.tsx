@@ -142,7 +142,7 @@ export function OpenDataDialog({
   }
 
   const bestGuess = guess.possible[0];
-  const twoFactor = result?.table.type === 'grouped';
+  const twoFactor = result?.table.type === 'grouped' || result?.table.type === 'nested';
   const words = result ? describeImport(result.notes) : null;
 
   return (
@@ -238,7 +238,9 @@ export function OpenDataDialog({
 
           <fieldset className="import-options">
             <legend>Reading</legend>
-            {(choice.layout === 'columns' || choice.layout === 'grouped') && (
+            {(choice.layout === 'columns' ||
+              choice.layout === 'grouped' ||
+              choice.layout === 'nested') && (
               <label className="option">
                 <input
                   type="checkbox"

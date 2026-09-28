@@ -92,6 +92,27 @@ describe('the Open data file dialog', () => {
     expect(dialog().getByText(/Column table/)).toBeInTheDocument();
   });
 
+  it('recognises a group header over shared subgroup names as Nested, and swaps them', async () => {
+    const { onCreate } = open(
+      csv(
+        'buds.csv',
+        'Replicate 1,,Replicate 2,\nUnbudded,Small,Unbudded,Small\n16,17,25,15\n17,18,16,11\n',
+      ),
+    );
+    await dialog().findByText('best guess');
+    expect(dialog().getByRole('radio', { name: /named subgroups/ })).toBeChecked();
+    expect(preview().getByRole('columnheader', { name: 'Replicate 1' })).toBeInTheDocument();
+    expect(preview().getAllByRole('columnheader', { name: 'Unbudded' })).toHaveLength(2);
+    expect(dialog().getByText(/Nested table/)).toBeInTheDocument();
+    fireEvent.click(dialog().getByRole('checkbox', { name: 'Swap rows and groups' }));
+    expect(preview().getByRole('columnheader', { name: 'Unbudded' })).toBeInTheDocument();
+    expect(preview().getAllByRole('columnheader', { name: 'Replicate 1' })).toHaveLength(2);
+    fireEvent.click(dialog().getByRole('button', { name: 'Create' }));
+    const t = onCreate.mock.calls[0]?.[0];
+    expect(t?.type).toBe('nested');
+    expect(t?.dataSets.map((d) => d.title)).toEqual(['Unbudded', 'Small']);
+  });
+
   it('skips rows and reads with another separator on request', async () => {
     open(csv('semi.txt', 'Exported\n\nWT;KO\n1,5;2,5\n'));
     await dialog().findByText('best guess');

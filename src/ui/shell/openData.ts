@@ -20,6 +20,11 @@ export const LAYOUT_INFO: Readonly<Record<LayoutKind, LayoutInfo>> = {
     blurb:
       'Row names down the left (e.g. genotype), groups across the top (e.g. treatment); repeated names are replicates.',
   },
+  nested: {
+    name: 'Groups of named subgroups',
+    blurb:
+      'Group names across the top (e.g. replicate), the same subgroup names repeated under each (e.g. cage, dish); raw values below.',
+  },
   summary: {
     name: 'Summary data',
     blurb: 'Means with SD, SEM or %CV (and n), already calculated.',
@@ -32,7 +37,12 @@ export const LAYOUT_INFO: Readonly<Record<LayoutKind, LayoutInfo>> = {
 
 /** What a table will be, in small print under the preview: "Column table · Mean, SD and n". */
 export function madeLine(table: Table): string {
-  const kind = table.type === 'column' ? 'Column table' : 'Grouped table';
+  const kind =
+    table.type === 'column'
+      ? 'Column table'
+      : table.type === 'nested'
+        ? 'Nested table'
+        : 'Grouped table';
   const groups = table.dataSets.length;
   return `${kind} · ${formatLabel(table.format)} · ${String(groups)} ${groups === 1 ? 'group' : 'groups'}${
     table.type === 'grouped'

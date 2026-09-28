@@ -25,9 +25,9 @@ import { type DecimalSeparator, type Parsed, parseCell } from '@/ui/grid/numbers
 
 import type { SourceCell, SourceSheet } from './sheets';
 
-export type LayoutKind = 'columns' | 'grouped' | 'summary' | 'long';
+export type LayoutKind = 'columns' | 'grouped' | 'nested' | 'summary' | 'long';
 
-export const LAYOUTS: readonly LayoutKind[] = ['columns', 'grouped', 'summary', 'long'];
+export const LAYOUTS: readonly LayoutKind[] = ['columns', 'grouped', 'nested', 'summary', 'long'];
 
 /** Everything the dialog can change; a guess fills it in. */
 export interface ImportChoice {
@@ -305,7 +305,7 @@ interface Slot {
 }
 
 interface Cube {
-  readonly type: 'column' | 'grouped';
+  readonly type: 'column' | 'grouped' | 'nested';
   readonly format: EntryFormat;
   readonly groups: readonly string[];
   /** Row titles (Grouped); a Column table's rows are untitled. */
@@ -314,6 +314,8 @@ interface Cube {
   readonly slots: readonly (readonly (readonly Slot[])[])[];
   readonly unit: string | null;
   readonly valueTitle: string | null;
+  /** Nested: subgroup names shared across every group (`replicateTitles`). */
+  readonly subTitles?: readonly string[];
 }
 
 class Tally {
@@ -383,9 +385,8 @@ function finish(
       excluded: new Set(),
     };
   });
-  const table: Table = {
+  const base = {
     id: newId('t'),
-    type: cube.type,
     title,
     format: cube.format,
     rows,
@@ -393,6 +394,10 @@ function finish(
     ...(cube.valueTitle ? { valueTitle: cube.valueTitle } : {}),
     ...(cube.unit ? { unit: cube.unit } : {}),
   };
+  const table: Table =
+    cube.type === 'nested'
+      ? { ...base, type: 'nested', ...(cube.subTitles ? { replicateTitles: cube.subTitles } : {}) }
+      : { ...base, type: cube.type };
   return {
     table,
     marks,
@@ -565,6 +570,116 @@ function buildGrouped(b: Block, choice: ImportChoice): Built {
     valueTitle: null,
   };
   return { cube: choice.swap ? swapped(cube) : cube, extra: { leftOut }, tally };
+}
+
+/** What `nestedShape` finds, shared by the guess and the builder. */
+interface NestedShape {
+  readonly order: string[];
+  readonly byGroup: ReadonlyMap<string, number[]>;
+  readonly subTitles: string[];
+}
+
+/**
+ * A group header (row 0, forward-filled from column 0, unlike Grouped's
+ * which starts at column 1) over a row of subgroup labels repeated —
+ * literally, or left blank to inherit the first group's — identically
+ * under every group. Unlike `groupedHeaderRows`, a row of replicate
+ * *numbers* doesn't count: that is Grouped's two-header-row shape, not
+ * a shared subgroup name.
+ */
+function nestedShape(b: Block, header: boolean): NestedShape | null {
+  if (!header || b.cols.length < 1 || b.rows.length < 3) return null;
+  const groupOf: string[] = [];
+  let prevGroup = '';
+  b.cols.forEach((_, j) => {
+    const t = textOf(rawAt(b, 0, j));
+    if (t !== '') prevGroup = t;
+    groupOf.push(prevGroup);
+  });
+  // A blank column 0 header is Grouped's row-title column (its header
+  // left blank on purpose), not a merged group title left uncontinued:
+  // Nested has no row-title column, so its first group starts at 0.
+  if ((groupOf[0] ?? '') === '') return null;
+  const row1 = b.parsed[1] ?? [];
+  if (!row1.some((p) => p.kind !== 'empty')) return null;
+  if (!row1.every((p) => p.kind === 'empty' || isLabel(p))) return null;
+  const order: string[] = [];
+  const byGroup = new Map<string, number[]>();
+  groupOf.forEach((g, j) => {
+    if (g === '') return;
+    if (!byGroup.has(g)) {
+      byGroup.set(g, []);
+      order.push(g);
+    }
+    byGroup.get(g)?.push(j);
+  });
+  const firstGroup = order[0];
+  if (firstGroup === undefined) return null;
+  const labelsOf = (cols: number[]) => cols.map((j) => textOf(rawAt(b, 1, j)));
+  const first = labelsOf(byGroup.get(firstGroup) ?? []);
+  if (first.length < 2) return null;
+  const ok = order.every((g) => {
+    const cols = byGroup.get(g) ?? [];
+    if (cols.length !== first.length) return false;
+    return labelsOf(cols).every((l, i) => l === '' || l === first[i]);
+  });
+  if (!ok) return null;
+  return { order, byGroup, subTitles: first };
+}
+
+/** Transposes a Nested cube: subgroups become the groups and vice versa. */
+function swappedNested(cube: Cube): Cube {
+  const subTitles = cube.subTitles ?? [];
+  const k = subTitles.length;
+  const g = cube.groups.length;
+  return {
+    ...cube,
+    format: { kind: 'replicates', count: g },
+    groups: subTitles.map((t, i) => (t === '' ? defaultTitle(i) : t)),
+    subTitles: cube.groups,
+    slots: Array.from({ length: k }, (_, kk) =>
+      Array.from({ length: g }, (_, gg) => cube.slots[gg]?.[kk] ?? []),
+    ),
+  };
+}
+
+/**
+ * A group header over shared subgroup names, no row-title column: raw,
+ * ragged rows per subgroup (item 30, #88). Groups and subgroups swap
+ * with `choice.swap`, since the file's shape alone doesn't say which
+ * side is meant to be compared.
+ */
+function buildNested(b: Block, choice: ImportChoice): Built {
+  const shape = nestedShape(b, choice.header);
+  if (!shape) return null;
+  const { order, byGroup, subTitles } = shape;
+  const tally = new Tally();
+  const leftOut: string[] = [];
+  const grouped = new Set(order.flatMap((g) => byGroup.get(g) ?? []));
+  b.cols.forEach((_, j) => {
+    if (grouped.has(j)) return;
+    if (numericShare(b, j, 2).filled > 0) leftOut.push(columnName(b, j, true));
+  });
+  const bodyRows: number[] = [];
+  for (let r = 2; r < b.rows.length; r += 1) {
+    if ([...grouped].some((j) => at(b, r, j).kind !== 'empty')) bodyRows.push(r);
+  }
+  const { titles, unit } = commonUnit(order);
+  const slots = order.map((g) => {
+    const cols = byGroup.get(g) ?? [];
+    return cols.map((j) => bodyRows.map((r) => tally.slot(at(b, r, j))));
+  });
+  const cube: Cube = {
+    type: 'nested',
+    format: { kind: 'replicates', count: subTitles.length },
+    groups: titles,
+    rowTitles: [],
+    slots,
+    unit,
+    valueTitle: null,
+    subTitles,
+  };
+  return { cube: choice.swap ? swappedNested(cube) : cube, extra: { leftOut }, tally };
 }
 
 /** Columns of text labels (not numbers) under a header, from row 1. */
@@ -845,6 +960,7 @@ function buildLong(b: Block, choice: ImportChoice): Built {
 const BUILDERS: Readonly<Record<LayoutKind, (b: Block, c: ImportChoice) => Built>> = {
   columns: buildColumns,
   grouped: buildGrouped,
+  nested: buildNested,
   summary: buildSummary,
   long: buildLong,
 };
@@ -975,6 +1091,7 @@ export function guessLayout(
   let guess: LayoutKind = 'columns';
   if (possible.includes('summary')) guess = 'summary';
   else if (long && possible.includes('long')) guess = 'long';
+  else if (possible.includes('nested') && nestedShape(b, header)) guess = 'nested';
   else if (possible.includes('grouped') && looksGrouped(b, header)) guess = 'grouped';
   else if (!possible.includes('columns') && possible[0]) guess = possible[0];
   const ordered = possible.includes(guess)

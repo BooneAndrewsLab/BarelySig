@@ -260,6 +260,115 @@ describe('rows × columns', () => {
   });
 });
 
+describe('groups of named subgroups (nested)', () => {
+  it('reads a group header over shared subgroup names, no row-title column', () => {
+    const s = csv(
+      'Replicate 1,,,Replicate 2,,\nUnbudded,Small,Large,Unbudded,Small,Large\n16,17,21,25,15,18\n17,18,18,16,11,25',
+    );
+    const g = guessLayout(s, '.');
+    expect(g.choice.layout).toBe('nested');
+    const r = build(s);
+    expect(r.table.type).toBe('nested');
+    expect(r.table.format).toEqual({ kind: 'replicates', count: 3 });
+    if (r.table.type !== 'nested') throw new Error('expected a nested table');
+    expect(r.table.replicateTitles).toEqual(['Unbudded', 'Small', 'Large']);
+    expect(values(r)).toEqual([
+      {
+        title: 'Replicate 1',
+        subcolumns: [
+          [16, 17],
+          [17, 18],
+          [21, 18],
+        ],
+      },
+      {
+        title: 'Replicate 2',
+        subcolumns: [
+          [25, 16],
+          [15, 11],
+          [18, 25],
+        ],
+      },
+    ]);
+  });
+
+  it('lets a repeated subgroup name be left blank after the first group', () => {
+    const s = csv('Dish A,,Dish B,\nMouse 1,Mouse 2,,\n1,2,3,4\n5,6,7,8');
+    const r = build(s);
+    if (r.table.type !== 'nested') throw new Error('expected a nested table');
+    expect(r.table.replicateTitles).toEqual(['Mouse 1', 'Mouse 2']);
+    expect(r.table.dataSets.map((d) => d.title)).toEqual(['Dish A', 'Dish B']);
+  });
+
+  it('swaps groups and subgroups on request, with a different subcolumn count each way', () => {
+    const s = csv(
+      'Replicate 1,,,,Replicate 2,,,,Replicate 3,,,\n' +
+        'Unbudded,Small,Medium,Large,Unbudded,Small,Medium,Large,Unbudded,Small,Medium,Large\n' +
+        '16,17,17,21,25,15,14,18,25,17,21,21\n' +
+        '17,18,23,18,16,11,18,25,21,17,18,20',
+    );
+    const guess = guessLayout(s, '.');
+    const built = buildTable(s, { ...guess.choice, layout: 'nested' }, 'x');
+    if (built?.table.type !== 'nested') throw new Error('expected a nested table');
+    expect(built.table.format).toEqual({ kind: 'replicates', count: 4 });
+    expect(built.table.dataSets.map((d) => d.title)).toEqual([
+      'Replicate 1',
+      'Replicate 2',
+      'Replicate 3',
+    ]);
+    expect(built.table.dataSets.every((d) => d.subcolumns.length === 4)).toBe(true);
+    const r = build(s, { swap: true });
+    if (r.table.type !== 'nested') throw new Error('expected a nested table');
+    // 4 subgroups per group become 4 groups, each with 3 (the old group count) subcolumns.
+    expect(r.table.format).toEqual({ kind: 'replicates', count: 3 });
+    expect(r.table.dataSets.map((d) => d.title)).toEqual(['Unbudded', 'Small', 'Medium', 'Large']);
+    expect(r.table.replicateTitles).toEqual(['Replicate 1', 'Replicate 2', 'Replicate 3']);
+    expect(r.table.dataSets.every((d) => d.subcolumns.length === 3)).toBe(true);
+    expect(validateTable(r.table)).toEqual([]);
+  });
+
+  it('swaps groups and subgroups on request', () => {
+    const s = csv(
+      'Replicate 1,,Replicate 2,\nUnbudded,Small,Unbudded,Small\n16,17,25,15\n17,18,16,11',
+    );
+    const r = build(s, { swap: true });
+    if (r.table.type !== 'nested') throw new Error('expected a nested table');
+    expect(r.table.dataSets.map((d) => d.title)).toEqual(['Unbudded', 'Small']);
+    expect(r.table.replicateTitles).toEqual(['Replicate 1', 'Replicate 2']);
+    expect(r.table.dataSets[0]?.subcolumns).toEqual([
+      [16, 17],
+      [25, 16],
+    ]);
+  });
+
+  it("doesn't fit when a group has a different number of subgroups", () => {
+    const s = csv(
+      'Replicate 1,,,Replicate 2,\nUnbudded,Small,Large,Unbudded,Small\n16,17,21,25,15\n17,18,18,16,11',
+    );
+    expect(guessLayout(s, '.').possible).not.toContain('nested');
+  });
+
+  it("doesn't fit when a group's subgroup names disagree with the first group's", () => {
+    const s = csv(
+      'Replicate 1,,Replicate 2,\nUnbudded,Small,Unbudded,Medium\n16,17,25,15\n17,18,16,11',
+    );
+    expect(guessLayout(s, '.').possible).not.toContain('nested');
+  });
+
+  it("doesn't fit a single subgroup per group (that's each column a group)", () => {
+    const s = csv('Replicate 1,Replicate 2\nUnbudded,Unbudded\n16,25\n17,16');
+    expect(guessLayout(s, '.').possible).not.toContain('nested');
+  });
+
+  it("a Grouped table's row-title column (blank header, replicate numbers below) stays Grouped", () => {
+    // Column 0's header is blank (a row-title column), not a group left uncontinued.
+    const s = csv(',x,,\n,Y1,Y2,Y3\nx,1,2,3\nxx,4,5,6\nxxx,7,8,9\ny,10,11,12');
+    const g = guessLayout(s, '.');
+    expect(g.choice.layout).toBe('grouped');
+    expect(g.possible).not.toContain('nested');
+  });
+});
+
 describe('summary data', () => {
   it('reads one row per group with a column per statistic', () => {
     const s = csv('Group,Mean,SD,N\nWT,5.5,1.25,4\nKO,3.25,0.5,5');
