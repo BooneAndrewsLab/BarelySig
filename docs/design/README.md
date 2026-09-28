@@ -34,3 +34,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 26 | [Descriptive statistics of Nested tables](26-nested-descriptive.md) | #75 |
 | 27 | [Normality check for nested analyses](27-nested-normality.md) | #77 |
 | 28 | [Contingency tables](28-contingency-tables.md) | #39 |
+| 29 | [XY tables, linear regression and correlation](29-xy-tables-linear-regression.md) | #38 |
