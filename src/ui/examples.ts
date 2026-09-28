@@ -2,13 +2,14 @@
  * "Try an example": a small project with made-up numbers, so a first-time
  * user sees filled tables before typing anything — and what they turn
  * into: a one-way ANOVA with Tukey's comparisons and its bar graph with
- * brackets, a two-way ANOVA and its grouped bars (#33), and an XY table
+ * brackets, a two-way ANOVA and its grouped bars (#33), an XY table
  * (Anscombe's quartet dataset I, #91) with its linear regression and
  * Pearson correlation — a real dataset, not invented, so its reference
  * slope (0.500), intercept (3.000) and r (0.816) are independently
- * published and let a user sanity-check the app's numbers. No graph is
- * attached: XY graphs aren't supported yet (#87). The titles say which
- * tables' data are invented.
+ * published and let a user sanity-check the app's numbers — and a growth
+ * curve fit (#94) on an invented sigmoidal time course. No graph is
+ * attached to either XY table: XY graphs aren't supported yet (#87). The
+ * titles say which tables' data are invented.
  */
 import { type Edit, applyEdit } from '@/model/edits';
 import type { Cell } from '@/model/missing';
@@ -60,6 +61,14 @@ export function exampleProject(): Project {
   });
   // dataSets[0] is the shared X column; the rest (just one, here) are Y data sets.
   const anscombeYs = anscombe.dataSets.slice(1).map((d) => d.id);
+  const growthCurve = createXyTable({
+    title: 'Bacterial growth (example data)',
+    xTitle: 'Time (h)',
+    groups: ['OD600'],
+    rows: 13,
+    format: { kind: 'replicates', count: 3 },
+  });
+  const growthCurveYs = growthCurve.dataSets.slice(1).map((d) => d.id);
   const edits: Edit[] = [
     { op: 'addTable', table: { ...viability, valueTitle: 'Viability', unit: '%' } },
     fill(viability, [
@@ -85,11 +94,30 @@ export function exampleProject(): Project {
       [[10, 8, 13, 9, 11, 14, 6, 4, 12, 7, 5]],
       [[8.04, 6.95, 7.58, 8.81, 8.33, 9.96, 7.24, 4.26, 10.84, 4.82, 5.68]],
     ]),
+    { op: 'addTable', table: growthCurve },
+    fill(growthCurve, [
+      [[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]],
+      [
+        [
+          -0.0065, 0.0043, 0.0784, 0.8313, 1.0168, 0.9954, 0.9836, 1.0142, 1.0149, 0.9976, 1.0179,
+          0.9585, 1.0034,
+        ],
+        [
+          0.011, 0.0062, 0.0637, 0.8463, 0.9589, 0.9822, 0.9589, 0.9946, 0.9718, 1.0093, 1.0056,
+          1.0238, 1.0184,
+        ],
+        [
+          -0.0135, 0.0235, 0.0843, 0.8199, 0.9835, 1.0004, 0.9967, 0.9707, 1.0093, 1.01, 1.0202,
+          0.9855, 0.9666,
+        ],
+      ],
+    ]),
   ];
   const anova = newId('a');
   const twoWay = newId('a');
   const linReg = newId('a');
   const pearson = newId('a');
+  const growthFit = newId('a');
   edits.push(
     {
       op: 'addAnalysis',
@@ -133,6 +161,16 @@ export function exampleProject(): Project {
         kind: 'correlation',
         options: DEFAULT_OPTIONS.correlation,
         input: { kind: 'table', table: anscombe.id, dataSets: anscombeYs },
+      },
+    },
+    {
+      op: 'addAnalysis',
+      analysis: {
+        id: growthFit,
+        title: 'Growth curve of Bacterial growth (example data)',
+        kind: 'growth-curve',
+        options: DEFAULT_OPTIONS['growth-curve'],
+        input: { kind: 'table', table: growthCurve.id, dataSets: growthCurveYs },
       },
     },
     {

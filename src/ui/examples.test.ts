@@ -13,6 +13,7 @@ describe('the example project', () => {
       'two-way-anova',
       'linear-regression',
       'correlation',
+      'growth-curve',
     ]);
     expect([...p.graphs.values()].map((g) => [g.plot.kind, g.analyses.length])).toEqual([
       ['bars', 1],
