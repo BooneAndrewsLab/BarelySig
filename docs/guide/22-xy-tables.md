@@ -78,7 +78,9 @@ what the halfway dose is called:
   the dose and _inhibitor_ when it falls. It is the same curve either way:
   the halfway dose is called EC50 or IC50, and an inhibitor curve comes out
   with a negative HillSlope. Pick the one that matches your data: a falling
-  curve given to an agonist model with a fixed slope fits badly.
+  curve given to an agonist model with a fixed slope fits badly. If a
+  standard-slope fit runs the wrong way, the results say so and name the
+  model to try instead.
 - **Variable slope** estimates the HillSlope. **Standard slope** (or "three
   parameters") holds it at 1 for an agonist, or −1 for an inhibitor: the
   shape of simple one-site binding, one number less to estimate.

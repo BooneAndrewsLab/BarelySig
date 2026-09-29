@@ -123,10 +123,17 @@ dropped: with the slope held the plateau estimates are collinear and drc's
 own solver reports a singular system, so there is no independent
 reference. The behaviour is described above instead.
 
+## Wrong-way warning (#108)
+
+A standard-slope fit whose direction opposes the data adds a line to the
+results' warnings, naming the other direction's model. Non-normalized
+models: fitted Top below Bottom. Normalized ones (plateaus held): the sign
+of the data's X–Y correlation against the held slope. Pure function in
+`direction.ts`; variable-slope models are never flagged.
+
 ## Follow-ups
 
 - The wider curve library: exponential growth/decay, Michaelis–Menten,
   Gaussian, etc. (filed as a new issue). It needs a model-generic
   parameter list in the result type, results grid and comparison, which
   today name Bottom/Top/LogEC50/HillSlope.
-- Warn in the results when a standard-slope fit runs the wrong way.

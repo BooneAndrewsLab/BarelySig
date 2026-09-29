@@ -15,6 +15,7 @@ import type { ParameterConstraint } from '@/model/project';
 import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
 import { ciFallback, ciUsed } from './ci';
+import { wrongWayWarning } from './direction';
 import { alternativeFit, effectiveShared, optionsProblem } from './constraints';
 import { effectiveConstraints } from './models';
 import { weightedSeries, weightingProblem, yPower } from './weighting';
@@ -356,6 +357,15 @@ export const nonlinearRegression: AnalysisModule<
 
   parse(value: Plain, request, warnings): NonlinearRegressionResult {
     const r = object(value, 'nonlinear regression');
+    const series = list(r['series']).map((v, i) => {
+      const named = request.series[i];
+      if (!named) throw new Error('nonlinear regression: more series than asked for');
+      return { ...named, outcome: outcome(object(v, 'series'), request.unknowns[i] ?? []) };
+    });
+    const wrongWay = series.flatMap((s, i) => {
+      const w = wrongWayWarning(request.model, s.title, request.points[i] ?? [], s.outcome);
+      return w === null ? [] : [w];
+    });
     return {
       model: request.model,
       logX: request.logX,
@@ -370,12 +380,8 @@ export const nonlinearRegression: AnalysisModule<
       ci: ciUsed(request),
       ciFallback: ciFallback(request),
       global: globalFit(r['global']),
-      series: list(r['series']).map((v, i) => {
-        const named = request.series[i];
-        if (!named) throw new Error('nonlinear regression: more series than asked for');
-        return { ...named, outcome: outcome(object(v, 'series'), request.unknowns[i] ?? []) };
-      }),
-      warnings: [...warnings],
+      series,
+      warnings: [...warnings, ...wrongWay],
     };
   },
 };
