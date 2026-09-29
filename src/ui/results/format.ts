@@ -63,6 +63,10 @@ export const dfText = (df: number): string => (Number.isInteger(df) ? String(df)
 export const interval = (lo: number | null, hi: number | null): string =>
   `${sig(lo)} to ${sig(hi)}`;
 
+/** A CI whose side may be open (null): a profile-likelihood interval the data leave unbounded. */
+export const openInterval = (lo: number | null, hi: number | null): string =>
+  `${lo === null ? 'unbounded' : sig(lo)} to ${hi === null ? 'unbounded' : sig(hi)}`;
+
 /** How often, in words, with its noun: "about 23% of experiments", "fewer than 1 in 10,000 experiments". */
 export function howOften(p: number): string {
   if (p < 0.0001) return 'fewer than 1 in 10,000 experiments';

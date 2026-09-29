@@ -14,6 +14,7 @@ import {
   TWO_WAY_FAMILIES,
   DEFAULT_OPTIONS,
   DOSE_RESPONSE_MODEL_IDS,
+  CI_METHODS,
   WEIGHTING_IDS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
@@ -200,6 +201,7 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
       compareAlpha: fc.constantFrom(0.05, 0.01, 0.1, 0.001),
       weighting: fc.constantFrom(...WEIGHTING_IDS),
       interpolate: fc.boolean(),
+      ci: fc.constantFrom(...CI_METHODS),
     })
     .map((o): AnalysisSpec => ({
       kind: 'nonlinear-regression',

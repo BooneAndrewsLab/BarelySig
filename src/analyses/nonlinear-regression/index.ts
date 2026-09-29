@@ -14,6 +14,7 @@ import type { AnalysisModule, Prepared } from '../module';
 import type { ParameterConstraint } from '@/model/project';
 import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
+import { ciFallback, ciUsed } from './ci';
 import { alternativeFit, effectiveShared, optionsProblem } from './constraints';
 import { effectiveConstraints } from './models';
 import { weightedSeries, weightingProblem, yPower } from './weighting';
@@ -52,8 +53,9 @@ function parameter(v: Plain | undefined, what: string): FitParameter {
     value: need(o['value'], what),
     status,
     se: need(o['se'], `${what} SE`),
-    lower: need(o['lower'], `${what} CI lower`),
-    upper: need(o['upper'], `${what} CI upper`),
+    // A side of a profile-likelihood CI can be open (null: unbounded).
+    lower: num(o['lower']),
+    upper: num(o['upper']),
     dependency: need(o['dependency'], `${what} dependency`),
     ambiguous: o['ambiguous'] === true,
   };
@@ -205,8 +207,9 @@ function outcome(o: PlainObject, unknowns: readonly UnknownY[]): DoseResponseOut
     logEc50: parameter(o['logec50'], 'LogEC50'),
     hillSlope: parameter(o['hill'], 'HillSlope'),
     ec50: need(o['ec50'], 'EC50'),
-    ec50Lower: need(o['ec50_lower'], 'EC50 CI lower'),
-    ec50Upper: need(o['ec50_upper'], 'EC50 CI upper'),
+    ec50Lower: num(o['ec50_lower']),
+    ec50Upper: num(o['ec50_upper']),
+    ci: o['ci_method'] === 'profile' ? 'profile' : 'wald',
     df: need(o['df'], 'df'),
     ss: need(o['ss'], 'sum of squares'),
     syx: need(o['syx'], 'Sy.x'),
@@ -225,7 +228,7 @@ export const nonlinearRegression: AnalysisModule<
   NonlinearRegressionResult
 > = {
   kind: 'nonlinear-regression',
-  version: 7,
+  version: 8,
   code,
 
   prepare(analysis, project): Prepared<NonlinearRegressionRequest> {
@@ -287,6 +290,7 @@ export const nonlinearRegression: AnalysisModule<
         weighting: analysis.options.weighting,
         weights: series.map((s) => s.weights),
         unknowns,
+        ci: analysis.options.ci,
       },
     };
   },
@@ -316,7 +320,7 @@ export const nonlinearRegression: AnalysisModule<
     const altShared = alt?.shared ?? sh;
     const role = { none: 0, 'alternative-simpler': 1, 'alternative-complex': 2, 'not-nested': 3 };
     return {
-      code: `${code}\nbs_nonlinear_regression(x, y, w, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has, shared,\n  alt_lo, alt_hi, alt_has_lo, alt_has_hi, alt_shared, alt_role, ypow, u, ug)`,
+      code: `${code}\nbs_nonlinear_regression(x, y, w, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has, shared,\n  alt_lo, alt_hi, alt_has_lo, alt_has_hi, alt_shared, alt_role, ypow, u, ug, profile)`,
       inputs: {
         x,
         y,
@@ -338,6 +342,7 @@ export const nonlinearRegression: AnalysisModule<
         ),
         alt_role: alt ? role[alt.relation] : role.none,
         ypow: yPower(request.weighting),
+        profile: ciUsed(request) === 'profile' ? 1 : 0,
         u,
         ug,
         shared: [sh.bottom, sh.top, sh.logEc50, sh.hillSlope].map((v) => (v ? 1 : 0)),
@@ -362,6 +367,8 @@ export const nonlinearRegression: AnalysisModule<
       comparison: comparison(r['comparison']),
       shared: request.shared,
       weighting: request.weighting,
+      ci: ciUsed(request),
+      ciFallback: ciFallback(request),
       global: globalFit(r['global']),
       series: list(r['series']).map((v, i) => {
         const named = request.series[i];

@@ -478,6 +478,11 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
                   'The fit is weighted: points expected to scatter more count for less. 1/Y and 1/Y² use the height of the fitted curve (the fit is repeated until the weights settle); 1/X and 1/X² favour low X; 1/SD² uses the spread of the replicates at each X and fits their means. The sum of squares and Sy.x are then weighted, so they are not comparable with an unweighted fit’s.',
                 ]
               : []),
+            ...(analysis.options.ci === 'profile'
+              ? [
+                  'The 95% CIs are profile-likelihood intervals: each is the range of values of a parameter for which the fit, with the other parameters refitted, is not significantly worse (P > 0.05, extra sum-of-squares F test). They need not be symmetric around the best-fit value, and a side is “unbounded” when the data cannot rule out arbitrarily large or small values. Where that cannot be done (shared parameters, 1/Y or 1/Y² weights, or limits on a parameter) the results say so and give asymptotic CIs instead.',
+                ]
+              : []),
             ...(analysis.options.interpolate
               ? [
                   'Rows with a Y value but no X are treated as unknowns and read off the fitted curve. The 95% CI of each X is where the curve’s confidence bands cross that Y; a Y at or beyond a plateau has no X.',

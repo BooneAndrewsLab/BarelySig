@@ -46,3 +46,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 38 | [Nonlinear regression: sharing parameters across data sets (global fit)](38-nonlinear-global-fit.md) | #97 |
 | 39 | [Nonlinear regression: comparing models and shared vs. separate parameters](39-nonlinear-compare-models.md) | #105 |
 | 40 | [Nonlinear regression: weighting and interpolating unknowns](40-nonlinear-weighting-interpolation.md) | #100 |
+| 41 | [Nonlinear regression: profile-likelihood confidence intervals](41-nonlinear-profile-ci.md) | #99 |

@@ -28,6 +28,7 @@ import type {
   DescribedReplicate,
   NestedDescriptiveResult,
 } from '@/analyses/nested-descriptive/types';
+import { CI_FALLBACK_SHORT } from '@/analyses/nonlinear-regression/ci';
 import { doseResponseModel } from '@/analyses/nonlinear-regression/models';
 import type {
   ComparisonOutcome,
@@ -61,7 +62,17 @@ import { Section as PageSection } from '../notebook/Section';
 import { AnalyzeDialog } from '../shell/AnalyzeDialog';
 import { getResults } from '../state/results';
 import { store } from '../state/store';
-import { STAR_SCHEME, dfText, interval, levelText, pPhrase, pValue, sig, stars } from './format';
+import {
+  STAR_SCHEME,
+  dfText,
+  interval,
+  levelText,
+  openInterval,
+  pPhrase,
+  pValue,
+  sig,
+  stars,
+} from './format';
 import { setAllNumbersOpen, useAllNumbersOpen } from './openNumbers';
 import {
   COMPARISON_TEST,
@@ -1037,6 +1048,23 @@ function comparisonGrid(
   return { head: r.comparison !== null ? ['', 'Whole fit'] : [...head], rows };
 }
 
+/** The methods line’s clause about the kind of CI, and why not the one asked for. */
+function ciSentence(r: NonlinearRegressionResult): string {
+  if (r.ci === 'profile') {
+    const fellBack = r.series.filter((s) => s.outcome.ran && s.outcome.ci === 'wald');
+    return (
+      '95% CIs by profile likelihood (asymmetric: the values at which the sum of squares becomes significantly worse, P = 0.05, with the other parameters refitted; “unbounded” means the data cannot rule out arbitrarily large or small values)' +
+      (fellBack.length > 0
+        ? `, except for ${fellBack.map((s) => s.title).join(', ')}, where the profile could not be found and the CIs are asymptotic`
+        : '') +
+      ';'
+    );
+  }
+  return r.ciFallback === null
+    ? 'Asymptotic 95% CIs;'
+    : `Asymptotic (symmetric) 95% CIs, because profile-likelihood CIs are not available ${CI_FALLBACK_SHORT[r.ciFallback]};`;
+}
+
 /** The methods line’s sentence about the comparison, or nothing. */
 function weightingSentence(w: NonlinearRegressionResult['weighting']): string {
   switch (w) {
@@ -1127,11 +1155,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
     (key !== undefined && shared?.[key] === true && p.status === 'fitted' ? ' (shared)' : '');
   const se = (p: FitParameter) => (p.se === null ? '—' : `${p.ambiguous ? '~' : ''}${sig(p.se)}`);
   const ci = (p: FitParameter) =>
-    p.lower === null || p.upper === null
-      ? '—'
-      : p.ambiguous
-        ? 'very wide'
-        : interval(p.lower, p.upper);
+    p.status !== 'fitted' ? '—' : p.ambiguous ? 'very wide' : openInterval(p.lower, p.upper);
   const anyRan = r.series.some((s) => s.outcome.ran);
   const weighted = r.weighting !== 'none';
   const runs = (o: Fit): string => {
@@ -1151,7 +1175,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
         {r.logX
           ? 'X is the log of the dose.'
           : 'X is a dose, fitted on a log scale (log₁₀); a zero or negative dose is left out.'}{' '}
-        Asymptotic 95% CIs; {weightingSentence(r.weighting)}
+        {ciSentence(r)} {weightingSentence(r.weighting)}
         {comparisonMethod(r)}
       </p>
       {anyRan && (
@@ -1179,7 +1203,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             ]}
           />
           <Grid
-            label="95% CI (asymptotic)"
+            label={`95% CI (${r.ci === 'profile' ? 'profile likelihood' : 'asymptotic'})`}
             head={head}
             rows={[
               row('Bottom', (o) => ci(o.bottom)),
@@ -1187,7 +1211,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
               row(`Log${potency}`, (o) => ci(o.logEc50)),
               row('HillSlope', (o) => ci(o.hillSlope)),
               row(potency, (o) =>
-                o.logEc50.ambiguous ? 'very wide' : interval(o.ec50Lower, o.ec50Upper),
+                o.logEc50.ambiguous ? 'very wide' : openInterval(o.ec50Lower, o.ec50Upper),
               ),
             ]}
           />

@@ -6,12 +6,15 @@
 import { type ReactNode, useState } from 'react';
 
 import {
+  alternativeFit,
   comparisonProblem,
   comparisonWithProblem,
+  effectiveShared,
   optionsProblem,
 } from '@/analyses/nonlinear-regression/constraints';
+import { CI_FALLBACK_TEXT, ciFallback } from '@/analyses/nonlinear-regression/ci';
 import { WEIGHTING_LABELS, weightingProblem } from '@/analyses/nonlinear-regression/weighting';
-import { WEIGHTING_IDS } from '@/model/project';
+import { CI_METHODS, WEIGHTING_IDS } from '@/model/project';
 import {
   DOSE_RESPONSE_MODELS,
   doseResponseModel,
@@ -1050,6 +1053,54 @@ function WeightingFields(props: {
         Type the unknowns’ Y values in the same table on rows where X is left empty. Each gets an X
         read off the fitted curve, with a 95% CI.
       </p>
+    </fieldset>
+  );
+}
+
+function CiFields(props: {
+  readonly o: NonlinearRegressionOptions;
+  readonly dataSets: number;
+  readonly set: (o: NonlinearRegressionOptions) => void;
+}) {
+  const { o, dataSets, set } = props;
+  const alternative = alternativeFit(o, dataSets);
+  const fallback = ciFallback({
+    ci: o.ci,
+    shared: effectiveShared(o.shared, dataSets),
+    alternative: typeof alternative === 'string' ? null : alternative,
+    weighting: o.weighting,
+    constraints: effectiveConstraints(o),
+  });
+  return (
+    <fieldset>
+      <legend>Confidence intervals</legend>
+      <label className="constraint-name">
+        <span>Find the 95% CIs by</span>
+        <select
+          aria-label="Confidence interval method"
+          value={o.ci}
+          onChange={(e) => {
+            const v = CI_METHODS.find((m) => m === e.currentTarget.value);
+            if (v) set({ ...o, ci: v });
+          }}
+        >
+          <option value="wald">Asymptotic (symmetric)</option>
+          <option value="profile">Profile likelihood (asymmetric)</option>
+        </select>
+      </label>
+      <p className="hint">
+        Asymptotic CIs are the best-fit value plus or minus the same amount on each side: quick, but
+        they can be too narrow or misplaced when there are few points or the curve is not well
+        pinned down. Profile-likelihood CIs are found by asking how far each value can move before
+        the fit is significantly worse, so they can be lopsided, and one side can be unbounded when
+        the data cannot rule out a very large (or small) value. Prism uses profile likelihood by
+        default. It takes a little longer to compute.
+      </p>
+      {fallback && (
+        <p className="hint" role="status">
+          {CI_FALLBACK_TEXT[fallback]}
+        </p>
+      )}
     </fieldset>
   );
 }
@@ -2158,6 +2209,13 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               />
               <WeightingFields
                 o={options['nonlinear-regression']}
+                set={(o) => {
+                  set('nonlinear-regression', o);
+                }}
+              />
+              <CiFields
+                o={options['nonlinear-regression']}
+                dataSets={picked.length}
                 set={(o) => {
                   set('nonlinear-regression', o);
                 }}

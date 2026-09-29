@@ -153,7 +153,15 @@ export interface NonlinearRegressionOptions {
   readonly weighting: WeightingId;
   /** Read the unknown Y values (rows with a Y but no X) off the fitted curve (item 40, #100). */
   readonly interpolate: boolean;
+  /**
+   * How the parameters' 95% CIs are found (item 41, #99): asymptotic
+   * (symmetric) or profile likelihood (Prism's default, not ours: note 41).
+   */
+  readonly ci: CiMethod;
 }
+
+export const CI_METHODS = ['wald', 'profile'] as const;
+export type CiMethod = (typeof CI_METHODS)[number];
 
 /**
  * Weights for the least-squares fit (item 40, #100): none, 1/Y or 1/Y² (Y
@@ -453,6 +461,7 @@ export const DEFAULT_OPTIONS: {
     shared: { bottom: false, top: false, hillSlope: false, logEc50: false },
     weighting: 'none',
     interpolate: false,
+    ci: 'wald',
   },
   'growth-curve': { model: 'gompertz' },
   'graph-summary': { whiskers: null, kde: null },

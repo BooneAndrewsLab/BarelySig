@@ -89,7 +89,15 @@ reference <- quote({
       for (it in 1:1000) {
         J <- sw * ref_jacobian(x, p)[, idx, drop = FALSE]
         A <- crossprod(J)
-        step <- unname(drop(solve(A + lambda * diag(diag(A), length(idx)), crossprod(J, sw * (y - ref_curve(x, p))))))
+        step <- tryCatch(
+          unname(drop(solve(A + lambda * diag(diag(A), length(idx)), crossprod(J, sw * (y - ref_curve(x, p)))))),
+          error = function(e) NULL
+        )
+        if (is.null(step) || any(!is.finite(step))) {
+          lambda <- lambda * 10
+          if (lambda > 1e12) break
+          next
+        }
         q <- p
         q[idx] <- pmin(pmax(p[idx] + step, lower[idx]), upper[idx])
         if (rss(q) <= rss(p)) {
@@ -115,7 +123,8 @@ reference <- quote({
     # Gauss-Newton steps converge the rest of the way.
     for (it in 1:5) {
       J <- sw * ref_jacobian(x, p)[, idx, drop = FALSE]
-      p[idx] <- p[idx] + unname(drop(qr.coef(qr(J), sw * (y - ref_curve(x, p)))))
+      gn <- unname(drop(qr.coef(qr(J), sw * (y - ref_curve(x, p)))))
+      if (all(is.finite(gn))) p[idx] <- p[idx] + gn
     }
     if (all(is.infinite(c(lower, upper))) && p[1] > p[2]) p <- c(p[2], p[1], p[3], -p[4])
     p
@@ -166,10 +175,52 @@ reference <- quote({
     hi <- edge(if (rising) -1 else 1, 1)
     res("ok", back(xh), back(lo), back(hi))
   }
+  # Profile-likelihood CIs (#99, note 41): for each estimated parameter, the
+  # values where the profiled sum of squares (the others refitted by the
+  # reference's own projected LM, the parameter held via lower == upper)
+  # reaches SS0 * (1 + qf(0.95, 1, df) / df). A scan outward in fixed multiples
+  # of the Wald SE finds the bracket, base uniroot the root; a side still
+  # under the threshold at 1e6 SEs is open (NA).
+  ref_profile <- function(x, y, w, p, idx, se, lower, upper) {
+    df <- length(x) - length(idx)
+    ss_of <- function(q) sum(w * (y - ref_curve(x, q))^2)
+    thr <- ss_of(p) * (1 + qf(0.95, 1, df) / df)
+    refit <- function(i, theta, start) {
+      lo <- lower
+      up <- upper
+      lo[i] <- theta
+      up[i] <- theta
+      q <- start
+      q[i] <- theta
+      ref_optimum(x, y, start = q, lower = lo, upper = up, w = w)
+    }
+    mult <- c(0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 1e3, 1e4, 1e5, 1e6)
+    out <- vector("list", 4)
+    for (j in seq_along(idx)) {
+      i <- idx[j]
+      side <- function(dir) {
+        prev <- p
+        prev_theta <- p[i]
+        for (m in mult) {
+          theta <- p[i] + dir * m * se[j]
+          q <- refit(i, theta, prev)
+          if (ss_of(q) > thr) {
+            g <- function(t) ss_of(refit(i, t, prev)) - thr
+            return(uniroot(g, sort(c(prev_theta, theta)), tol = 1e-13 * max(1, abs(p[i]), m * se[j]))$root)
+          }
+          prev <- q
+          prev_theta <- theta
+        }
+        NA_real_
+      }
+      out[[i]] <- list(lower = side(-1), upper = side(1))
+    }
+    out
+  }
   # dose: X as entered; w: static weights per row (1 = none), ypow: 1 or 2 for
   # 1/Y or 1/Y^2 (weights from the fitted curve, refitted until they settle,
   # from an unweighted start); unknown: Y values to read off the curve.
-  run_fpl_one <- function(dose, y, log_x = TRUE, bounds = limits(), w = NULL, ypow = 0, unknown = numeric(0)) {
+  run_fpl_one <- function(dose, y, log_x = TRUE, bounds = limits(), w = NULL, ypow = 0, unknown = numeric(0), profile = FALSE) {
     lower <- bounds$lower
     upper <- bounds$upper
     if (is.null(w)) w <- rep(1, length(dose))
@@ -218,16 +269,25 @@ reference <- quote({
     # A new observation is assumed to weigh what the nearest measured X does.
     w_new <- vapply(grid, function(v) w[which.min(abs(x - v))], 0)
     fit_grid <- ref_curve(grid, p)
+    prof <- if (profile) ref_profile(x, y, w, p, idx, se, lower, upper) else NULL
     par <- function(i) {
       j <- match(i, idx)
       if (is.na(j)) return(ref_held(p[i], if (fixed[i]) "fixed" else "at_bound"))
-      ref_param(p[i], se[j], t, dependency[j])
+      r <- ref_param(p[i], se[j], t, dependency[j])
+      if (!is.null(prof)) {
+        r$lower <- prof[[i]]$lower
+        r$upper <- prof[[i]]$upper
+      }
+      r
     }
     j3 <- match(3, idx)
     list(
       n = n, dropped = dropped, ran = TRUE,
       bottom = par(1), top = par(2), logec50 = par(3), hill = par(4),
-      ec50 = 10^p[3], ec50_lower = 10^(p[3] - t * se[j3]), ec50_upper = 10^(p[3] + t * se[j3]),
+      ec50 = 10^p[3],
+      ec50_lower = if (is.null(prof)) 10^(p[3] - t * se[j3]) else 10^prof[[3]]$lower,
+      ec50_upper = if (is.null(prof)) 10^(p[3] + t * se[j3]) else 10^prof[[3]]$upper,
+      ci_method = if (is.null(prof)) "wald" else "profile",
       df = df, ss = ss, syx = sqrt(s2), r2 = 1 - ss / sum(w * (y - weighted.mean(y, w))^2),
       x = back(x[ord]), y = y[ord], fitted = fitted[ord], residual = resid[ord],
       runs = ref_runs(signs[signs != 0]),
@@ -248,8 +308,8 @@ reference <- quote({
   #   AICc = n ln(SS/n) + 2K + 2K(K+1)/(n - K - 1), K = parameters + 1
   # and Akaike weights exp(-delta/2) / sum. P from pf(lower.tail = FALSE): 1 - pf()
   # loses a small P's digits.
-  run_fpl <- function(dose, y, log_x = TRUE, bounds = limits(), alt = NULL, w = NULL, ypow = 0, unknown = numeric(0)) {
-    fit <- run_fpl_one(dose, y, log_x, bounds, w, ypow, unknown)
+  run_fpl <- function(dose, y, log_x = TRUE, bounds = limits(), alt = NULL, w = NULL, ypow = 0, unknown = numeric(0), profile = FALSE) {
+    fit <- run_fpl_one(dose, y, log_x, bounds, w, ypow, unknown, profile)
     if (is.null(alt) || !isTRUE(fit$ran)) return(fit)
     s <- run_fpl_one(dose, y, log_x, alt, w)
     n <- fit$n
@@ -1671,3 +1731,212 @@ fixture("global-compare-weight-x",
   check = global_models_agree(dose, y, g, expected, c(FALSE, FALSE, TRUE, FALSE), c(FALSE, FALSE, FALSE, FALSE), FALSE, limits(), limits(), 2, w = dose^-1), check_packages = "drc",
   options = sharing_opts(gopts(logEc50 = TRUE), gopts(logEc50 = TRUE), x = "concentration", weighting = "x"),
   note = "A shared-vs-separate EC50 comparison of concentration data (1 to 512) with 1/X weights, both stacked fits weighted alike, against drc's anova().")
+
+# --- Profile-likelihood CIs (#99, item 41) ----------------------------------
+#
+# `run_fpl(..., profile = TRUE)`: each estimated parameter's 95% CI is where
+# its profiled sum of squares reaches SS0 (1 + F(0.95; 1, df) / df), found by
+# the reference's own optimiser and uniroot (see `ref_profile`); a side that
+# never gets there is NA (unbounded). `check` uses base R's nls, a different
+# fitter, in two ways: (1) refitting with the parameter held at each finite
+# end, the sum of squares must equal that threshold (1e-6), which is what the
+# definition says; (2) stats::confint() (profile.nls, a spline through a
+# handful of profile points) must land near the same ends, within 5% of the
+# Wald SE -- a sanity check on the reference, not a 1e-6 comparison. A
+# reported open side must still be under the threshold with the parameter
+# a million SEs away.
+profile_agrees <- function(x, y, expected, w = NULL, spline = TRUE) {
+  if (is.null(w)) w <- rep(1, length(x))
+  # The profile is unchanged by rescaling the weights (the threshold scales
+  # with them); nls converges far better on weights near 1 than near 1e18.
+  w <- w / max(w)
+  curve4 <- function(x, p) p[1] + (p[2] - p[1]) / (1 + 10^((p[3] - x) * p[4]))
+  parts <- list(expected$bottom, expected$top, expected$logec50, expected$hill)
+  val <- vapply(parts, function(p) p$value, 0)
+  held <- vapply(parts, function(p) p$status != "fitted", TRUE)
+  nm <- c("b", "t", "l", "h")
+  nfit <- function(pin = NULL, from = NULL) {
+    # pin: c(index, value) -- one more parameter held for the refit
+    fix <- held
+    v <- val
+    if (!is.null(pin)) {
+      fix[pin[1]] <- TRUE
+      v[pin[1]] <- pin[2]
+    }
+    terms <- ifelse(fix, format(v, digits = 17), nm)
+    fml <- as.formula(paste0("y ~ curve4(x, c(", paste(terms, collapse = ", "), "))"))
+    environment(fml) <- environment()
+    start <- as.list(setNames(if (is.null(from)) val[!fix] else from[!fix], nm[!fix]))
+    ctl <- nls.control(maxiter = 500, tol = 1e-10, scaleOffset = 1)
+    # A pinned parameter can leave nls's Gauss-Newton with a singular
+    # gradient: retry with the port algorithm, then from a BFGS optimum.
+    tryCatch(
+      nls(fml, start = start, weights = w, control = ctl),
+      error = function(e) {
+        tryCatch(
+          nls(fml, start = start, weights = w, algorithm = "port", control = ctl),
+          error = function(e) {
+            ssq <- function(q) {
+              v[!fix] <- q
+              sum(w * (y - curve4(x, v))^2)
+            }
+            o <- optim(unlist(start), ssq, method = "BFGS", control = list(maxit = 5000, reltol = 1e-15))
+            tryCatch(
+              nls(fml, start = as.list(setNames(o$par, nm[!fix])), weights = w, algorithm = "port", control = ctl),
+              error = function(e) list(value = o$value)
+            )
+          }
+        )
+      }
+    )
+  }
+  full <- nfit()
+  stopifnot(inherits(full, "nls"))
+  k <- sum(!held)
+  df <- length(x) - k
+  ss0 <- sum(w * (y - curve4(x, val))^2)
+  thr <- ss0 * (1 + qf(0.95, 1, df) / df)
+  checked <- 0
+  for (i in which(!held)) {
+    pr <- parts[[i]]
+    stopifnot(is.na(pr$lower) || pr$lower < pr$value, is.na(pr$upper) || pr$upper > pr$value)
+    for (e in c(pr$lower, pr$upper)) {
+      if (is.na(e)) next
+      m <- nfit(c(i, e))
+      stopifnot(!is.null(m))
+      ss <- if (inherits(m, "nls")) deviance(m) else m$value
+      if (abs(ss - thr) > 1e-6 * thr) stop("parameter ", i, " end ", e, ": profiled SS ", ss, " vs threshold ", thr)
+      checked <- checked + 1
+    }
+    # An open side: the sum of squares stays under the threshold far away.
+    for (side in c("lower", "upper")) {
+      if (!is.na(pr[[side]])) next
+      # Walked out in steps, each refit warm-started from the last (a
+      # cold start a million SEs away is a bad start, not a finding).
+      cur <- val
+      dir <- if (side == "lower") -1 else 1
+      for (mult in c(1, 2, 4, 8, 16, 32, 64, 128, 1e3, 1e4, 1e5, 1e6)) {
+        theta <- pr$value + dir * mult * pr$se
+        cur[i] <- theta
+        m <- nfit(c(i, theta), from = cur)
+        if (is.null(m) || !inherits(m, "nls")) break
+        if (deviance(m) > thr) stop("parameter ", i, " ", side, " is open but the profile exceeds the threshold at ", mult, " SEs")
+        cf <- coef(m)
+        cur[!held & seq_along(cur) != i] <- unname(cf[nm[!held & seq_along(cur) != i]])
+      }
+      checked <- checked + 1
+    }
+  }
+  stopifnot(checked >= 1)
+  # confint()'s spline through a few profile points is rough where a
+  # profile is steep and lopsided; there only the definition (above) is checked.
+  ci <- if (!spline) NULL else tryCatch(suppressMessages(suppressWarnings(confint(full))), error = function(e) NULL)
+  if (!is.null(ci)) {
+    rows <- nm[!held]
+    for (j in seq_along(rows)) {
+      pr <- parts[[which(!held)[j]]]
+      for (s in 1:2) {
+        e <- c(pr$lower, pr$upper)[s]
+        m <- ci[rows[j], s]
+        if (is.na(e) || is.na(m)) next
+        if (abs(m - e) > 0.05 * pr$se) stop("confint() ", rows[j], " side ", s, ": ", m, " vs ", e)
+      }
+    }
+  }
+  TRUE
+}
+
+fixture("profile-rising",
+  input = list(
+    dose = c(-9, -9, -9, -8.5, -8.5, -8.5, -8, -8, -8, -7.5, -7.5, -7.5, -7, -7, -7, -6.5, -6.5, -6.5, -6, -6, -6, -5.5, -5.5, -5.5, -5, -5, -5, -4.5, -4.5, -4.5, -4, -4, -4),
+    y = c(5.589, 6.618, 7.407, 4.182, 2.043, 4.026, 5.636, 11.856, 9.828, 11.206, 8.831, 10.496, 28.768, 26.998, 24.31, 43.33, 39.181, 43.052, 78.544, 74.003, 75.818, 94.795, 92.955, 80.121, 96.552, 91.76, 93.927, 94.739, 86.227, 96.495, 96.338, 92.824, 97.532)
+  ),
+  expr = run_fpl(dose, y, profile = TRUE), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum) && profile_agrees(dose, y, expected), check_packages = c("drc", "randtests"),
+  options = list(x = "log", ci = "profile"),
+  note = "A well-determined rising curve in triplicate: the profile CIs sit close to, but not exactly at, the symmetric ones.")
+
+fixture("profile-falling",
+  input = list(
+    dose = c(-10, -10, -9.5, -9.5, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5),
+    y = c(102.1, 98.09, 105.861, 102.554, 91.793, 92.734, 97.061, 94.949, 88.562, 82.085, 66.684, 60.547, 45.538, 51.583, 29.042, 29.358, 23.183, 19.333, 20.124, 17.618, 12.954, 6.86)
+  ),
+  expr = run_fpl(dose, y, profile = TRUE), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum) && profile_agrees(dose, y, expected), check_packages = c("drc", "randtests"),
+  options = list(x = "log", ci = "profile"),
+  note = "A falling curve in duplicate (negative HillSlope): the profile of HillSlope and the plateaus is asymmetric.")
+
+fixture("profile-one-plateau",
+  input = list(dose = c(-9, -8, -7, -6, -5, -4), y = c(3.065, 2.931, 3.169, 4.152, 17.677, 66.327)),
+  expr = run_fpl(dose, y, profile = TRUE), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum) && profile_agrees(dose, y, expected), check_packages = c("drc", "randtests"),
+  options = list(x = "log", ci = "profile"),
+  note = "Six doses that stop before the top plateau (df 2): the profile of Top (and of HillSlope) is unbounded on one side, reported as open rather than as a number or NaN.")
+
+fixture("profile-concentration",
+  input = list(
+    dose = c(0, 0, 1e-10, 1e-10, 3e-10, 3e-10, 1e-09, 1e-09, 3e-09, 3e-09, 1e-08, 1e-08, 3e-08, 3e-08, 1e-07, 1e-07, 3e-07, 3e-07, 1e-06, 1e-06),
+    y = c(0.199, 0.104, 0.275, 0.181, 0.216, 0.162, 0.379, 0.306, 0.616, 0.597, 1.175, 1.146, 1.676, 1.859, 1.691, 1.995, 1.972, 1.812, 1.998, 1.934)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE, profile = TRUE), setup = reference,
+  check = drc_agrees(log10(dose[dose > 0]), y[dose > 0], expected, ref_optimum) && profile_agrees(log10(dose[dose > 0]), y[dose > 0], expected), check_packages = c("drc", "randtests"),
+  options = list(x = "concentration", ci = "profile"),
+  note = "Concentrations with a zero-dose control (left out): the EC50's CI is 10^ of the LogEC50 profile bounds, so it is asymmetric on the concentration scale and keeps its magnitude (about 1e-8).")
+
+fixture("profile-single-replicates",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4),
+    y = c(5.589, 4.182, 5.636, 11.206, 28.768, 43.33, 78.544, 94.795, 96.552, 94.739, 96.338)
+  ),
+  expr = run_fpl(dose, y, profile = TRUE), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum) && profile_agrees(dose, y, expected), check_packages = c("drc", "randtests"),
+  options = list(x = "log", ci = "profile"),
+  note = "One point per dose (df 7): the profile CIs are noticeably lopsided, unlike the symmetric ones.")
+
+fixture("profile-small-n-standard-slope",
+  input = list(dose = c(-8, -7, -6, -5, -4), y = c(2.53, 7.68, 26.48, 54.6, 58.73)),
+  expr = run_fpl(dose, y, bounds = limits(hill = 1), profile = TRUE), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(hill = 1)) && profile_agrees(dose, y, expected), check_packages = c("drc", "randtests"),
+  options = list(x = "log", model = "log-agonist-standard-slope", ci = "profile"),
+  note = "Five points, standard slope (HillSlope held at 1): three parameters, df 2, where the F cut-off is large and the profile CIs are far from symmetric.")
+
+fixture("profile-bottom-zero",
+  input = list(
+    dose = c(-9, -9, -9, -8.5, -8.5, -8.5, -8, -8, -8, -7.5, -7.5, -7.5, -7, -7, -7, -6.5, -6.5, -6.5, -6, -6, -6, -5.5, -5.5, -5.5, -5, -5, -5, -4.5, -4.5, -4.5, -4, -4, -4),
+    y = c(5.589, 6.618, 7.407, 4.182, 2.043, 4.026, 5.636, 11.856, 9.828, 11.206, 8.831, 10.496, 28.768, 26.998, 24.31, 43.33, 39.181, 43.052, 78.544, 74.003, 75.818, 94.795, 92.955, 80.121, 96.552, 91.76, 93.927, 94.739, 86.227, 96.495, 96.338, 92.824, 97.532)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0), profile = TRUE), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(bottom = 0)) && profile_agrees(dose, y, expected), check_packages = c("drc", "randtests"),
+  options = list(x = "log", bottom = list(kind = "fixed", value = 0), ci = "profile"),
+  note = "Bottom held at 0: only the three estimated parameters are profiled (K = 3, df = n - 3); Bottom is reported as fixed with no CI.")
+
+fixture("profile-weight-x-concentration",
+  input = list(
+    dose = 10^c(-3, -3, -3, -2.5, -2.5, -2.5, -2, -2, -2, -1.5, -1.5, -1.5, -1, -1, -1, -0.5, -0.5, -0.5, 0, 0, 0, 0.5, 0.5, 0.5, 1, 1, 1, 1.5, 1.5, 1.5, 2, 2, 2),
+    y = c(5.589, 6.618, 7.407, 4.182, 2.043, 4.026, 5.636, 11.856, 9.828, 11.206, 8.831, 10.496, 28.768, 26.998, 24.31, 43.33, 39.181, 43.052, 78.544, 74.003, 75.818, 94.795, 92.955, 80.121, 96.552, 91.76, 93.927, 94.739, 86.227, 96.495, 96.338, 92.824, 97.532)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE, w = 1 / dose, profile = TRUE), setup = reference,
+  check = drc_agrees(log10(dose), y, expected, ref_optimum, w = 1 / dose) && profile_agrees(log10(dose), y, expected, w = 1 / dose), check_packages = c("drc", "randtests"),
+  options = list(x = "concentration", weighting = "x", ci = "profile"),
+  note = "Concentrations weighted 1/X: the profile uses the weighted sum of squares and the weighted threshold.")
+
+fixture("profile-weight-sd2-means",
+  input = list(
+    dose = seq(-9, -4, length.out = 7),
+    y = c(2.684, 5.338, 17.937, 54.391, 83.456, 98.101, 99.855),
+    sd = c(1.056, 2.372, 2.01, 5.764, 7.494, 2.864, 7.121)
+  ),
+  expr = run_fpl(dose, y, w = 1 / sd^2, profile = TRUE), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, w = 1 / sd^2) && profile_agrees(dose, y, expected, w = 1 / sd^2), check_packages = c("drc", "randtests"),
+  options = list(x = "log", weighting = "sd2", ci = "profile"),
+  note = "Seven means weighted by 1/SD^2 (df 3): a weighted profile with few degrees of freedom.")
+
+fixture("profile-missing",
+  input = list(
+    dose = c(-9, -9, -9, -8.5, -8.5, -8.5, -8, -8, -8, -7.5, -7.5, -7.5, -7, -7, -7, -6.5, -6.5, -6.5, -6, -6, -6, -5.5, -5.5, -5.5, -5, -5, -5, -4.5, -4.5, -4.5, -4, -4, -4),
+    y = c(5.589, NA, 7.407, 4.182, 2.043, 4.026, 5.636, 11.856, NA, 11.206, 8.831, 10.496, 28.768, 26.998, 24.31, 43.33, 39.181, 43.052, NA, 74.003, 75.818, 94.795, 92.955, 80.121, 96.552, 91.76, NA, 94.739, 86.227, 96.495, 96.338, 92.824, 97.532)
+  ),
+  expr = run_fpl(dose[!is.na(y)], y[!is.na(y)], profile = TRUE), setup = reference,
+  check = drc_agrees(dose[!is.na(y)], y[!is.na(y)], expected, ref_optimum) && profile_agrees(dose[!is.na(y)], y[!is.na(y)], expected), check_packages = c("drc", "randtests"),
+  options = list(x = "log", ci = "profile"),
+  note = "Four empty cells: they are left out (counted), and the profile threshold uses n - K with the remaining n.")

@@ -35,6 +35,7 @@ import {
   type SimplerModel,
   type ParameterConstraint,
   DOSE_RESPONSE_MODEL_IDS,
+  CI_METHODS,
   WEIGHTING_IDS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
@@ -281,6 +282,7 @@ function optionsJson(a: AnalysisSpec): Json {
         },
         weighting: a.options.weighting,
         interpolate: a.options.interpolate,
+        ci: a.options.ci,
       };
     case 'growth-curve':
       return { model: a.options.model };
@@ -647,6 +649,8 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
           opts['interpolate'] === undefined
             ? false
             : bool(opts['interpolate'], q.key('interpolate')),
+        // Files from before #99 have asymptotic CIs.
+        ci: opts['ci'] === undefined ? 'wald' : oneOf(opts['ci'], q.key('ci'), CI_METHODS),
       };
       return { kind, options };
     }

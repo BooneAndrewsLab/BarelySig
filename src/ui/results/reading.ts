@@ -34,7 +34,7 @@ import type { RepeatedTwoWayBothResult } from '@/analyses/repeatedTwowayBoth/typ
 import type { TwoWayResult } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 
-import { howOften, interval, pPhrase, sig } from './format';
+import { howOften, interval, openInterval, pPhrase, sig } from './format';
 
 export function tTestMethod(r: TTestResult): string {
   const tails = r.tails === 'two' ? 'two-tailed' : 'one-tailed';
@@ -866,7 +866,7 @@ export function nonlinearRegressionReading(r: NonlinearRegressionResult): string
     const tilde = o.logEc50.ambiguous ? '~' : '';
     const ci = o.logEc50.ambiguous
       ? 'CI very wide'
-      : `95% CI ${interval(o.ec50Lower, o.ec50Upper)}`;
+      : `95% ${o.ci === 'profile' ? 'profile-likelihood ' : ''}CI ${openInterval(o.ec50Lower, o.ec50Upper)}`;
     let text = `${s.title}’s ${potency} = ${tilde}${sig(o.ec50)} (${ci}), Hill slope ${sig(o.hillSlope.value)}${o.hillSlope.status === 'fixed' ? ' (held)' : ''}, R² = ${sig(o.r2)}`;
     const limited = [
       o.bottom.status === 'at-bound' ? 'Bottom' : null,

@@ -11,9 +11,11 @@ import type {
   ParameterConstraint,
   SharedParameters,
   SimplerModel,
+  CiMethod,
 } from '@/model/project';
 import type { Named } from '../ttest/types';
 import type { AlternativeFit } from './constraints';
+import type { CiFallback } from './ci';
 
 export interface NonlinearRegressionRequest {
   /** Which dose-response model (item 37, #95); it names the potency and holds some parameters. */
@@ -55,6 +57,8 @@ export interface NonlinearRegressionRequest {
   readonly weights: readonly (readonly number[])[];
   /** Each series' unknown Y values to read off the curve (empty unless asked for). */
   readonly unknowns: readonly (readonly UnknownY[])[];
+  /** The kind of 95% CI asked for (item 41, #99); the engine uses it only where supported (`ciFallback`). */
+  readonly ci: CiMethod;
 }
 
 /** A Y value with no X, to interpolate (item 40, #100). */
@@ -137,6 +141,10 @@ export interface FitParameter {
   readonly value: number;
   readonly status: 'fitted' | 'fixed' | 'at-bound';
   readonly se: number | null;
+  /**
+   * The bounds; null for a held parameter, and for a fitted one whose
+   * profile-likelihood interval is open on that side (unbounded, #99).
+   */
   readonly lower: number | null;
   readonly upper: number | null;
   /** 1 − (SE with the other parameters fixed / SE)²; near 1 = the data barely pin this down. */
@@ -158,8 +166,10 @@ export type DoseResponseOutcome =
       readonly logEc50: FitParameter;
       readonly hillSlope: FitParameter;
       readonly ec50: number;
-      readonly ec50Lower: number;
-      readonly ec50Upper: number;
+      readonly ec50Lower: number | null;
+      readonly ec50Upper: number | null;
+      /** The kind of CI these are: profile likelihood, or asymptotic (also when the profile could not be found). */
+      readonly ci: CiMethod;
       /** n − the parameters actually estimated (fixed and at-bound ones don't count). */
       readonly df: number;
       readonly ss: number;
@@ -218,6 +228,10 @@ export interface NonlinearRegressionResult {
   readonly comparison: ComparisonOutcome | null;
   readonly shared: SharedParameters;
   readonly weighting: WeightingId;
+  /** The kind of CI the engine was asked to find (item 41, #99): profile only where supported. */
+  readonly ci: CiMethod;
+  /** Why profile CIs were asked for but not used, or null. */
+  readonly ciFallback: CiFallback | null;
   /** The stacked fit's totals when parameters were shared and the fit ran; else null. */
   readonly global: GlobalFit | null;
   readonly series: readonly NonlinearRegressionSeries[];

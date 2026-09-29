@@ -133,6 +133,101 @@ bs_fpl_param <- function(value, se, t, dependency) {
   )
 }
 
+# Profile-likelihood CIs (#99, note 41). The weighted sum of squares of p.
+bs_fpl_ss <- function(x, y, w, p) sum(w * (y - bs_fpl_curve(x, p))^2)
+
+# Levenberg-Marquardt on the parameters `free` (the others stay put), from p;
+# the least-squares p, or NULL when the sum of squares stops being finite.
+bs_fpl_lm <- function(x, y, w, p, free) {
+  ss <- bs_fpl_ss(x, y, w, p)
+  if (!is.finite(ss)) return(NULL)
+  if (length(free) == 0) return(p)
+  sw <- sqrt(w)
+  lambda <- 1e-3
+  for (it in 1:300) {
+    J <- sw * bs_fpl_jacobian(x, p)[, free, drop = FALSE]
+    A <- crossprod(J)
+    g <- crossprod(J, sw * (y - bs_fpl_curve(x, p)))
+    step <- tryCatch(
+      drop(solve(A + lambda * diag(pmax(diag(A), 1e-12), length(free)), g)),
+      error = function(e) NULL
+    )
+    if (is.null(step) || any(!is.finite(step))) {
+      lambda <- lambda * 10
+      if (lambda > 1e12) break
+      next
+    }
+    q <- p
+    q[free] <- p[free] + step
+    ssq <- bs_fpl_ss(x, y, w, q)
+    if (is.finite(ssq) && ssq <= ss) {
+      gain <- ss - ssq
+      p <- q
+      ss <- ssq
+      lambda <- max(lambda / 10, 1e-12)
+      if (gain <= 1e-14 * ss && max(abs(step) / pmax(abs(p[free]), 1e-8)) < 1e-7) break
+    } else {
+      lambda <- lambda * 10
+      if (lambda > 1e12) break
+    }
+  }
+  p
+}
+
+# The 95% profile-likelihood bounds of each estimated parameter `idx` of the
+# fit p (Venzon-Moolgavkar): where the profiled sum of squares (the other
+# estimated parameters refitted) reaches SS * (1 + F(0.95; 1, df) / df), i.e.
+# where the extra sum-of-squares F test has P = 0.05. Steps out from the
+# estimate in units of its SE, doubling, then `uniroot`. A side the profile
+# never leaves after 2^30 SEs is open (NA). NULL if any probe could not be
+# fitted (the caller then keeps the Wald CIs).
+bs_fpl_profile <- function(x, y, w, p, idx, se) {
+  df <- length(x) - length(idx)
+  ss0 <- bs_fpl_ss(x, y, w, p)
+  thr <- ss0 * (1 + qf(0.95, 1, df) / df)
+  bounds <- vector("list", 4)
+  for (j in seq_along(idx)) {
+    i <- idx[j]
+    free <- setdiff(idx, i)
+    fit_at <- function(theta, start) {
+      q <- start
+      q[i] <- theta
+      bs_fpl_lm(x, y, w, q, free)
+    }
+    side <- function(dir) {
+      step <- max(se[j], 1e-8 * max(1, abs(p[i])))
+      prev <- p
+      for (k in 1:30) {
+        theta <- prev[i] + dir * step
+        q <- fit_at(theta, prev)
+        if (is.null(q)) return(NULL)
+        if (bs_fpl_ss(x, y, w, q) > thr) {
+          g <- function(t) {
+            r <- fit_at(t, prev)
+            if (is.null(r)) stop("profile probe failed")
+            bs_fpl_ss(x, y, w, r) - thr
+          }
+          root <- tryCatch(
+            uniroot(g, sort(c(prev[i], theta)),
+              tol = 1e-10 * max(1, abs(p[i]), step), maxiter = 200
+            )$root,
+            error = function(e) NULL
+          )
+          return(root)
+        }
+        prev <- q
+        step <- step * 2
+      }
+      NA_real_
+    }
+    lo <- side(-1)
+    hi <- side(1)
+    if (is.null(lo) || is.null(hi)) return(NULL)
+    bounds[[i]] <- list(lower = lo, upper = hi)
+  }
+  bounds
+}
+
 # A parameter held at a constant (fixed by the user, or sitting on a bound):
 # no SE, CI or dependency, since nothing about it was estimated.
 bs_fpl_held <- function(value, status) {
@@ -189,7 +284,7 @@ bs_interpolate <- function(y0, p, span, half, unlog) {
 # parameter having lower == upper (#96); unbounded by default. `unknown`: Y
 # values to interpolate from the fitted curve.
 bs_fpl_one <- function(x, y, w, unlog, dropped, lower = rep(-Inf, 4), upper = rep(Inf, 4),
-                       ypow = 0, unknown = numeric(0)) {
+                       ypow = 0, unknown = numeric(0), profile = FALSE) {
   n <- length(x)
   fixed <- lower == upper
   constrained <- any(is.finite(lower) | is.finite(upper))
@@ -269,11 +364,22 @@ bs_fpl_one <- function(x, y, w, unlog, dropped, lower = rep(-Inf, 4), upper = re
   w_new <- vapply(grid, function(v) w[which.min(abs(x - v))], 0)
   pred_half <- t * sqrt((half_grid / t)^2 + s2 / w_new)
   fit_grid <- bs_fpl_curve(grid, p)
+  # Profile-likelihood CIs (#99) where asked for and supported: unweighted or
+  # statically weighted, nothing merely bounded. NULL keeps the Wald ones.
+  prof <- NULL
+  if (profile && ypow == 0 && all(fixed | (is.infinite(lower) & is.infinite(upper)))) {
+    prof <- tryCatch(bs_fpl_profile(x, y, w, p, idx, se), error = function(e) NULL)
+  }
   # se and dependency are per estimated parameter (idx); the others are held.
   param <- function(i) {
     j <- match(i, idx)
     if (is.na(j)) return(bs_fpl_held(p[i], if (fixed[i]) "fixed" else "at_bound"))
-    bs_fpl_param(p[i], se[j], t, dependency[j])
+    par <- bs_fpl_param(p[i], se[j], t, dependency[j])
+    if (!is.null(prof)) {
+      par$lower <- prof[[i]]$lower
+      par$upper <- prof[[i]]$upper
+    }
+    par
   }
   logec50 <- param(3)
   list(
@@ -287,6 +393,7 @@ bs_fpl_one <- function(x, y, w, unlog, dropped, lower = rep(-Inf, 4), upper = re
     ec50 = 10^p[3],
     ec50_lower = 10^logec50$lower,
     ec50_upper = 10^logec50$upper,
+    ci_method = if (is.null(prof)) "wald" else "profile",
     df = df,
     ss = ss,
     syx = sqrt(s2),
@@ -655,7 +762,7 @@ bs_nonlinear_regression <- function(x, y, w, g, k, log_x, lo, hi, has_lo, has_hi
                                     shared = c(0, 0, 0, 0),
                                     alt_lo = lo, alt_hi = hi, alt_has_lo = has_lo,
                                     alt_has_hi = has_hi, alt_shared = shared, alt_role = 0,
-                                    ypow = 0, u = numeric(0), ug = numeric(0)) {
+                                    ypow = 0, u = numeric(0), ug = numeric(0), profile = 0) {
   lo <- ifelse(has_lo != 0, lo, -Inf)
   hi <- ifelse(has_hi != 0, hi, Inf)
   lower <- c(lo[1], lo[2], -Inf, lo[3])
@@ -712,7 +819,7 @@ bs_nonlinear_regression <- function(x, y, w, g, k, log_x, lo, hi, has_lo, has_hi
     return(fit)
   }
   one <- function(part) {
-    fit <- bs_fpl_one(part$x, part$y, part$w, part$unlog, part$dropped, lower, upper, ypow, part$u)
+    fit <- bs_fpl_one(part$x, part$y, part$w, part$unlog, part$dropped, lower, upper, ypow, part$u, profile != 0)
     if (role == 0 || !isTRUE(fit$ran)) return(fit)
     alt <- bs_fpl_one(part$x, part$y, part$w, part$unlog, part$dropped, alt_lower, alt_upper, ypow)
     fit$comparison <- if (!isTRUE(alt$ran)) {

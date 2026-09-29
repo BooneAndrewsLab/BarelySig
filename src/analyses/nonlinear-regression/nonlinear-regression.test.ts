@@ -23,6 +23,7 @@ import { type Fixture, loadFixtures, mismatches } from '@/test/fixtures';
 import { startNodeWebR } from '@/test/webrNode';
 
 import { nonlinearRegression } from '.';
+import { ciFallback, ciUsed } from './ci';
 import { alternativeFit, comparisonWithProblem } from './constraints';
 import { effectiveConstraints } from './models';
 import type { NonlinearRegressionRequest } from './types';
@@ -39,15 +40,14 @@ function requestFor(f: Fixture): NonlinearRegressionRequest {
   const modelId = f.options?.['model'];
   const model =
     DOSE_RESPONSE_MODEL_IDS.find((id) => id === modelId) ?? 'log-agonist-variable-slope';
-  // A global-fit fixture stacks its data sets in one column with a set number `g`; a cell that
+  // A global-fit fixture stacks its data sets in one column with a set number `g`. A cell that
   // is empty stays out of the request, as the grid would leave it.
   const sets = g === undefined ? [1] : [...new Set(g.map((v) => v ?? 0))].sort((p, q) => p - q);
   const points = sets.map((set) =>
     x.flatMap((v, i) => {
       const yv = y[i];
       if (g !== undefined && g[i] !== set) return [];
-      if (g !== undefined && (v === null || yv === null || yv === undefined)) return [];
-      if (v === null || yv === null || yv === undefined) throw new Error('fixture cell is empty');
+      if (v === null || yv === null || yv === undefined) return [];
       return [{ x: v, y: yv }];
     }),
   );
@@ -112,6 +112,7 @@ function requestFor(f: Fixture): NonlinearRegressionRequest {
     compareWith,
     alpha: compareAlpha,
     shared,
+    ci: f.options?.['ci'] === 'profile' ? 'profile' : 'wald',
   };
 }
 
@@ -187,6 +188,85 @@ describe('dose-response fit, against the R oracle', () => {
     },
     120_000,
   );
+
+  describe('profile-likelihood CIs (item 41)', () => {
+    const fixture = (id: string): Fixture => {
+      const f = fixtures.find((x) => x.id === `nonlinear-regression/${id}`);
+      if (!f) throw new Error(`fixture ${id} missing`);
+      return f;
+    };
+
+    it("types the CI method, and an open side (R's NA) comes back as null, never NaN", async () => {
+      const request = requestFor(fixture('profile-one-plateau'));
+      const out = await engine.run(nonlinearRegression.job(request));
+      const r = nonlinearRegression.parse(out.value, request, out.warnings);
+      const o = r.series[0]?.outcome;
+      if (o?.ran !== true) throw new Error('expected a fit');
+      expect(r.ci).toBe('profile');
+      expect(o.ci).toBe('profile');
+      expect(o.top.lower).toBeLessThan(o.top.value);
+      expect(o.top.upper).toBeGreaterThan(o.top.value);
+      // A side that never reaches the cut-off is NA in R, which arrives as null; the
+      // oracle has no case with one (a reference that follows a runaway profile is
+      // follow-up work), so the mapping is checked on the fit's own output with a side opened.
+      const series = (out.value as { series: Record<string, unknown>[] }).series;
+      const first = series[0];
+      if (first === undefined) throw new Error('no series');
+      const top = first['top'] as Record<string, unknown>;
+      const opened = {
+        ...(out.value as object),
+        series: [
+          {
+            ...first,
+            top: { ...top, upper: null },
+            ec50_upper: null,
+          },
+          ...series.slice(1),
+        ],
+      } as typeof out.value;
+      const p = nonlinearRegression.parse(opened, request, out.warnings).series[0]?.outcome;
+      if (p?.ran !== true) throw new Error('expected a fit');
+      expect(p.top.upper).toBeNull();
+      expect(p.ec50Upper).toBeNull();
+      expect(p.top.lower).toBe(o.top.lower);
+    });
+
+    it('keeps the asymptotic CI on request when profile was not asked for', async () => {
+      const f = fixture('rising');
+      const request = requestFor(f);
+      expect(request.ci).toBe('wald');
+      const out = await engine.run(nonlinearRegression.job(request));
+      const o = nonlinearRegression.parse(out.value, request, out.warnings).series[0]?.outcome;
+      if (o?.ran !== true) throw new Error('expected a fit');
+      expect(o.ci).toBe('wald');
+    });
+
+    it('states why profile CIs fall back to asymptotic ones', () => {
+      const base = requestFor(fixture('profile-rising'));
+      expect(ciFallback(base)).toBeNull();
+      expect(ciUsed(base)).toBe('profile');
+      expect(ciFallback({ ...base, weighting: 'y2' })).toBe('y-weights');
+      expect(ciUsed({ ...base, weighting: 'y' })).toBe('wald');
+      expect(ciFallback({ ...base, weighting: 'x2' })).toBeNull();
+      const limited = {
+        ...base,
+        constraints: {
+          ...base.constraints,
+          top: { kind: 'bounded' as const, lower: 0, upper: 100 },
+        },
+      };
+      expect(ciFallback(limited)).toBe('limits');
+      const held = {
+        ...base,
+        constraints: { ...base.constraints, top: { kind: 'fixed' as const, value: 100 } },
+      };
+      expect(ciFallback(held)).toBeNull();
+      const shared = { ...base, shared: { ...base.shared, top: true } };
+      expect(ciFallback(shared)).toBe('shared');
+      expect(ciUsed({ ...shared, ci: 'wald' })).toBe('wald');
+      expect(ciFallback({ ...shared, ci: 'wald' })).toBeNull();
+    });
+  });
 
   it('reports why the curve can’t be fit, in the typed result', async () => {
     for (const [id, why] of [

@@ -101,9 +101,9 @@ how many points that was.
 Every replicate counts as its own point; with summary data, the fit uses
 the mean at each dose. The results also give R², Sy.x and a runs test
 (as for linear regression, a small runs-test P means the points
-systematically miss the curve). The CIs are _asymptotic_ — symmetric
-around LogEC50, the kind Prism 6 and most programs report; Prism 7+ can
-also give profile-likelihood CIs, which BarelySig doesn't yet.
+systematically miss the curve). By default the CIs are _asymptotic_ —
+symmetric around each estimate, the kind Prism 6 and most programs report.
+See **Symmetric or asymmetric CIs** below for the alternative.
 
 When the fit can't be trusted, the results say so instead of giving a
 number: too few points or doses for the parameters being estimated (5
@@ -260,6 +260,36 @@ data set, for sharing parameters, and for comparing models, except that
 would be weighted by its own curve, so their sums of squares could not be
 compared. Choose 1/X, 1/X² or 1/SD² there.
 
+#### Symmetric or asymmetric CIs
+
+In **Analyze…**, under **Confidence intervals**, you can choose how each
+parameter's 95% CI is worked out.
+
+- **Asymptotic (symmetric)** is the default: the estimate plus or minus the
+  same amount on both sides. It is quick, but it assumes the curve behaves
+  like a straight line near the best fit, which is often untrue for a curve
+  with few points or a poorly reached plateau.
+- **Profile likelihood (asymmetric)** does not assume that. For each
+  parameter it tries other values, refits everything else each time, and
+  keeps the values the data cannot rule out (an F test at P = 0.05). The
+  interval can be lopsided, which is more honest when the data pin one side
+  down better than the other. This is Prism's default in version 7 and later.
+  It takes a little longer to compute.
+
+The results say which kind was used, in the table heading, in the methods
+sentence and in the notebook text. A profile CI can be **open** on one side,
+shown as "x to unbounded": the data cannot say how large (or small) the
+value could be, for instance a top plateau the doses barely reach. That is a
+finding, not an error. The EC50 CI is the LogEC50 CI turned back into a
+concentration, so it is lopsided too. The SE column, the dependency and the
+CI band around the curve stay asymptotic.
+
+Profile CIs work for one data set at a time, with a parameter held at a
+value, and with no weights or 1/X, 1/X², 1/SD² weights. With **shared
+parameters**, **1/Y or 1/Y² weights**, or a parameter kept **within limits**,
+BarelySig uses the asymptotic CIs and says so in the results and next to the
+option.
+
 #### Reading unknowns off a standard curve
 
 Tick **Read unknowns off the curve** and type the Y values of your unknown
@@ -339,6 +369,6 @@ Click a connected line to change its width; its colour follows the data set.
 "Help me choose" doesn't yet suggest these analyses — pick them directly
 from the **Analyze…** dialog. The dose-response fit has the
 logistic models above only. Interpolated unknowns are listed in the results but not
-marked on the graph yet, and 1/Y weights can't be combined with a comparison. Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
+marked on the graph yet, and 1/Y weights can't be combined with a comparison. Profile-likelihood CIs are not available for shared parameters, 1/Y or 1/Y² weights, or parameters kept within limits, and the growth curve keeps asymptotic CIs. Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
 (Gompertz); a logistic alternative, phase boundaries drawn on the graph,
 and fitting several data sets together aren't there yet either.
