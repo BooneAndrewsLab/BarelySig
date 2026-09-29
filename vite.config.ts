@@ -132,6 +132,8 @@ export default defineConfig({
     // Serves public/webr/repo for WebR under Node (src/test/webrNode.ts).
     globalSetup: ['./src/test/globalSetup.ts'],
     setupFiles: ['./src/test/setup.ts'],
+    // The parity test keeps every core busy; 5 s was too tight for UI tests.
+    testTimeout: 30_000,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',

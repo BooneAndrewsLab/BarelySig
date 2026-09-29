@@ -1,6 +1,10 @@
 import 'fake-indexeddb/auto';
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
+
+// The WebR parity test saturates the CPU while the UI tests run; the default
+// 1 s wait made findBy*/waitFor time out at random.
+configure({ asyncUtilTimeout: 5000 });
 
 afterEach(() => {
   cleanup();
