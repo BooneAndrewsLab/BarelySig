@@ -12,6 +12,7 @@ authors:
 license: MIT
 repository-code: 'https://github.com/BooneAndrewsLab/BarelySig'
 url: 'https://booneandrewslab.github.io/BarelySig/'
+doi: 10.5281/zenodo.23030213
 version: 1.0.0
 date-released: 2026-09-28
 keywords:
