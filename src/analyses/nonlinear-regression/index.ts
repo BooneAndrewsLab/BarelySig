@@ -16,6 +16,7 @@ import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
 import { optionsProblem } from './constraints';
 import type {
+  ComparisonOutcome,
   DoseResponseOutcome,
   FitParameter,
   NonlinearRegressionRequest,
@@ -75,6 +76,47 @@ function limits(c: ParameterConstraint): {
   }
 }
 
+function comparison(v: Plain | undefined): ComparisonOutcome | null {
+  if (v === undefined || v === null) return null;
+  const c = object(v, 'model comparison');
+  if (c['ran'] !== true) return { ran: false, why: c['why'] === 'worse' ? 'worse' : 'no-fit' };
+  const s = object(c['simpler'] ?? null, 'simpler model');
+  const f = object(c['f_test'] ?? null, 'F test');
+  const a = object(c['aicc'] ?? null, 'AICc');
+  return {
+    ran: true,
+    simpler: {
+      bottom: need(s['bottom'], 'simpler Bottom'),
+      top: need(s['top'], 'simpler Top'),
+      logEc50: need(s['logec50'], 'simpler LogEC50'),
+      hillSlope: need(s['hill'], 'simpler HillSlope'),
+      ec50: need(s['ec50'], 'simpler EC50'),
+      ss: need(s['ss'], 'simpler sum of squares'),
+      df: need(s['df'], 'simpler df'),
+    },
+    fTest:
+      f['ok'] === true
+        ? {
+            ok: true,
+            f: need(f['f'], 'F'),
+            dfNumerator: need(f['df_num'], 'F numerator df'),
+            dfDenominator: need(f['df_den'], 'F denominator df'),
+            p: need(f['p'], 'F test P'),
+          }
+        : { ok: false, why: f['why'] === 'exact_fit' ? 'exact-fit' : 'no-extra' },
+    aicc:
+      a['ok'] === true
+        ? {
+            ok: true,
+            fit: need(a['fit'], 'AICc'),
+            simpler: need(a['simpler'], 'simpler AICc'),
+            probabilityFit: need(a['prob_fit'], 'probability of the fit'),
+            probabilitySimpler: need(a['prob_simpler'], 'probability of the simpler model'),
+          }
+        : { ok: false },
+  };
+}
+
 const WHY = {
   few: 'few',
   few_x: 'few-x',
@@ -123,6 +165,7 @@ function outcome(o: PlainObject): DoseResponseOutcome {
     residuals,
     runs: runsOutcome(object(o['runs'] ?? null, 'runs test')),
     band: regressionBand(object(o['band'] ?? null, 'band')),
+    comparison: comparison(o['comparison']),
   };
 }
 
@@ -132,7 +175,7 @@ export const nonlinearRegression: AnalysisModule<
   NonlinearRegressionResult
 > = {
   kind: 'nonlinear-regression',
-  version: 2,
+  version: 3,
   code,
 
   prepare(analysis, project): Prepared<NonlinearRegressionRequest> {
@@ -168,6 +211,7 @@ export const nonlinearRegression: AnalysisModule<
         points,
         logX: analysis.options.x === 'log',
         constraints: { bottom, top, hillSlope },
+        compare: analysis.options.compare,
       },
     };
   },
@@ -181,8 +225,9 @@ export const nonlinearRegression: AnalysisModule<
       limits(request.constraints.top),
       limits(request.constraints.hillSlope),
     ];
+    const cmp = request.compare;
     return {
-      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi)`,
+      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has)`,
       inputs: {
         x,
         y,
@@ -193,6 +238,10 @@ export const nonlinearRegression: AnalysisModule<
         hi: c.map((p) => p.hi),
         has_lo: c.map((p) => (p.hasLo ? 1 : 0)),
         has_hi: c.map((p) => (p.hasHi ? 1 : 0)),
+        cmp_val: [cmp?.bottom ?? 0, cmp?.top ?? 0, cmp?.hillSlope ?? 0],
+        cmp_has: [cmp?.bottom, cmp?.top, cmp?.hillSlope].map((v) =>
+          v === null || v === undefined ? 0 : 1,
+        ),
       },
       packages: [],
     };
@@ -203,6 +252,7 @@ export const nonlinearRegression: AnalysisModule<
     return {
       logX: request.logX,
       constraints: request.constraints,
+      compare: request.compare,
       series: list(r['series']).map((v, i) => {
         const named = request.series[i];
         if (!named) throw new Error('nonlinear regression: more series than asked for');

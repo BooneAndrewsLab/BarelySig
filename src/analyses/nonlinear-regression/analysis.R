@@ -233,21 +233,86 @@ bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(I
   )
 }
 
+# AICc with K = parameters estimated + 1 (the variance counts, as in R's AIC);
+# NA when the correction has no finite value (n <= K + 1) or the fit is exact.
+bs_fpl_aicc <- function(ss, n, params) {
+  k <- params + 1
+  if (n - k - 1 <= 0 || ss <= 0) return(NA_real_)
+  n * log(ss / n) + 2 * k + 2 * k * (k + 1) / (n - k - 1)
+}
+
+# The fit `main` against the simpler model `alt` that holds some of its
+# parameters (#98): extra sum-of-squares F test and AICc. Both are bs_fpl_one
+# results that ran. `alt` is nested in `main`, so its sum of squares can only
+# be the larger; a smaller one means an optimiser missed the optimum.
+bs_fpl_compare <- function(main, alt, n) {
+  if (alt$ss < main$ss * (1 - 1e-9)) return(list(ran = FALSE, why = "worse"))
+  df_num <- alt$df - main$df
+  f_test <- if (main$ss <= 0) {
+    list(ok = FALSE, why = "exact_fit")
+  } else if (df_num < 1 || main$df < 1) {
+    list(ok = FALSE, why = "no_extra")
+  } else {
+    f <- max(0, (alt$ss - main$ss) / df_num) / (main$ss / main$df)
+    list(
+      ok = TRUE, f = f, df_num = df_num, df_den = main$df,
+      p = pf(f, df_num, main$df, lower.tail = FALSE)
+    )
+  }
+  a_main <- bs_fpl_aicc(main$ss, n, n - main$df)
+  a_alt <- bs_fpl_aicc(alt$ss, n, n - alt$df)
+  aicc <- if (is.na(a_main) || is.na(a_alt)) {
+    list(ok = FALSE)
+  } else {
+    list(
+      ok = TRUE, fit = a_main, simpler = a_alt,
+      prob_fit = plogis((a_alt - a_main) / 2), prob_simpler = plogis((a_main - a_alt) / 2)
+    )
+  }
+  list(
+    ran = TRUE,
+    simpler = list(
+      bottom = alt$bottom$value, top = alt$top$value, logec50 = alt$logec50$value,
+      hill = alt$hill$value, ec50 = alt$ec50, ss = alt$ss, df = alt$df
+    ),
+    f_test = f_test, aicc = aicc
+  )
+}
+
 # x, y: every series' points, concatenated; g: each point's series (1..k).
 # log_x: X is already log10(dose) (Prism's model); otherwise X is a dose,
 # fit against its log10, and a dose <= 0 (no log) is left out and counted.
 # lo, hi: bounds on (Bottom, Top, HillSlope), used where has_lo / has_hi;
 # a fixed parameter has lo == hi (#96).
-bs_nonlinear_regression <- function(x, y, g, k, log_x, lo, hi, has_lo, has_hi) {
+# cmp_val, cmp_has: the simpler model of a comparison (#98): where it holds
+# (Bottom, Top, HillSlope), used where cmp_has; nothing if none is.
+bs_nonlinear_regression <- function(x, y, g, k, log_x, lo, hi, has_lo, has_hi,
+                                    cmp_val = c(0, 0, 0), cmp_has = c(0, 0, 0)) {
   lo <- ifelse(has_lo != 0, lo, -Inf)
   hi <- ifelse(has_hi != 0, hi, Inf)
   lower <- c(lo[1], lo[2], -Inf, lo[3])
   upper <- c(hi[1], hi[2], Inf, hi[3])
+  alt_lower <- lower
+  alt_upper <- upper
+  held <- c(1, 2, 4)[cmp_has != 0]
+  alt_lower[held] <- cmp_val[cmp_has != 0]
+  alt_upper[held] <- cmp_val[cmp_has != 0]
+  one <- function(xs, ys, unlog, dropped) {
+    fit <- bs_fpl_one(xs, ys, unlog, dropped, lower, upper)
+    if (length(held) == 0 || !isTRUE(fit$ran)) return(fit)
+    alt <- bs_fpl_one(xs, ys, unlog, dropped, alt_lower, alt_upper)
+    fit$comparison <- if (isTRUE(alt$ran)) {
+      bs_fpl_compare(fit, alt, length(xs))
+    } else {
+      list(ran = FALSE, why = "no_fit")
+    }
+    fit
+  }
   list(series = lapply(seq_len(k), function(i) {
     xi <- x[g == i]
     yi <- y[g == i]
-    if (log_x) return(bs_fpl_one(xi, yi, identity, 0, lower, upper))
+    if (log_x) return(one(xi, yi, identity, 0))
     keep <- xi > 0
-    bs_fpl_one(log10(xi[keep]), yi[keep], function(v) 10^v, sum(!keep), lower, upper)
+    one(log10(xi[keep]), yi[keep], function(v) 10^v, sum(!keep))
   }))
 }

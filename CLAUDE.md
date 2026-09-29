@@ -312,8 +312,9 @@ how it got here.
     Bottom, Top, HillSlope)
   - #97 — share nonlinear-regression parameters across data sets
     (global fit)
-  - #98 — compare nonlinear-regression models: extra sum-of-squares F
-    test and AICc
+  - #105 — compare different curve shapes and shared vs. unshared
+    parameters (F test, AICc); #98 shipped the fit-vs-held-parameters
+    comparison (note 36)
   - #99 — profile-likelihood (asymmetric) CIs for nonlinear regression;
     needs the user's decision on asymptotic vs. profile-likelihood as
     the default (#37's first slice ships asymptotic only)

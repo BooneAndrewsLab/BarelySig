@@ -5,7 +5,7 @@
  */
 import { type ReactNode, useState } from 'react';
 
-import { optionsProblem } from '@/analyses/nonlinear-regression/constraints';
+import { comparisonProblem, optionsProblem } from '@/analyses/nonlinear-regression/constraints';
 import { type Id, newId } from '@/model/ids';
 import {
   type Analysis,
@@ -667,6 +667,101 @@ function ConstraintFields(props: {
         subtracting a baseline, Top = 100 for percent-of-control data, HillSlope = 1 for simple
         binding). Each held parameter is one less to estimate, so the fit needs fewer points and its
         intervals get tighter. A limit that the best fit runs into is treated as a held value.
+      </p>
+      {problem && (
+        <p className="hint" role="alert">
+          {problem}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+/**
+ * Comparing the fit with a simpler model that holds some parameters at a
+ * constant (item 36, #98): "is Bottom really 0?", "is the slope really 1?".
+ * Only a parameter the fit itself estimates can be held here.
+ */
+function ComparisonFields(props: {
+  readonly o: NonlinearRegressionOptions;
+  readonly set: (o: NonlinearRegressionOptions) => void;
+}) {
+  const { o, set } = props;
+  const c = o.compare;
+  const problem = comparisonProblem(o);
+  const names = [
+    ['bottom', 'Bottom'],
+    ['top', 'Top'],
+    ['hillSlope', 'HillSlope'],
+  ] as const;
+  return (
+    <fieldset>
+      <legend>Compare with a simpler model</legend>
+      <label className="option">
+        <input
+          type="checkbox"
+          checked={c !== null}
+          onChange={(e) => {
+            const on = e.currentTarget.checked;
+            const first = names.find(([k]) => o[k].kind === 'free');
+            set({
+              ...o,
+              compare: on
+                ? {
+                    bottom: null,
+                    top: null,
+                    hillSlope: null,
+                    ...(first ? { [first[0]]: FIXED_STARTS[first[0]] } : {}),
+                  }
+                : null,
+            });
+          }}
+        />
+        Ask whether the extra parameters are worth having
+      </label>
+      {c !== null && (
+        <>
+          {names.map(([k, label]) => {
+            const v = c[k];
+            const free = o[k].kind === 'free';
+            return (
+              <div className="constraint-row" key={k}>
+                <label className="option">
+                  <input
+                    type="checkbox"
+                    disabled={!free}
+                    checked={free && v !== null}
+                    onChange={(e) => {
+                      set({
+                        ...o,
+                        compare: { ...c, [k]: e.currentTarget.checked ? FIXED_STARTS[k] : null },
+                      });
+                    }}
+                  />
+                  In the simpler model, hold {label} at a constant
+                  {free ? '' : ' (already held or limited above)'}
+                </label>
+                {free && v !== null && (
+                  <TypedNumber
+                    key={k}
+                    label={`Simpler model: ${label} equals`}
+                    value={v}
+                    onChange={(n) => {
+                      set({ ...o, compare: { ...c, [k]: n ?? Number.NaN } });
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+      <p className="hint">
+        Fits the same curve twice: once with everything estimated, once with the parameters you tick
+        held at the values you give. The extra sum-of-squares F test asks whether the flexible fit
+        is better than the simpler one by more than chance would give (its P value assumes the
+        simpler model is right); AICc weighs the better fit against the extra parameters and gives
+        the chance that each model is the better one.
       </p>
       {problem && (
         <p className="hint" role="alert">
@@ -1767,6 +1862,12 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
                 }}
               />
               <ConstraintFields
+                o={options['nonlinear-regression']}
+                set={(o) => {
+                  set('nonlinear-regression', o);
+                }}
+              />
+              <ComparisonFields
                 o={options['nonlinear-regression']}
                 set={(o) => {
                   set('nonlinear-regression', o);

@@ -119,6 +119,33 @@ Without constraints the fit may swap Bottom and Top so that Bottom is the
 lower plateau; with constraints it never does, since that would silently
 break the values you set (Bottom is whatever you constrained it to be).
 
+#### Comparing with a simpler model
+
+Often the question is "do I need this parameter?": is Bottom really
+different from 0, is the slope really 1? In the Analyze dialog tick
+**Compare with a simpler model**, choose which parameters the simpler
+model holds, and at what values. The fit runs twice, once with everything
+estimated and once with those parameters held, and the results add a
+comparison table:
+
+- the **extra sum-of-squares F test**. Its null hypothesis is that the
+  simpler model is correct and the flexible one fits better only by
+  chance. A P value below 0.05 says the extra parameters really improve the
+  fit; a larger P is _no evidence_ of an improvement, which isn't proof
+  that the simpler model is right (with few points the test has little
+  power);
+- **AICc**, which weighs how much better the flexible model fits against
+  the extra parameters it uses. The model with the lower AICc is preferred,
+  and the table gives the chance that each model is the better of the two.
+  It has no cut-off, and it needs more points than parameters (with four
+  parameters, at least seven points; otherwise it says "Not available").
+
+The two can disagree, especially with few points; AICc leans towards the
+simpler model more readily than an F test at 0.05 does. The simpler model
+can only hold a parameter your fit estimates: to ask about Bottom, leave
+Bottom on "Estimate it" in the fit itself. Comparing a shared parameter
+across data sets, or different curve shapes, will come with those features.
+
 ### Growth curve
 
 Fits a bacterial or yeast growth curve — OD600, CFU or similar vs. time —

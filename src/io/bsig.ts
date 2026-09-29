@@ -30,6 +30,7 @@ import {
   type CorrelationOptions,
   type GrowthCurveOptions,
   type NonlinearRegressionOptions,
+  type SimplerModel,
   type ParameterConstraint,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
@@ -170,6 +171,19 @@ function constraint(v: Json | undefined, p: Path): ParameterConstraint {
   return { kind, lower, upper };
 }
 
+/** The simpler model a fit is compared with (#98); absent or null = no comparison. */
+function simplerModel(v: Json | undefined, p: Path): SimplerModel | null {
+  if (v === undefined || v === null) return null;
+  const o = obj(v, p);
+  const held = (k: string): number | null =>
+    o[k] === null || o[k] === undefined ? null : num(o[k], p.key(k));
+  const m = { bottom: held('bottom'), top: held('top'), hillSlope: held('hillSlope') };
+  if (m.bottom === null && m.top === null && m.hillSlope === null) {
+    p.fail('should hold at least one parameter');
+  }
+  return m;
+}
+
 /** Each kind's options, field by field in a fixed order (never spread: key order would leak in). */
 function optionsJson(a: AnalysisSpec): Json {
   switch (a.kind) {
@@ -191,6 +205,11 @@ function optionsJson(a: AnalysisSpec): Json {
         bottom: constraintJson(a.options.bottom),
         top: constraintJson(a.options.top),
         hillSlope: constraintJson(a.options.hillSlope),
+        compare: a.options.compare && {
+          bottom: a.options.compare.bottom,
+          top: a.options.compare.top,
+          hillSlope: a.options.compare.hillSlope,
+        },
       };
     case 'growth-curve':
       return { model: a.options.model };
@@ -541,6 +560,8 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
         bottom: constraint(opts['bottom'], q.key('bottom')),
         top: constraint(opts['top'], q.key('top')),
         hillSlope: constraint(opts['hillSlope'], q.key('hillSlope')),
+        // Files from before #98 compare nothing.
+        compare: simplerModel(opts['compare'], q.key('compare')),
       };
       return { kind, options };
     }

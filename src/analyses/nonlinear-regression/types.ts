@@ -4,7 +4,7 @@
  * logistic, one fit per series. Request and result.
  */
 import type { RegressionBand, Residual, RunsOutcome } from '../linear-regression/types';
-import type { ParameterConstraint } from '@/model/project';
+import type { ParameterConstraint, SimplerModel } from '@/model/project';
 import type { Named } from '../ttest/types';
 
 export interface NonlinearRegressionRequest {
@@ -19,7 +19,52 @@ export interface NonlinearRegressionRequest {
     readonly top: ParameterConstraint;
     readonly hillSlope: ParameterConstraint;
   };
+  /** The simpler model to compare each fit with (item 36, #98), or null. */
+  readonly compare: SimplerModel | null;
 }
+
+/**
+ * A fit compared with the simpler model that holds some of its parameters
+ * (item 36, #98): the extra sum-of-squares F test and AICc. Either half can
+ * be unavailable (`ok: false`) without the other.
+ */
+export interface ModelComparison {
+  /** The simpler model's own best-fit values. */
+  readonly simpler: {
+    readonly bottom: number;
+    readonly top: number;
+    readonly logEc50: number;
+    readonly hillSlope: number;
+    readonly ec50: number;
+    readonly ss: number;
+    readonly df: number;
+  };
+  readonly fTest:
+    | {
+        readonly ok: true;
+        readonly f: number;
+        /** Extra parameters the fit estimates: simpler df − fit df. */
+        readonly dfNumerator: number;
+        readonly dfDenominator: number;
+        readonly p: number;
+      }
+    | { readonly ok: false; readonly why: 'exact-fit' | 'no-extra' };
+  readonly aicc:
+    | {
+        readonly ok: true;
+        readonly fit: number;
+        readonly simpler: number;
+        /** Chance (0 to 1) that the fit, not the simpler model, is the better one. */
+        readonly probabilityFit: number;
+        readonly probabilitySimpler: number;
+      }
+    | { readonly ok: false };
+}
+
+/** Why a comparison could not be made for a data set (its fit itself is fine). */
+export type ComparisonOutcome =
+  | ({ readonly ran: true } & ModelComparison)
+  | { readonly ran: false; readonly why: 'no-fit' | 'worse' };
 
 /**
  * A curve parameter: fitted, with its asymptotic 95% CI and Prism's
@@ -63,6 +108,8 @@ export type DoseResponseOutcome =
       readonly runs: RunsOutcome;
       /** The curve and its bands, X in the table's own units. */
       readonly band: RegressionBand;
+      /** The comparison with the simpler model, when one was asked for. */
+      readonly comparison: ComparisonOutcome | null;
     }
   | {
       readonly ran: false;
@@ -79,6 +126,7 @@ export interface NonlinearRegressionSeries extends Named {
 export interface NonlinearRegressionResult {
   readonly logX: boolean;
   readonly constraints: NonlinearRegressionRequest['constraints'];
+  readonly compare: SimplerModel | null;
   readonly series: readonly NonlinearRegressionSeries[];
   readonly warnings: readonly string[];
 }

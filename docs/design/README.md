@@ -41,3 +41,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 33 | [Growth curve analysis: the reparameterized Gompertz model, and phase detection](33-growth-curve-analysis.md) | #94 |
 | 34 | [XY graph styles: connected lines and replicate traces](34-xy-graph-styles.md) | #93 |
 | 35 | [Nonlinear regression: constraining parameters](35-nonlinear-constraints.md) | #96 |
+| 36 | [Nonlinear regression: comparing with a simpler model](36-nonlinear-model-comparison.md) | #98 |

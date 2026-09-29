@@ -137,7 +137,7 @@ reference <- quote({
     b <- one(bottom); t <- one(top); h <- one(hill)
     list(lower = c(b[1], t[1], -Inf, h[1]), upper = c(b[2], t[2], Inf, h[2]))
   }
-  run_fpl <- function(dose, y, log_x = TRUE, bounds = limits()) {
+  run_fpl_one <- function(dose, y, log_x = TRUE, bounds = limits()) {
     lower <- bounds$lower
     upper <- bounds$upper
     dropped <- if (log_x) 0 else sum(dose <= 0)
@@ -190,7 +190,91 @@ reference <- quote({
       )
     )
   }
+  # Model comparison (#98): the fit against the same curve with some
+  # parameters held at constants (`alt`, limits() of the simpler model, the
+  # fit's own constraints included), by the textbook formulas:
+  #   F = ((SS_simple - SS_fit) / (df_simple - df_fit)) / (SS_fit / df_fit)
+  #   AICc = n ln(SS/n) + 2K + 2K(K+1)/(n - K - 1), K = parameters + 1
+  # and Akaike weights exp(-delta/2) / sum. P from pf(lower.tail = FALSE): 1 - pf()
+  # loses a small P's digits.
+  run_fpl <- function(dose, y, log_x = TRUE, bounds = limits(), alt = NULL) {
+    fit <- run_fpl_one(dose, y, log_x, bounds)
+    if (is.null(alt) || !isTRUE(fit$ran)) return(fit)
+    s <- run_fpl_one(dose, y, log_x, alt)
+    n <- fit$n
+    aicc <- function(ss, df) {
+      k <- (n - df) + 1
+      n * log(ss / n) + 2 * k + 2 * k * (k + 1) / (n - k - 1)
+    }
+    df_num <- s$df - fit$df
+    f_test <- if (fit$ss <= 0) {
+      list(ok = FALSE, why = "exact_fit")
+    } else if (df_num < 1 || fit$df < 1) {
+      list(ok = FALSE, why = "no_extra")
+    } else {
+      f <- ((s$ss - fit$ss) / df_num) / (fit$ss / fit$df)
+      list(ok = TRUE, f = f, df_num = df_num, df_den = fit$df,
+        p = pf(f, df_num, fit$df, lower.tail = FALSE))
+    }
+    k_fit <- (n - fit$df) + 1
+    k_alt <- (n - s$df) + 1
+    a <- if (n - k_fit - 1 <= 0 || n - k_alt - 1 <= 0 || fit$ss <= 0) {
+      list(ok = FALSE)
+    } else {
+      a_fit <- aicc(fit$ss, fit$df)
+      a_alt <- aicc(s$ss, s$df)
+      w <- exp(-0.5 * (c(a_fit, a_alt) - min(a_fit, a_alt)))
+      list(ok = TRUE, fit = a_fit, simpler = a_alt, prob_fit = w[1] / sum(w), prob_simpler = w[2] / sum(w))
+    }
+    fit$comparison <- list(
+      ran = TRUE,
+      simpler = list(
+        bottom = s$bottom$value, top = s$top$value, logec50 = s$logec50$value, hill = s$hill$value,
+        ec50 = s$ec50, ss = s$ss, df = s$df
+      ),
+      f_test = f_test, aicc = a
+    )
+    fit
+  }
 })
+
+# The comparison agrees with R's own anova() and AIC() on nls fits of the
+# same two models, started at the reported optima (base R, other code paths
+# from ours; AIC's constant n(ln 2pi + 1) cancels between models, so only
+# differences are compared). Tolerance is looser than the fixtures': nls
+# stops at its own tolerance a hair from the reference optimum.
+compare_agrees <- function(dose, y, expected, log_x, bounds, alt) {
+  x <- if (log_x) dose else log10(dose)
+  if (!log_x) y <- y[dose > 0]
+  if (!log_x) x <- x[dose > 0]
+  cmp <- expected$comparison
+  ref <- function(p) function(x) p[1] + (p[2] - p[1]) / (1 + 10^((p[3] - x) * p[4]))
+  build <- function(lim, p) {
+    fixed <- lim$lower == lim$upper
+    terms <- ifelse(fixed, format(lim$lower, digits = 17), c("b", "t", "l", "h"))
+    fml <- as.formula(paste0("y ~ (", terms[1], ") + ((", terms[2], ") - (", terms[1], ")) / (1 + 10^(((", terms[3], ") - x) * (", terms[4], ")))"))
+    nls(fml, start = as.list(setNames(p, c("b", "t", "l", "h"))[!fixed]),
+      control = nls.control(maxiter = 50, tol = 1e-7, scaleOffset = 1, warnOnly = TRUE))
+  }
+  m_fit <- build(bounds, c(expected$bottom$value, expected$top$value, expected$logec50$value, expected$hill$value))
+  m_alt <- build(alt, c(cmp$simpler$bottom, cmp$simpler$top, cmp$simpler$logec50, cmp$simpler$hill))
+  close <- function(a, b, tol = 1e-4) abs(a - b) <= tol * max(abs(b), 1e-300)
+  stopifnot(close(deviance(m_fit), expected$ss), close(deviance(m_alt), cmp$simpler$ss),
+    df.residual(m_fit) == expected$df, df.residual(m_alt) == cmp$simpler$df)
+  if (cmp$f_test$ok) {
+    a <- anova(m_alt, m_fit)
+    stopifnot(close(a$F[2], cmp$f_test$f), close(a$`Pr(>F)`[2], cmp$f_test$p, 1e-3), a$Df[2] == cmp$f_test$df_num)
+  }
+  if (cmp$aicc$ok) {
+    n <- length(y)
+    corrected <- function(m) {
+      k <- attr(logLik(m), "df")
+      AIC(m) + 2 * k * (k + 1) / (n - k - 1)
+    }
+    stopifnot(abs((corrected(m_alt) - corrected(m_fit)) - (cmp$aicc$simpler - cmp$aicc$fit)) < 1e-4 * max(1, abs(cmp$aicc$simpler - cmp$aicc$fit)))
+  }
+  TRUE
+}
 
 # drc agrees on the optimum; randtests on the runs test. x: the log doses
 # actually fitted; ref_optimum: the reference fit, from the case's setup.
@@ -475,3 +559,73 @@ fixture("two-doses-hill-held",
   expr = list(n = 6, dropped = 0, ran = FALSE, why = "few_x", minimum = 3),
   options = list(x = "log", hillSlope = list(kind = "fixed", value = 1)),
   note = "Six points at two doses with three parameters to estimate: too few doses to tell them apart.")
+
+# --- Model comparison (#98) ------------------------------------------------
+
+fixture("compare-bottom-zero-rejected",
+  input = list(
+    dose = c(-9, -9, -9, -8.5, -8.5, -8.5, -8, -8, -8, -7.5, -7.5, -7.5, -7, -7, -7, -6.5, -6.5, -6.5, -6, -6, -6, -5.5, -5.5, -5.5, -5, -5, -5, -4.5, -4.5, -4.5, -4, -4, -4),
+    y = c(5.589, 6.618, 7.407, 4.182, 2.043, 4.026, 5.636, 11.856, 9.828, 11.206, 8.831, 10.496, 28.768, 26.998, 24.31, 43.33, 39.181, 43.052, 78.544, 74.003, 75.818, 94.795, 92.955, 80.121, 96.552, 91.76, 93.927, 94.739, 86.227, 96.495, 96.338, 92.824, 97.532)
+  ),
+  expr = run_fpl(dose, y, alt = limits(bottom = 0)), setup = reference,
+  check = { drc_agrees(dose, y, expected, ref_optimum); compare_agrees(dose, y, expected, TRUE, limits(), limits(bottom = 0)) },
+  check_packages = c("drc", "randtests"),
+  options = list(x = "log", compare = list(bottom = 0)),
+  note = "The rising curve really has a Bottom above 0 (about 6): holding it at 0 must be rejected by the F test and preferred against by AICc.")
+
+fixture("compare-bottom-zero-accepted",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl(dose, y, alt = limits(bottom = 0)), setup = reference,
+  check = compare_agrees(dose, y, expected, TRUE, limits(), limits(bottom = 0)),
+  options = list(x = "log", compare = list(bottom = 0)),
+  note = "Data generated from a curve with Bottom = 0 (seed 98, noise SD 3): the simpler model is enough, so a large P and AICc preferring it.")
+
+fixture("compare-hill-one",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl(dose, y, alt = limits(hill = 1)), setup = reference,
+  check = compare_agrees(dose, y, expected, TRUE, limits(), limits(hill = 1)),
+  options = list(x = "log", compare = list(hillSlope = 1)),
+  note = "The same data with HillSlope held at 1 (its true value): one extra parameter, the usual 'is it simple binding?' question.")
+
+fixture("compare-bottom-and-top",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl(dose, y, alt = limits(bottom = 0, top = 100)), setup = reference,
+  check = compare_agrees(dose, y, expected, TRUE, limits(), limits(bottom = 0, top = 100)),
+  options = list(x = "log", compare = list(bottom = 0, top = 100)),
+  note = "Two parameters held at once: numerator df = 2.")
+
+fixture("compare-fit-already-constrained",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0), alt = limits(bottom = 0, hill = 1)), setup = reference,
+  check = compare_agrees(dose, y, expected, TRUE, limits(bottom = 0), limits(bottom = 0, hill = 1)),
+  options = list(x = "log", bottom = list(kind = "fixed", value = 0), compare = list(hillSlope = 1)),
+  note = "The fit itself holds Bottom = 0; the simpler model also holds HillSlope = 1. df are n - 3 and n - 2.")
+
+fixture("compare-concentrations",
+  input = list(
+    dose = c(1e-09, 1e-09, 3.16228e-09, 3.16228e-09, 1e-08, 1e-08, 3.16228e-08, 3.16228e-08, 1e-07, 1e-07, 3.16228e-07, 3.16228e-07, 1e-06, 1e-06, 3.16228e-06, 3.16228e-06, 1e-05, 1e-05, 3.16228e-05, 3.16228e-05, 0.0001, 0.0001),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE, alt = limits(hill = 1)), setup = reference,
+  check = compare_agrees(dose, y, expected, FALSE, limits(), limits(hill = 1)),
+  options = list(x = "concentration", compare = list(hillSlope = 1)),
+  note = "Doses rather than logs: the comparison runs on the fitted log doses, as the fit does.")
+
+fixture("compare-few-points",
+  input = list(dose = c(-8, -7, -6, -5, -4), y = c(3.1, 9.8, 51.2, 90.6, 97.4)),
+  expr = run_fpl(dose, y, alt = limits(bottom = 0)), setup = reference,
+  check = compare_agrees(dose, y, expected, TRUE, limits(), limits(bottom = 0)),
+  options = list(x = "log", compare = list(bottom = 0)),
+  note = "Five points, four parameters: df = 1 leaves the F test available, but AICc needs n > K + 1 (K = 5) and is reported as unavailable.")

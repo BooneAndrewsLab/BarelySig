@@ -36,13 +36,50 @@ export function constraintProblem(
   return null;
 }
 
-/** The first problem with the options’ constraints, or null. */
+/**
+ * What makes the simpler model of a comparison (#98) unusable, in words; null
+ * when it is fine. It holds parameters the fit estimates freely, so it is
+ * always a special case of the fit (the F test needs that).
+ */
+export function comparisonProblem(
+  o: Pick<NonlinearRegressionOptions, 'bottom' | 'top' | 'hillSlope' | 'compare'>,
+): string | null {
+  const c = o.compare;
+  if (c === null) return null;
+  const held = (
+    [
+      ['bottom', 'Bottom'],
+      ['top', 'Top'],
+      ['hillSlope', 'HillSlope'],
+    ] as const
+  ).filter(([k]) => c[k] !== null);
+  if (held.length === 0) {
+    return 'Choose at least one parameter to hold at a constant in the simpler model, or turn the comparison off.';
+  }
+  for (const [k, name] of held) {
+    const v = c[k];
+    if (v === null || !Number.isFinite(v)) return `Type the number to hold ${name} at.`;
+    if (k === 'hillSlope' && v === 0) {
+      return 'A HillSlope of 0 makes the curve a flat line with no EC50 to find. Hold it at another value.';
+    }
+    if (o[k].kind !== 'free') {
+      return `${name} is already held or limited in the fit itself. The simpler model can only hold a parameter that the fit estimates.`;
+    }
+  }
+  if (held.length === 3) {
+    return 'The simpler model would hold Bottom, Top and HillSlope, leaving only the EC50 to estimate. Free at least one of them in the simpler model.';
+  }
+  return null;
+}
+
+/** The first problem with the options’ constraints or comparison, or null. */
 export function optionsProblem(
-  o: Pick<NonlinearRegressionOptions, 'bottom' | 'top' | 'hillSlope'>,
+  o: Pick<NonlinearRegressionOptions, 'bottom' | 'top' | 'hillSlope' | 'compare'>,
 ): string | null {
   return (
     constraintProblem(o.bottom, 'Bottom', false) ??
     constraintProblem(o.top, 'Top', false) ??
-    constraintProblem(o.hillSlope, 'HillSlope', true)
+    constraintProblem(o.hillSlope, 'HillSlope', true) ??
+    comparisonProblem(o)
   );
 }

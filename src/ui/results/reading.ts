@@ -13,8 +13,10 @@ import type { GrowthCurveOutcome, GrowthCurveResult } from '@/analyses/growth-cu
 import type { LinearRegressionResult } from '@/analyses/linear-regression/types';
 import type {
   DoseResponseOutcome,
+  ModelComparison,
   NonlinearRegressionResult,
 } from '@/analyses/nonlinear-regression/types';
+import type { SimplerModel } from '@/model/project';
 import type { KruskalWallisResult } from '@/analyses/kruskal/types';
 import type { NestedOneWayResult } from '@/analyses/nested-oneway/types';
 import type { NestedRepeatedResult } from '@/analyses/nested-repeated/types';
@@ -682,6 +684,74 @@ export function doseResponseWhy(o: Extract<DoseResponseOutcome, { ran: false }>)
   }
 }
 
+/** The simpler model in words: "Bottom = 0 and HillSlope = 1" (item 36, #98). */
+export function simplerModelPhrase(c: SimplerModel): string {
+  return joinAnd(
+    (
+      [
+        ['Bottom', c.bottom],
+        ['Top', c.top],
+        ['HillSlope', c.hillSlope],
+      ] as const
+    ).flatMap(([name, v]) => (v === null ? [] : [`${name} = ${sig(v)}`])),
+  );
+}
+
+/** The parameters the simpler model holds, without their values: "Bottom and HillSlope". */
+function heldNames(c: SimplerModel): string {
+  return joinAnd(
+    (
+      [
+        ['Bottom', c.bottom],
+        ['Top', c.top],
+        ['HillSlope', c.hillSlope],
+      ] as const
+    ).flatMap(([name, v]) => (v === null ? [] : [name])),
+  );
+}
+
+/** Which model the extra sum-of-squares F test favours, at the usual 0.05. */
+export function fTestPrefers(c: ModelComparison): 'fit' | 'simpler' | null {
+  return c.fTest.ok ? (c.fTest.p < 0.05 ? 'fit' : 'simpler') : null;
+}
+
+/** Which model AICc favours: the one with the lower (better) AICc. */
+export function aiccPrefers(c: ModelComparison): 'fit' | 'simpler' | null {
+  return c.aicc.ok ? (c.aicc.fit < c.aicc.simpler ? 'fit' : 'simpler') : null;
+}
+
+/**
+ * One data set's model comparison in a sentence or two (item 36, #98): says
+ * which test or criterion, what the null hypothesis is, and never calls a
+ * non-significant F test proof that the simpler model is right.
+ */
+export function comparisonReading(c: SimplerModel, m: ModelComparison): string {
+  const held = simplerModelPhrase(c);
+  const names = heldNames(c);
+  const parts: string[] = [];
+  if (m.fTest.ok) {
+    const { f, dfNumerator, dfDenominator, p } = m.fTest;
+    const df = `F(${String(dfNumerator)}, ${String(dfDenominator)}) = ${sig(f)}`;
+    parts.push(
+      p < 0.05
+        ? `Extra sum-of-squares F test: the curve with ${names} estimated fits significantly better than the simpler curve with ${held} (${df}, ${pPhrase(p)}). The difference is larger than scatter alone would usually produce if the simpler curve were right.`
+        : `Extra sum-of-squares F test: no evidence that estimating ${names} improves the fit over the simpler curve with ${held} (${df}, ${pPhrase(p)}). That does not prove the simpler curve is right, only that these data can’t tell them apart.`,
+    );
+  } else {
+    parts.push('The F test could not be run (the fit passes exactly through the points).');
+  }
+  if (m.aicc.ok) {
+    const better = m.aicc.fit < m.aicc.simpler;
+    const prob = better ? m.aicc.probabilityFit : m.aicc.probabilitySimpler;
+    parts.push(
+      `AICc prefers the ${better ? 'curve with all parameters estimated' : `simpler curve (${held})`}: it has a ${sig(prob * 100, 3)}% chance of being the better of the two.`,
+    );
+  } else {
+    parts.push('AICc is not available: it needs more points than parameters to correct for.');
+  }
+  return parts.join(' ');
+}
+
 /**
  * The dose-response fit of an XY table's Y data sets (item 32, #37): each
  * series' EC50 with its CI, and what to be careful about.
@@ -715,7 +785,24 @@ export function nonlinearRegressionReading(r: NonlinearRegressionResult): string
     dropped > 0
       ? ` ${String(dropped)} ${dropped === 1 ? 'point with a zero or negative dose was' : 'points with a zero or negative dose were'} left out: a log scale has no place for 0.`
       : '';
-  return `${joinAnd(clauses)}.${note}`;
+  const compare = r.compare;
+  const comparisons =
+    compare === null
+      ? ''
+      : r.series
+          .flatMap((s) => {
+            const c = s.outcome.ran ? s.outcome.comparison : null;
+            if (c === null) return [];
+            const who = r.series.length > 1 ? `${s.title}: ` : '';
+            return [
+              c.ran
+                ? `${who}${comparisonReading(compare, c)}`
+                : `${who}the comparison with the simpler model could not be made: ${c.why === 'worse' ? 'the simpler model came out fitting better than the model it is a special case of, so one of the two fits missed its optimum' : 'the simpler model did not converge'}.`,
+            ];
+          })
+          .map((t) => ` ${t}`)
+          .join('');
+  return `${joinAnd(clauses)}.${note}${comparisons}`;
 }
 
 /** Why a growth curve couldn't be fit, in words (item 33, #94); shared with the graph. */

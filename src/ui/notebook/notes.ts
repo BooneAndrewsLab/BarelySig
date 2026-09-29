@@ -456,6 +456,11 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
                   'Some parameters are held at a constant or kept within limits. A held parameter is not estimated, so it has no SE or CI; a limit the fit runs into counts as held.',
                 ]
               : []),
+            ...(analysis.options.compare
+              ? [
+                  'The fit is compared with a simpler curve that holds some parameters at constants. The F test asks whether estimating them improves the fit by more than chance (P below 0.05 says yes); a large P is no evidence of an improvement, which is not proof of none. AICc weighs the fit against the number of parameters and gives the chance each model is the better one.',
+                ]
+              : []),
           ],
         },
       ];

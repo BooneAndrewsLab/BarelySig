@@ -29,6 +29,7 @@ import type {
   NestedDescriptiveResult,
 } from '@/analyses/nested-descriptive/types';
 import type {
+  ComparisonOutcome,
   FitParameter,
   NonlinearRegressionResult,
   NonlinearRegressionSeries,
@@ -72,7 +73,10 @@ import {
   kruskalReading,
   linearRegressionReading,
   nestedNormalityReading,
+  aiccPrefers,
+  fTestPrefers,
   nonlinearRegressionReading,
+  simplerModelPhrase,
   nestedOneWayMethod,
   nestedOneWayReading,
   nestedRepeatedMethod,
@@ -961,6 +965,46 @@ function constraintSentence(c: NonlinearRegressionResult['constraints']): string
     : `${parts.join('; ')}. A parameter held, or pushed onto a limit, is not estimated: it has no SE or CI, and the degrees of freedom count only the parameters that were. `;
 }
 
+/** The comparison grid's rows, one column per data set (item 36, #98). */
+function comparisonRows(r: NonlinearRegressionResult): string[][] {
+  const compare = r.compare;
+  if (compare === null) return [];
+  const cell = (f: (c: Extract<ComparisonOutcome, { ran: true }>) => string) =>
+    r.series.map((s) => {
+      const c = s.outcome.ran ? s.outcome.comparison : null;
+      if (c === null) return '—';
+      return c.ran ? f(c) : 'Could not be compared';
+    });
+  const who = (p: 'fit' | 'simpler' | null) =>
+    p === null ? '—' : p === 'fit' ? 'Your model (all estimated)' : 'Simpler model';
+  return [
+    ['Simpler model: EC50', ...cell((c) => sig(c.simpler.ec50))],
+    ['Simpler model: sum of squares', ...cell((c) => sig(c.simpler.ss))],
+    ['Simpler model: degrees of freedom', ...cell((c) => sig(c.simpler.df, 0))],
+    [
+      'F (DFn, DFd)',
+      ...cell((c) =>
+        c.fTest.ok
+          ? `${sig(c.fTest.f)} (${sig(c.fTest.dfNumerator, 0)}, ${sig(c.fTest.dfDenominator, 0)})`
+          : 'Not available',
+      ),
+    ],
+    ['F test P value', ...cell((c) => (c.fTest.ok ? pValue(c.fTest.p) : 'Not available'))],
+    ['F test prefers (alpha 0.05)', ...cell((c) => who(fTestPrefers(c)))],
+    ['AICc, your model', ...cell((c) => (c.aicc.ok ? sig(c.aicc.fit) : 'Not available'))],
+    ['AICc, simpler model', ...cell((c) => (c.aicc.ok ? sig(c.aicc.simpler) : 'Not available'))],
+    [
+      'Chance your model is the better',
+      ...cell((c) => (c.aicc.ok ? `${sig(c.aicc.probabilityFit * 100, 3)}%` : 'Not available')),
+    ],
+    [
+      'Chance the simpler model is the better',
+      ...cell((c) => (c.aicc.ok ? `${sig(c.aicc.probabilitySimpler * 100, 3)}%` : 'Not available')),
+    ],
+    ['AICc prefers', ...cell((c) => who(aiccPrefers(c)))],
+  ];
+}
+
 /**
  * The dose-response fit of an XY table's Y data sets (item 32, #37): one
  * column per Y data set, Prism's "Best-fit values / 95% CI / Goodness of
@@ -1005,6 +1049,8 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
           ? 'X is the log of the dose.'
           : 'X is a dose, fitted on a log scale (log₁₀); a zero or negative dose is left out.'}{' '}
         Asymptotic 95% CIs; no weighting; each replicate is its own point.
+        {r.compare &&
+          ` Compared with a simpler model (${simplerModelPhrase(r.compare)}) by the extra sum-of-squares F test (P is the upper tail of F; alpha 0.05) and by AICc (K counts the variance as a parameter).`}
       </p>
       {anyRan && (
         <div className="results-grid">
@@ -1063,6 +1109,26 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             ]}
           />
         </div>
+      )}
+      {r.compare && anyRan && (
+        <>
+          <div className="results-grid">
+            <Grid
+              label={`Comparison with the simpler model (${simplerModelPhrase(r.compare)})`}
+              head={head}
+              rows={comparisonRows(r)}
+            />
+          </div>
+          <p className="legend">
+            Null hypothesis of the F test: the simpler model ({simplerModelPhrase(r.compare)}) is
+            correct, and the model that estimates those parameters fits better only by chance. A P
+            value below 0.05 rejects it; a larger one is no evidence that the extra parameters help,
+            which is not proof that they don’t. AICc needs no cut-off: the model with the lower AICc
+            is preferred, and the probability shown is the chance that it is the better of the two.
+            The simpler model always fits worse or equally well, so this asks whether the
+            improvement is worth the extra parameters.
+          </p>
+        </>
       )}
       <p className="legend">
         EC50 is the dose giving a response halfway between Bottom and Top; its CI is 10 to the power

@@ -118,7 +118,21 @@ export interface NonlinearRegressionOptions {
   readonly bottom: ParameterConstraint;
   readonly top: ParameterConstraint;
   readonly hillSlope: ParameterConstraint;
+  /** Compare the fit with a simpler model (item 36, #98); null = just fit. */
+  readonly compare: SimplerModel | null;
 }
+
+/**
+ * The simpler model a dose-response fit is compared with (item 36, #98):
+ * the same curve with these parameters held at a constant (null = still
+ * estimated). Only a parameter the fit itself estimates freely can be held
+ * here, so the simpler model is always nested in the fit.
+ */
+export type SimplerModel = Readonly<{
+  bottom: number | null;
+  top: number | null;
+  hillSlope: number | null;
+}>;
 
 /**
  * A curve parameter's constraint (item 35, #96): `free` is estimated from
@@ -371,6 +385,7 @@ export const DEFAULT_OPTIONS: {
     bottom: { kind: 'free' },
     top: { kind: 'free' },
     hillSlope: { kind: 'free' },
+    compare: null,
   },
   'growth-curve': { model: 'gompertz' },
   'graph-summary': { whiskers: null, kde: null },

@@ -146,6 +146,22 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
       bottom: parameterConstraint,
       top: parameterConstraint,
       hillSlope: parameterConstraint,
+      compare: fc.option(
+        // At least one parameter is held, as the file format requires.
+        fc
+          .record({
+            bottom: fc.option(limit, { nil: null }),
+            top: fc.option(limit, { nil: null }),
+            hillSlope: fc.option(limit, { nil: null }),
+            fallback: limit,
+          })
+          .map(({ fallback, ...m }) =>
+            m.bottom === null && m.top === null && m.hillSlope === null
+              ? { ...m, top: fallback }
+              : m,
+          ),
+        { nil: null },
+      ),
     })
     .map((o): AnalysisSpec => ({
       kind: 'nonlinear-regression',

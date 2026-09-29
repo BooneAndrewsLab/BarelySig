@@ -12,6 +12,7 @@ import {
   createProject,
   DEFAULT_OPTIONS,
   type ParameterConstraint,
+  type SimplerModel,
 } from '@/model/project';
 import { createXyTable, type XyTable } from '@/model/table';
 import { type Fixture, loadFixtures, mismatches } from '@/test/fixtures';
@@ -42,6 +43,18 @@ function requestFor(f: Fixture): NonlinearRegressionRequest {
       top: constraintOf(f.options?.['top']),
       hillSlope: constraintOf(f.options?.['hillSlope']),
     },
+    compare: compareOf(f.options?.['compare']),
+  };
+}
+
+/** A fixture's simpler model: the parameters it holds, and where (absent = still estimated). */
+function compareOf(o: Plain | undefined): SimplerModel | null {
+  if (o === undefined || o === null || typeof o !== 'object' || Array.isArray(o)) return null;
+  const held = (v: Plain | undefined): number | null => (typeof v === 'number' ? v : null);
+  return {
+    bottom: held(o['bottom']),
+    top: held(o['top']),
+    hillSlope: held(o['hillSlope']),
   };
 }
 
@@ -121,6 +134,31 @@ describe('dose-response fit, against the R oracle', () => {
         }
       }
     }
+  }, 120_000);
+
+  it('reports the comparison with the simpler model in the typed result', async () => {
+    const outcome = async (id: string) => {
+      const f = fixtures.find((x) => x.id.endsWith(id));
+      if (!f) throw new Error(`fixture ${id} missing`);
+      const request = requestFor(f);
+      const out = await engine.run(nonlinearRegression.job(request));
+      const o = nonlinearRegression.parse(out.value, request, out.warnings).series[0]?.outcome;
+      if (!o?.ran) throw new Error(`${id} did not run`);
+      return o.comparison;
+    };
+    const rejected = await outcome('compare-bottom-zero-rejected');
+    if (!rejected?.ran || !rejected.fTest.ok || !rejected.aicc.ok) throw new Error('no comparison');
+    expect(rejected.fTest.p).toBeLessThan(0.001);
+    expect(rejected.fTest.dfNumerator).toBe(1);
+    expect(rejected.simpler.bottom).toBe(0);
+    expect(rejected.aicc.probabilityFit + rejected.aicc.probabilitySimpler).toBeCloseTo(1, 12);
+    expect(rejected.aicc.probabilityFit).toBeGreaterThan(0.9);
+    const few = await outcome('compare-few-points');
+    if (!few?.ran) throw new Error('no comparison');
+    expect(few.fTest.ok).toBe(true);
+    expect(few.aicc.ok).toBe(false);
+    // No comparison asked for: nothing reported.
+    expect(await outcome('rising')).toBeNull();
   }, 120_000);
 
   it('reads a falling curve as Bottom < Top with a negative Hill slope, and EC50 = 10^LogEC50', async () => {
@@ -246,5 +284,40 @@ describe('prepare', () => {
         project2,
       ).ok,
     ).toBe(false);
+  });
+
+  it('passes the simpler model through, and refuses one that is not nested in the fit', () => {
+    const { project, table } = setup();
+    const x = table.dataSets[0];
+    const y = table.dataSets[1];
+    if (!x || !y) throw new Error('table has no data sets');
+    const filled: XyTable = {
+      ...table,
+      dataSets: [
+        { ...x, subcolumns: [[0, 1e-9, 1e-8]] },
+        { ...y, subcolumns: [[2, 4, 6]] },
+      ],
+    };
+    const project2 = { ...project, tables: new Map([[filled.id, filled]]) };
+    const withOptions = (o: Partial<Fit['options']>): Fit => {
+      const a = analysisFor(filled);
+      return { ...a, options: { ...a.options, ...o } };
+    };
+    const none = { bottom: null, top: null, hillSlope: null };
+    const ok = nonlinearRegression.prepare(
+      withOptions({ compare: { ...none, bottom: 0 } }),
+      project2,
+    );
+    expect(ok.ok && ok.request.compare).toEqual({ ...none, bottom: 0 });
+    for (const options of [
+      { compare: none }, // holds nothing
+      { compare: { ...none, hillSlope: 0 } },
+      { compare: { ...none, top: Number.NaN } },
+      { compare: { bottom: 0, top: 100, hillSlope: 1 } }, // only the EC50 left
+      { compare: { ...none, bottom: 0 }, bottom: { kind: 'fixed' as const, value: 1 } },
+      { compare: { ...none, top: 100 }, top: { kind: 'bounded' as const, lower: 0, upper: 90 } },
+    ]) {
+      expect(nonlinearRegression.prepare(withOptions(options), project2).ok).toBe(false);
+    }
   });
 });
