@@ -1607,6 +1607,17 @@ button.outline {
   max-width: none;
 }
 
+/* A long option (a fit's title) must not stretch the select past its column. */
+.inspector-field.wide {
+  min-width: 0;
+}
+
+.inspector-field.wide select {
+  width: 100%;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
 .with-unit {
   display: inline-flex;
   align-items: center;
