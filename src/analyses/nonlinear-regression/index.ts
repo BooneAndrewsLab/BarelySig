@@ -5,7 +5,7 @@
  */
 import type { EngineJob } from '@/engine/engine';
 import type { Plain } from '@/engine/convert';
-import { xySeries } from '@/model/selectors';
+import { xyUnknowns } from '@/model/selectors';
 
 import { regressionBand, runsOutcome } from '../linear-regression';
 import runsCode from '../linear-regression/analysis.R?raw';
@@ -16,10 +16,13 @@ import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
 import { alternativeFit, effectiveShared, optionsProblem } from './constraints';
 import { effectiveConstraints } from './models';
+import { weightedSeries, weightingProblem, yPower } from './weighting';
 import type {
   ComparisonOutcome,
   GlobalFit,
   DoseResponseOutcome,
+  Interpolation,
+  UnknownY,
   FitParameter,
   NonlinearRegressionRequest,
   NonlinearRegressionResult,
@@ -144,9 +147,33 @@ const WHY = {
   few_x: 'few-x',
   constant_y: 'constant-y',
   no_fit: 'no-fit',
+  weights: 'weights',
 } as const;
 
-function outcome(o: PlainObject): DoseResponseOutcome {
+function interpolations(v: Plain | undefined, rows: readonly UnknownY[]): Interpolation[] {
+  return list(v).map((item, i) => {
+    const u = object(item, 'interpolated value');
+    const at = rows[i];
+    if (!at) throw new Error('nonlinear regression: more unknowns than asked for');
+    const base = { rowNumber: at.rowNumber, y: at.y };
+    const status = u['status'];
+    if (status === 'ok') {
+      return {
+        ...base,
+        status,
+        x: need(u['x'], 'interpolated X'),
+        lower: num(u['lower']),
+        upper: num(u['upper']),
+      };
+    }
+    return {
+      ...base,
+      status: status === 'beyond-bottom' || status === 'beyond-top' ? status : 'undefined',
+    };
+  });
+}
+
+function outcome(o: PlainObject, unknowns: readonly UnknownY[]): DoseResponseOutcome {
   const n = num(o['n']) ?? 0;
   const dropped = num(o['dropped']) ?? 0;
   if (o['ran'] !== true) {
@@ -188,6 +215,7 @@ function outcome(o: PlainObject): DoseResponseOutcome {
     runs: runsOutcome(object(o['runs'] ?? null, 'runs test')),
     band: regressionBand(object(o['band'] ?? null, 'band')),
     comparison: comparison(o['comparison']),
+    unknowns: interpolations(o['unknowns'], unknowns),
   };
 }
 
@@ -197,7 +225,7 @@ export const nonlinearRegression: AnalysisModule<
   NonlinearRegressionResult
 > = {
   kind: 'nonlinear-regression',
-  version: 6,
+  version: 7,
   code,
 
   prepare(analysis, project): Prepared<NonlinearRegressionRequest> {
@@ -213,12 +241,27 @@ export const nonlinearRegression: AnalysisModule<
       return { ok: false, reason: 'Choose a Y data set to fit a curve to.' };
     }
     const { bottom, top, hillSlope } = effectiveConstraints(analysis.options);
-    const problem = optionsProblem(analysis.options, analysis.input.dataSets.length);
+    const problem =
+      optionsProblem(analysis.options, analysis.input.dataSets.length) ??
+      weightingProblem(analysis.options);
     if (problem) return { ok: false, reason: problem };
     const alternative = alternativeFit(analysis.options, analysis.input.dataSets.length);
     if (typeof alternative === 'string') return { ok: false, reason: alternative };
-    const series = xySeries(table, analysis.input.dataSets);
-    const points: { readonly x: number; readonly y: number }[][] = [];
+    const logX = analysis.options.x === 'log';
+    const weighted = weightedSeries(
+      table,
+      analysis.input.dataSets,
+      analysis.options.weighting,
+      logX,
+    );
+    if (!weighted.ok) return { ok: false, reason: weighted.reason };
+    const series = weighted.series;
+    const unknowns = analysis.options.interpolate
+      ? xyUnknowns(table, analysis.input.dataSets).map((rows) =>
+          rows.map((r) => ({ rowNumber: r.rowNumber, y: r.y })),
+        )
+      : series.map(() => []);
+    const points: (readonly { readonly x: number; readonly y: number }[])[] = [];
     for (const s of series) {
       if (s.points.length === 0) {
         return {
@@ -226,7 +269,7 @@ export const nonlinearRegression: AnalysisModule<
           reason: `"${s.title}" has no point with both an X and a Y value; there is nothing to fit.`,
         };
       }
-      points.push(s.points.map((p) => ({ x: p.x, y: p.y })));
+      points.push(s.points);
     }
     return {
       ok: true,
@@ -234,13 +277,16 @@ export const nonlinearRegression: AnalysisModule<
         model: analysis.options.model,
         series: series.map((s) => ({ id: s.id, title: s.title })),
         points,
-        logX: analysis.options.x === 'log',
+        logX,
         constraints: { bottom, top, hillSlope },
         compare: analysis.options.compare,
         alternative,
         compareWith: analysis.options.compareWith,
         alpha: analysis.options.compareAlpha,
         shared: effectiveShared(analysis.options.shared, series.length),
+        weighting: analysis.options.weighting,
+        weights: series.map((s) => s.weights),
+        unknowns,
       },
     };
   },
@@ -249,6 +295,9 @@ export const nonlinearRegression: AnalysisModule<
     const x = request.points.flatMap((s) => s.map((p) => p.x));
     const y = request.points.flatMap((s) => s.map((p) => p.y));
     const g = request.points.flatMap((s, i) => s.map(() => i + 1));
+    const w = request.weights.flat();
+    const u = request.unknowns.flatMap((s) => s.map((r) => r.y));
+    const ug = request.unknowns.flatMap((s, i) => s.map(() => i + 1));
     const c = [
       limits(request.constraints.bottom),
       limits(request.constraints.top),
@@ -267,10 +316,11 @@ export const nonlinearRegression: AnalysisModule<
     const altShared = alt?.shared ?? sh;
     const role = { none: 0, 'alternative-simpler': 1, 'alternative-complex': 2, 'not-nested': 3 };
     return {
-      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has, shared,\n  alt_lo, alt_hi, alt_has_lo, alt_has_hi, alt_shared, alt_role)`,
+      code: `${code}\nbs_nonlinear_regression(x, y, w, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has, shared,\n  alt_lo, alt_hi, alt_has_lo, alt_has_hi, alt_shared, alt_role, ypow, u, ug)`,
       inputs: {
         x,
         y,
+        w,
         g,
         k: request.points.length,
         log_x: request.logX,
@@ -287,6 +337,9 @@ export const nonlinearRegression: AnalysisModule<
           (v) => (v ? 1 : 0),
         ),
         alt_role: alt ? role[alt.relation] : role.none,
+        ypow: yPower(request.weighting),
+        u,
+        ug,
         shared: [sh.bottom, sh.top, sh.logEc50, sh.hillSlope].map((v) => (v ? 1 : 0)),
         cmp_has: [cmp?.bottom, cmp?.top, cmp?.hillSlope].map((v) =>
           v === null || v === undefined ? 0 : 1,
@@ -308,11 +361,12 @@ export const nonlinearRegression: AnalysisModule<
       alpha: request.alpha,
       comparison: comparison(r['comparison']),
       shared: request.shared,
+      weighting: request.weighting,
       global: globalFit(r['global']),
       series: list(r['series']).map((v, i) => {
         const named = request.series[i];
         if (!named) throw new Error('nonlinear regression: more series than asked for');
-        return { ...named, outcome: outcome(object(v, 'series')) };
+        return { ...named, outcome: outcome(object(v, 'series'), request.unknowns[i] ?? []) };
       }),
       warnings: [...warnings],
     };

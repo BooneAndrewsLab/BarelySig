@@ -229,6 +229,56 @@ work with sharing.)
 Sharing works on all the data sets you picked, or none of them; sharing among
 some of them only isn't offered.
 
+#### Weighting
+
+An ordinary fit treats every point alike. If your scatter grows with the
+response (a big signal is noisier in absolute terms, as in most ELISAs and
+qPCR standard curves), the big points then dominate and the small ones are
+ignored. **Weight points by** in the Analyze dialog tells the fit to trust the
+noisier points less:
+
+- **No weighting** (the default) is right when the scatter is about the same
+  everywhere.
+- **1/Y** and **1/Y²** give a point less weight the higher the curve is there.
+  The height comes from the fitted curve itself (as in Prism), so the fit is
+  repeated until the weights stop changing. 1/Y² is the usual choice when the
+  scatter is proportional to the response. They need the curve to stay above
+  zero at every X you measured; if it doesn't, the results say so (hold Bottom
+  above zero, or pick another weighting).
+- **1/X** and **1/X²** favour the low doses. They use the doses as you typed
+  them, so they need "concentrations" (a log X of 0 or below has no 1/X).
+- **1/SD²** uses the spread of your replicates at each X: a noisy X counts for
+  less. The fit is to the mean at each X (one point per row), so every row needs
+  at least two replicates and a spread above zero; if not, the dialog's result
+  says which row is the problem. (Prism does the same with means and SDs.)
+
+With weights on, the results say so and label the sum of squares and Sy.x as
+_weighted_ (they are not comparable with an unweighted fit's). SEs, CIs and the
+confidence and prediction bands all use the weights. Weighting works for one
+data set, for sharing parameters, and for comparing models, except that
+**1/Y and 1/Y² can't be combined with a comparison**: each of the two fits
+would be weighted by its own curve, so their sums of squares could not be
+compared. Choose 1/X, 1/X² or 1/SD² there.
+
+#### Reading unknowns off a standard curve
+
+Tick **Read unknowns off the curve** and type the Y values of your unknown
+samples in the same table, on rows where X is left empty. (Rows with an X are
+the standards, as always.) Each unknown gets an X read off the fitted curve,
+with a 95% CI. The result table shows the row, the Y, the X and its CI. With
+replicate columns each replicate is its own unknown; with mean, SD and n only
+the mean is.
+
+The CI is where the curve's 95% confidence bands cross that Y (the same
+definition as Prism). It therefore reflects how well the _curve_ is known and
+not any scatter among the unknown's own replicates, and it is not symmetric
+(wider on the flat side of the curve). If the bands never reach the Y within
+a wide range, that end of the CI reads "no upper limit" (or "no lower limit").
+A Y at or beyond a plateau (below Bottom or above Top) has no X on the curve,
+so the table says that rather than printing a number. For X entered as
+concentrations the X and CI come back as concentrations. A comparison, if
+you have asked for one, applies to the standards only.
+
 ### Growth curve
 
 Fits a bacterial or yeast growth curve — OD600, CFU or similar vs. time —
@@ -288,8 +338,7 @@ Click a connected line to change its width; its colour follows the data set.
 
 "Help me choose" doesn't yet suggest these analyses — pick them directly
 from the **Analyze…** dialog. The dose-response fit has the
-logistic models above only: no comparing curves ("do these EC50s
-differ?"), no other curve shapes, weighting or interpolating unknowns
-from a standard curve yet. Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
+logistic models above only. Interpolated unknowns are listed in the results but not
+marked on the graph yet, and 1/Y weights can't be combined with a comparison. Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
 (Gompertz); a logistic alternative, phase boundaries drawn on the graph,
 and fitting several data sets together aren't there yet either.

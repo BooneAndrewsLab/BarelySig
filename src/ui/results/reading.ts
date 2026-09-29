@@ -683,6 +683,8 @@ export function doseResponseWhy(o: Extract<DoseResponseOutcome, { ran: false }>)
       return 'Y never varies, so there is no curve to fit';
     case 'no-fit':
       return 'the fit didn’t converge — usually because the doses don’t reach both plateaus of the curve; a wider dose range, or holding a plateau at a known value, helps';
+    case 'weights':
+      return 'the fitted curve reaches zero or below at a measured X, where 1/Y or 1/Y² weights are not defined; choose another weighting, or hold Bottom above zero';
   }
 }
 

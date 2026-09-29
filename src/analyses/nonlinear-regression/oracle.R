@@ -47,13 +47,16 @@ reference <- quote({
   ref_runs <- function(s) {
     n1 <- sum(s > 0)
     n2 <- sum(s < 0)
+    if (n1 + n2 < 2) return(list(ran = FALSE, why = "few", n_pos = n1, n_neg = n2))
+    if (n1 == 0 || n2 == 0) return(list(ran = FALSE, why = "same", n_pos = n1, n_neg = n2))
     r <- 1 + sum(s[-1] != s[-length(s)])
     m <- 2 * n1 * n2 / (n1 + n2) + 1
     v <- (m - 1) * (m - 2) / (n1 + n2 - 1)
     z <- (r - m) / sqrt(v)
     list(ran = TRUE, n_runs = r, n_pos = n1, n_neg = n2, z = z, p = 2 * pnorm(-abs(z)))
   }
-  ref_optimum <- function(x, y, start = NULL, lower = rep(-Inf, 4), upper = rep(Inf, 4)) {
+  ref_optimum <- function(x, y, start = NULL, lower = rep(-Inf, 4), upper = rep(Inf, 4), w = rep(1, length(x))) {
+    sw <- sqrt(w)
     fixed <- lower == upper
     best <- c(Inf, NA, NA, NA, NA)
     if (!is.null(start)) best <- c(0, start)
@@ -67,26 +70,26 @@ reference <- quote({
         co <- c(lower[1], lower[2])
         free <- !fixed[1:2]
         if (any(free)) {
-          fit <- qr.coef(qr(X[, free, drop = FALSE]), y - X[, !free, drop = FALSE] %*% co[!free])
+          fit <- qr.coef(qr(sw * X[, free, drop = FALSE]), sw * (y - X[, !free, drop = FALSE] %*% co[!free]))
           if (any(!is.finite(fit))) next
           co[free] <- pmin(pmax(fit, lower[1:2][free]), upper[1:2][free])
         }
-        rss <- sum((y - X %*% co)^2)
+        rss <- sum(w * (y - X %*% co)^2)
         if (rss < best[1]) best <- c(rss, co, l, h)
       }
     }
     # unname(): a named number comes back from WebR as an object (CLAUDE.md).
     p <- unname(best[2:5])
     p <- pmin(pmax(p, lower), upper)
-    rss <- function(p) sum((y - ref_curve(x, p))^2)
+    rss <- function(p) sum(w * (y - ref_curve(x, p))^2)
     # Projected Levenberg-Marquardt on the parameters `idx`: a step that would
     # leave the bounds is clipped to them.
     lm <- function(p, idx) {
       lambda <- 1e-3
       for (it in 1:1000) {
-        J <- ref_jacobian(x, p)[, idx, drop = FALSE]
+        J <- sw * ref_jacobian(x, p)[, idx, drop = FALSE]
         A <- crossprod(J)
-        step <- unname(drop(solve(A + lambda * diag(diag(A), length(idx)), crossprod(J, y - ref_curve(x, p)))))
+        step <- unname(drop(solve(A + lambda * diag(diag(A), length(idx)), crossprod(J, sw * (y - ref_curve(x, p))))))
         q <- p
         q[idx] <- pmin(pmax(p[idx] + step, lower[idx]), upper[idx])
         if (rss(q) <= rss(p)) {
@@ -111,8 +114,8 @@ reference <- quote({
     # rounding, so the LM above can stall a hair short of it; plain
     # Gauss-Newton steps converge the rest of the way.
     for (it in 1:5) {
-      J <- ref_jacobian(x, p)[, idx, drop = FALSE]
-      p[idx] <- p[idx] + unname(drop(qr.coef(qr(J), y - ref_curve(x, p))))
+      J <- sw * ref_jacobian(x, p)[, idx, drop = FALSE]
+      p[idx] <- p[idx] + unname(drop(qr.coef(qr(J), sw * (y - ref_curve(x, p)))))
     }
     if (all(is.infinite(c(lower, upper))) && p[1] > p[2]) p <- c(p[2], p[1], p[3], -p[4])
     p
@@ -137,27 +140,69 @@ reference <- quote({
     b <- one(bottom); t <- one(top); h <- one(hill)
     list(lower = c(b[1], t[1], -Inf, h[1]), upper = c(b[2], t[2], Inf, h[2]))
   }
-  run_fpl_one <- function(dose, y, log_x = TRUE, bounds = limits()) {
+  # Interpolation (#100): the X where the curve reads y0, by root finding on
+  # the curve itself (not the closed-form inverse), and a 95% CI where the
+  # curve's 95% confidence bands cross y0 (Prism's method). `half(v)`: the
+  # band's half-width at log X v. A Y at or beyond a plateau has no X.
+  ref_interpolate <- function(y0, p, half, span, back) {
+    res <- function(status, x = NA_real_, lower = NA_real_, upper = NA_real_) {
+      list(y = y0, status = status, x = x, lower = lower, upper = upper)
+    }
+    f <- (y0 - p[1]) / (p[2] - p[1])
+    if (f <= 0) return(res("beyond-bottom"))
+    if (f >= 1) return(res("beyond-top"))
+    reach <- 5 * max(span, 1)
+    xh <- uniroot(function(v) ref_curve(v, p) - y0, p[3] + c(-1, 1) * 30 / abs(p[4]), tol = 1e-14)$root
+    edge <- function(sgn, dir) {
+      fun <- function(v) ref_curve(v, p) + sgn * half(v) - y0
+      v <- xh + dir * reach * (0:2000) / 2000
+      s0 <- sign(fun(v))
+      hit <- which(s0[-1] != s0[1])
+      if (length(hit) == 0) return(NA_real_)
+      uniroot(fun, sort(v[hit[1] + 0:1]), tol = 1e-13)$root
+    }
+    rising <- (p[2] - p[1]) * p[4] > 0
+    lo <- edge(if (rising) 1 else -1, -1)
+    hi <- edge(if (rising) -1 else 1, 1)
+    res("ok", back(xh), back(lo), back(hi))
+  }
+  # dose: X as entered; w: static weights per row (1 = none), ypow: 1 or 2 for
+  # 1/Y or 1/Y^2 (weights from the fitted curve, refitted until they settle,
+  # from an unweighted start); unknown: Y values to read off the curve.
+  run_fpl_one <- function(dose, y, log_x = TRUE, bounds = limits(), w = NULL, ypow = 0, unknown = numeric(0)) {
     lower <- bounds$lower
     upper <- bounds$upper
+    if (is.null(w)) w <- rep(1, length(dose))
     dropped <- if (log_x) 0 else sum(dose <= 0)
     if (!log_x) {
       y <- y[dose > 0]
+      w <- w[dose > 0]
       dose <- dose[dose > 0]
     }
     x <- if (log_x) dose else log10(dose)
     back <- if (log_x) function(v) v else function(v) 10^v
     n <- length(x)
     fixed <- lower == upper
-    p <- ref_optimum(x, y, lower = lower, upper = upper)
+    p <- ref_optimum(x, y, lower = lower, upper = upper, w = w)
+    if (ypow > 0) {
+      for (it in 1:500) {
+        w <- ref_curve(x, p)^-ypow
+        q <- ref_optimum(x, y, start = p, lower = lower, upper = upper, w = w)
+        moved <- max(abs(q - p) / pmax(abs(p), 1e-8))
+        p <- q
+        if (moved < 1e-13) break
+      }
+      w <- ref_curve(x, p)^-ypow
+    }
+    sw <- sqrt(w)
     idx <- which(!fixed & p > lower & p < upper)
-    J <- ref_jacobian(x, p)[, idx, drop = FALSE]
+    J <- sw * ref_jacobian(x, p)[, idx, drop = FALSE]
     A <- crossprod(J)
     Ainv <- solve(A)
     fitted <- ref_curve(x, p)
     resid <- y - fitted
     df <- n - length(idx)
-    ss <- sum(resid^2)
+    ss <- sum(w * resid^2)
     s2 <- ss / df
     se <- sqrt(s2 * diag(Ainv))
     dependency <- 1 - 1 / (diag(A) * diag(Ainv))
@@ -165,8 +210,13 @@ reference <- quote({
     ord <- order(x)
     signs <- sign(resid[ord])
     grid <- seq(min(x), max(x), length.out = 100)
-    G <- ref_jacobian(grid, p)[, idx, drop = FALSE]
-    var_fit <- vapply(seq_along(grid), function(i) drop(G[i, ] %*% Ainv %*% G[i, ]), 0) * s2
+    half <- function(v) {
+      G <- matrix(ref_jacobian(v, p), length(v))[, idx, drop = FALSE]
+      t * sqrt(vapply(seq_along(v), function(i) drop(G[i, ] %*% Ainv %*% G[i, ]), 0) * s2)
+    }
+    half_grid <- half(grid)
+    # A new observation is assumed to weigh what the nearest measured X does.
+    w_new <- vapply(grid, function(v) w[which.min(abs(x - v))], 0)
     fit_grid <- ref_curve(grid, p)
     par <- function(i) {
       j <- match(i, idx)
@@ -178,16 +228,17 @@ reference <- quote({
       n = n, dropped = dropped, ran = TRUE,
       bottom = par(1), top = par(2), logec50 = par(3), hill = par(4),
       ec50 = 10^p[3], ec50_lower = 10^(p[3] - t * se[j3]), ec50_upper = 10^(p[3] + t * se[j3]),
-      df = df, ss = ss, syx = sqrt(s2), r2 = 1 - ss / sum((y - mean(y))^2),
+      df = df, ss = ss, syx = sqrt(s2), r2 = 1 - ss / sum(w * (y - weighted.mean(y, w))^2),
       x = back(x[ord]), y = y[ord], fitted = fitted[ord], residual = resid[ord],
       runs = ref_runs(signs[signs != 0]),
       band = list(
         x = back(grid), fit = fit_grid,
-        confidence_lower = fit_grid - t * sqrt(var_fit),
-        confidence_upper = fit_grid + t * sqrt(var_fit),
-        prediction_lower = fit_grid - t * sqrt(var_fit + s2),
-        prediction_upper = fit_grid + t * sqrt(var_fit + s2)
-      )
+        confidence_lower = fit_grid - half_grid,
+        confidence_upper = fit_grid + half_grid,
+        prediction_lower = fit_grid - t * sqrt((half_grid / t)^2 + s2 / w_new),
+        prediction_upper = fit_grid + t * sqrt((half_grid / t)^2 + s2 / w_new)
+      ),
+      unknowns = lapply(unknown, function(y0) ref_interpolate(y0, p, half, diff(range(x)), back))
     )
   }
   # Model comparison (#98): the fit against the same curve with some
@@ -197,10 +248,10 @@ reference <- quote({
   #   AICc = n ln(SS/n) + 2K + 2K(K+1)/(n - K - 1), K = parameters + 1
   # and Akaike weights exp(-delta/2) / sum. P from pf(lower.tail = FALSE): 1 - pf()
   # loses a small P's digits.
-  run_fpl <- function(dose, y, log_x = TRUE, bounds = limits(), alt = NULL) {
-    fit <- run_fpl_one(dose, y, log_x, bounds)
+  run_fpl <- function(dose, y, log_x = TRUE, bounds = limits(), alt = NULL, w = NULL, ypow = 0, unknown = numeric(0)) {
+    fit <- run_fpl_one(dose, y, log_x, bounds, w, ypow, unknown)
     if (is.null(alt) || !isTRUE(fit$ran)) return(fit)
-    s <- run_fpl_one(dose, y, log_x, alt)
+    s <- run_fpl_one(dose, y, log_x, alt, w)
     n <- fit$n
     aicc <- function(ss, df) {
       k <- (n - df) + 1
@@ -243,17 +294,19 @@ reference <- quote({
 # from ours; AIC's constant n(ln 2pi + 1) cancels between models, so only
 # differences are compared). Tolerance is looser than the fixtures': nls
 # stops at its own tolerance a hair from the reference optimum.
-compare_agrees <- function(dose, y, expected, log_x, bounds, alt) {
+compare_agrees <- function(dose, y, expected, log_x, bounds, alt, w = NULL) {
   x <- if (log_x) dose else log10(dose)
+  if (is.null(w)) w <- rep(1, length(dose))
   if (!log_x) y <- y[dose > 0]
   if (!log_x) x <- x[dose > 0]
+  if (!log_x) w <- w[dose > 0]
   cmp <- expected$comparison
   ref <- function(p) function(x) p[1] + (p[2] - p[1]) / (1 + 10^((p[3] - x) * p[4]))
   build <- function(lim, p) {
     fixed <- lim$lower == lim$upper
     terms <- ifelse(fixed, format(lim$lower, digits = 17), c("b", "t", "l", "h"))
     fml <- as.formula(paste0("y ~ (", terms[1], ") + ((", terms[2], ") - (", terms[1], ")) / (1 + 10^(((", terms[3], ") - x) * (", terms[4], ")))"))
-    nls(fml, start = as.list(setNames(p, c("b", "t", "l", "h"))[!fixed]),
+    nls(fml, start = as.list(setNames(p, c("b", "t", "l", "h"))[!fixed]), weights = w,
       control = nls.control(maxiter = 50, tol = 1e-7, scaleOffset = 1, warnOnly = TRUE))
   }
   m_fit <- build(bounds, c(expected$bottom$value, expected$top$value, expected$logec50$value, expected$hill$value))
@@ -279,7 +332,8 @@ compare_agrees <- function(dose, y, expected, log_x, bounds, alt) {
 # drc agrees on the optimum; randtests on the runs test. x: the log doses
 # actually fitted; ref_optimum: the reference fit, from the case's setup.
 # bounds: the case's constraints, from limits() in the reference setup.
-drc_agrees <- function(x, y, expected, ref_optimum, bounds = list(lower = rep(-Inf, 4), upper = rep(Inf, 4))) {
+drc_agrees <- function(x, y, expected, ref_optimum, bounds = list(lower = rep(-Inf, 4), upper = rep(Inf, 4)), w = NULL) {
+  if (is.null(w)) w <- rep(1, length(x))
   lower <- bounds$lower
   upper <- bounds$upper
   fixed <- lower == upper
@@ -290,9 +344,9 @@ drc_agrees <- function(x, y, expected, ref_optimum, bounds = list(lower = rep(-I
   upperl <- c(-lower[4] * log(10), upper[1], upper[2], Inf)
   free <- is.na(fixed_b)
   d <- if (all(is.infinite(c(lower, upper)))) {
-    drm(y ~ x, fct = L.4(), control = drmc(relTol = 1e-12, maxIt = 10000))
+    drm(y ~ x, weights = sqrt(w), fct = L.4(), control = drmc(relTol = 1e-12, maxIt = 10000))
   } else {
-    drm(y ~ x, fct = L.4(fixed = fixed_b), lowerl = lowerl[free], upperl = upperl[free],
+    drm(y ~ x, weights = sqrt(w), fct = L.4(fixed = fixed_b), lowerl = lowerl[free], upperl = upperl[free],
       control = drmc(relTol = 1e-12, maxIt = 10000))
   }
   b <- fixed_b
@@ -304,20 +358,24 @@ drc_agrees <- function(x, y, expected, ref_optimum, bounds = list(lower = rep(-I
   ours <- c(expected$bottom$value, expected$top$value, expected$logec50$value, expected$hill$value)
   # drc's optim stops short of the optimum on a flat valley; polished from
   # where it stopped, it must land on the same optimum as the reference.
-  polished <- ref_optimum(x, y, start = drc_p, lower = lower, upper = upper)
+  polished <- ref_optimum(x, y, start = drc_p, lower = lower, upper = upper, w = w)
   rel <- abs(polished - ours) / pmax(abs(ours), 1e-8)
   if (max(rel) > 1e-6) stop("drc's optimum differs: ", paste(signif(drc_p, 8), collapse = ", "), " vs ours ", paste(signif(ours, 8), collapse = ", "), " polished ", paste(signif(polished, 8), collapse = ", "))
   if (max(abs(drc_p - ours) / pmax(abs(ours), 1e-8)) > 1e-2) stop("drc is far off: ", paste(signif(drc_p, 8), collapse = ", "))
   s <- sign(expected$residual)
-  rt <- runs.test(s[s != 0], threshold = 0)
-  stopifnot(
-    rt$runs == expected$runs$n_runs,
-    abs(rt$p.value - expected$runs$p) < 1e-10 * max(1, rt$p.value)
-  )
+  if (isTRUE(expected$runs$ran)) {
+    rt <- runs.test(s[s != 0], threshold = 0)
+    stopifnot(
+      rt$runs == expected$runs$n_runs,
+      abs(rt$p.value - expected$runs$p) < 1e-10 * max(1, rt$p.value)
+    )
+  } else {
+    stopifnot(length(unique(s[s != 0])) < 2 || sum(s != 0) < 2) # nothing to test: one sign only
+  }
   # Kuhn-Tucker at every limit the fit sits on: the sum of squares can only
   # rise by moving inward (its gradient points inward there).
   ref_curve <- function(x, p) p[1] + (p[2] - p[1]) / (1 + 10^((p[3] - x) * p[4]))
-  rss <- function(p) sum((y - ref_curve(x, p))^2)
+  rss <- function(p) sum(w * (y - ref_curve(x, p))^2)
   for (i in which(!fixed)) {
     if (ours[i] == lower[i] || ours[i] == upper[i]) {
       h <- 1e-6 * max(1, abs(ours[i]))
@@ -739,7 +797,8 @@ global_extra <- quote({
   # shared: which of (Bottom, Top, LogEC50, HillSlope) are one value for all
   # data sets. g: each row's data set. Rows with a missing dose or response
   # are dropped first (the app never sees them).
-  run_global <- function(dose, y, g, shared, log_x = TRUE, bounds = limits()) {
+  run_global <- function(dose, y, g, shared, log_x = TRUE, bounds = limits(), w = NULL, ypow = 0, unknown = NULL) {
+    if (is.null(w)) w <- rep(1, length(dose))
     lower <- bounds$lower
     upper <- bounds$upper
     fixed <- lower == upper
@@ -750,6 +809,7 @@ global_extra <- quote({
     if (!log_x) ok <- ok & dose > 0
     x <- (if (log_x) dose else log10(dose))[ok]
     yy <- y[ok]
+    wt <- w[ok]
     gg <- match(g[ok], ids)
     n_i <- tabulate(gg, k)
     back <- if (log_x) function(v) v else function(v) 10^v
@@ -774,7 +834,7 @@ global_extra <- quote({
       b <- per_row(th, 1); t <- per_row(th, 2); l <- per_row(th, 3); h <- per_row(th, 4)
       b + (t - b) / (1 + 10^((l - xs) * h))
     }
-    rss <- function(th) sum((yy - predict(th))^2)
+    rss <- function(th) sum(wt * (yy - predict(th))^2)
     jac <- function(th) {
       sapply(seq_len(m), function(u) {
         h <- 1e-4
@@ -789,10 +849,10 @@ global_extra <- quote({
     lm <- function(th) {
       lambda <- 1e-3
       for (it in 1:2000) {
-        J <- jac(th)
+        J <- sqrt(wt) * jac(th)
         A <- crossprod(J)
         step <- tryCatch(
-          unname(drop(solve(A + lambda * diag(diag(A), m), crossprod(J, yy - predict(th))))),
+          unname(drop(solve(A + lambda * diag(diag(A), m), crossprod(J, sqrt(wt) * (yy - predict(th)))))),
           error = function(e) NULL
         )
         if (is.null(step) || any(!is.finite(step))) {
@@ -811,7 +871,7 @@ global_extra <- quote({
         }
         if (lambda > 1e12) break
       }
-      for (it in 1:5) th <- th + unname(drop(qr.coef(qr(jac(th)), yy - predict(th))))
+      for (it in 1:5) th <- th + unname(drop(qr.coef(qr(sqrt(wt) * jac(th)), sqrt(wt) * (yy - predict(th)))))
       th
     }
     # A start from a table of parameters, one row per data set.
@@ -834,12 +894,22 @@ global_extra <- quote({
       if (!is.null(th) && (is.null(best) || rss(th) < rss(best))) best <- th
     }
     th <- best
-    J <- jac(th)
+    if (ypow > 0) {
+      for (it in 1:500) {
+        wt <- predict(th)^-ypow
+        nt <- lm(th)
+        moved <- max(abs(nt - th) / pmax(abs(th), 1e-8))
+        th <- nt
+        if (moved < 1e-13) break
+      }
+      wt <- predict(th)^-ypow
+    }
+    J <- sqrt(wt) * jac(th)
     A <- crossprod(J)
     Ainv <- solve(A)
     df <- n - m
     resid <- yy - predict(th)
-    ss_all <- sum(resid^2)
+    ss_all <- sum(wt * resid^2)
     s2 <- ss_all / df
     se <- sqrt(s2 * diag(Ainv))
     dependency <- pmax(0, 1 - 1 / (diag(A) * diag(Ainv))) # a lone parameter: 0, not rounding noise
@@ -870,21 +940,37 @@ global_extra <- quote({
       Ai <- Ainv[slot[i, on], slot[i, on], drop = FALSE]
       var_fit <- vapply(seq_along(grid), function(r) drop(G[r, ] %*% Ai %*% G[r, ]), 0) * s2
       fit_grid <- ref_curve(grid, p)
+      wi <- wt[rows]
+      w_new <- vapply(grid, function(v) wi[which.min(abs(xi - v))], 0)
+      half <- function(v) {
+        Gv <- sapply(on, function(j) {
+          h <- 1e-4
+          at <- function(s) {
+            q <- p
+            q[j] <- p[j] + s * h
+            ref_curve(v, q)
+          }
+          (at(-2) - 8 * at(-1) + 8 * at(1) - at(2)) / (12 * h)
+        })
+        Gv <- matrix(Gv, length(v))
+        t * sqrt(vapply(seq_along(v), function(r) drop(Gv[r, ] %*% Ai %*% Gv[r, ]), 0) * s2)
+      }
       signs <- sign(ri[ord])
       list(
         n = n_i[i], dropped = dropped[i], ran = TRUE,
         bottom = par(1), top = par(2), logec50 = par(3), hill = par(4),
         ec50 = 10^p[3], ec50_lower = 10^(p[3] - t * se[slot[i, 3]]), ec50_upper = 10^(p[3] + t * se[slot[i, 3]]),
-        df = df, ss = sum(ri^2), syx = sqrt(s2), r2 = 1 - sum(ri^2) / sum((yy[rows] - mean(yy[rows]))^2),
+        df = df, ss = sum(wi * ri^2), syx = sqrt(s2), r2 = 1 - sum(wi * ri^2) / sum(wi * (yy[rows] - weighted.mean(yy[rows], wi))^2),
         x = back(xi[ord]), y = yy[rows][ord], fitted = (yy[rows] - ri)[ord], residual = ri[ord],
         runs = ref_runs(signs[signs != 0]),
         band = list(
           x = back(grid), fit = fit_grid,
           confidence_lower = fit_grid - t * sqrt(var_fit),
           confidence_upper = fit_grid + t * sqrt(var_fit),
-          prediction_lower = fit_grid - t * sqrt(var_fit + s2),
-          prediction_upper = fit_grid + t * sqrt(var_fit + s2)
-        )
+          prediction_lower = fit_grid - t * sqrt(var_fit + s2 / w_new),
+          prediction_upper = fit_grid + t * sqrt(var_fit + s2 / w_new)
+        ),
+        unknowns = lapply(if (is.null(unknown)) numeric(0) else unknown[[i]], function(y0) ref_interpolate(y0, p, half, diff(range(xi)), back))
       )
     })
     list(series = series, global = list(n = n, parameters = m, df = df, ss = ss_all, syx = sqrt(s2)))
@@ -898,7 +984,8 @@ global_reference <- as.call(c(as.name("{"), as.list(reference)[-1], as.list(glob
 # (LogEC50); a held parameter is removed with fixed =. The optimum must
 # agree to 1e-2 and its sum of squares to 1e-6 relative -- the same minimum,
 # not just a local one.
-global_drc_agrees <- function(dose, y, g, expected, shared, log_x, bounds) {
+global_drc_agrees <- function(dose, y, g, expected, shared, log_x, bounds, w = NULL) {
+  if (is.null(w)) w <- rep(1, length(dose))
   lower <- bounds$lower
   upper <- bounds$upper
   fixed <- lower == upper
@@ -906,6 +993,7 @@ global_drc_agrees <- function(dose, y, g, expected, shared, log_x, bounds) {
   if (!log_x) ok <- ok & dose > 0
   x <- (if (log_x) dose else log10(dose))[ok]
   yy <- y[ok]
+  ww <- w[ok]
   gf <- factor(g[ok])
   k <- nlevels(gf)
   fixed_b <- c(if (fixed[4]) -lower[4] * log(10) else NA, if (fixed[1]) lower[1] else NA,
@@ -913,8 +1001,8 @@ global_drc_agrees <- function(dose, y, g, expected, shared, log_x, bounds) {
   order_drc <- c(4, 1, 2, 3) # drc's b, c, d, e = our HillSlope, Bottom, Top, LogEC50
   pm <- lapply(which(is.na(fixed_b)), function(u) if (shared[order_drc[u]]) rep(1, length(gf)) else gf)
   pmdf <- as.data.frame(setNames(pm, paste0("p", seq_along(pm))))
-  dat <- data.frame(yy = yy, x = x, gf = gf)
-  d <- do.call(drm, list(yy ~ x, curveid = quote(gf), data = dat, fct = L.4(fixed = fixed_b),
+  dat <- data.frame(yy = yy, x = x, gf = gf, ww = ww, sqw = sqrt(ww))
+  d <- do.call(drm, list(yy ~ x, curveid = quote(gf), data = dat, weights = quote(sqw), fct = L.4(fixed = fixed_b),
     pmodels = pmdf, control = drmc(relTol = 1e-12, maxIt = 10000)))
   cf <- coef(d)
   letters_free <- c("b", "c", "d", "e")[is.na(fixed_b)]
@@ -934,7 +1022,7 @@ global_drc_agrees <- function(dose, y, g, expected, shared, log_x, bounds) {
   # drc's own sum of squares and df are the stacked fit's: the same
   # minimum, not just a nearby one (drc stops a hair short of it).
   stopifnot(
-    abs(sum(residuals(d)^2) - expected$global$ss) <= 1e-6 * expected$global$ss,
+    abs(sum(ww * residuals(d)^2) - expected$global$ss) <= 1e-6 * expected$global$ss,
     df.residual(d) == expected$global$df
   )
   # A shared parameter has one value in every data set.
@@ -1152,9 +1240,9 @@ compare_extra <- quote({
   }
   # Several data sets stacked: the whole fit against the other stacked fit.
   run_global_models <- function(dose, y, g, shared, other_shared, log_x = TRUE,
-                                bounds = limits(), other = bounds, role = 1) {
-    fa <- run_global(dose, y, g, shared, log_x, bounds)
-    fb <- run_global(dose, y, g, other_shared, log_x, other)
+                                bounds = limits(), other = bounds, role = 1, w = NULL) {
+    fa <- run_global(dose, y, g, shared, log_x, bounds, w)
+    fb <- run_global(dose, y, g, other_shared, log_x, other, w)
     cx <- if (role == 2) fb$global else fa$global
     sm <- if (role == 2) fa$global else fb$global
     st <- ref_compare(cx, sm, fa$global$n, role != 3)
@@ -1207,11 +1295,13 @@ models_agree <- function(dose, y, log_x, bounds, other, expected, role, fit_one)
 # drc fits both stacked models (curveid, pmodels): anova() of the two is drc's
 # extra sum-of-squares F test and its logLik gives the AICc. `shared` and
 # `other_shared` as in run_global_models; `bounds`/`other` as limits().
-global_models_agree <- function(dose, y, g, expected, shared, other_shared, log_x, bounds, other, role) {
+global_models_agree <- function(dose, y, g, expected, shared, other_shared, log_x, bounds, other, role, w = NULL) {
+  if (is.null(w)) w <- rep(1, length(dose))
   ok <- !is.na(y) & !is.na(dose)
   if (!log_x) ok <- ok & dose > 0
   x <- (if (log_x) dose else log10(dose))[ok]
   yy <- y[ok]
+  ww <- w[ok]
   gf <- factor(g[ok])
   drc_fit <- function(sh, lim) {
     fixed <- lim$lower == lim$upper
@@ -1220,8 +1310,8 @@ global_models_agree <- function(dose, y, g, expected, shared, other_shared, log_
     order_drc <- c(4, 1, 2, 3)
     pm <- lapply(which(is.na(fixed_b)), function(u) if (sh[order_drc[u]]) rep(1, length(gf)) else gf)
     pmdf <- as.data.frame(setNames(pm, paste0("p", seq_along(pm))))
-    dat <- data.frame(yy = yy, x = x, gf = gf)
-    do.call(drm, list(yy ~ x, curveid = quote(gf), data = dat, fct = L.4(fixed = fixed_b),
+    dat <- data.frame(yy = yy, x = x, gf = gf, ww = ww, sqw = sqrt(ww))
+    do.call(drm, list(yy ~ x, curveid = quote(gf), data = dat, weights = quote(sqw), fct = L.4(fixed = fixed_b),
       pmodels = pmdf, control = drmc(relTol = 1e-12, maxIt = 10000)))
   }
   d_a <- drc_fit(shared, bounds)
@@ -1230,7 +1320,9 @@ global_models_agree <- function(dose, y, g, expected, shared, other_shared, log_
   sm <- if (role == 2) d_a else d_b
   cmp <- expected$comparison
   close <- function(a, b, tol = 1e-4) abs(a - b) <= tol * max(abs(b), 1e-300)
-  if (!close(sum(residuals(sm)^2), cmp$simpler$ss, 1e-5)) stop("drc simpler ss ", sum(residuals(sm)^2), " vs ", cmp$simpler$ss, " complex drc ", sum(residuals(cx)^2), " ours ", expected$global$ss)
+  # drc stops a little short of the optimum when the weights span many orders of magnitude (ours is the lower SS).
+  ss_tol <- if (max(ww) / min(ww) > 1e6) 1e-4 else 1e-5
+  if (!close(sum(ww * residuals(sm)^2), cmp$simpler$ss, ss_tol) || sum(ww * residuals(sm)^2) < cmp$simpler$ss * (1 - 1e-9)) stop("drc simpler ss ", sum(ww * residuals(sm)^2), " vs ", cmp$simpler$ss, " complex drc ", sum(ww * residuals(cx)^2), " ours ", expected$global$ss)
   stopifnot(df.residual(sm) == cmp$simpler$df)
   if (cmp$f_test$ok) {
     a <- anova(sm, cx, details = FALSE)
@@ -1251,7 +1343,7 @@ global_models_agree <- function(dose, y, g, expected, shared, other_shared, log_
 }
 
 model_opts <- function(model = NULL, other, x = "log", ...) c(list(x = x), if (!is.null(model)) list(model = model), list(compareWith = list(kind = "model", model = other)), list(...))
-sharing_opts <- function(shared, test, ...) list(x = "log", shared = shared, compareWith = list(kind = "sharing", test = test), ...)
+sharing_opts <- function(shared, test, x = "log", ...) list(x = x, shared = shared, compareWith = list(kind = "sharing", test = test), ...)
 
 fixture("compare-model-slope-rejected",
   input = list(
@@ -1398,3 +1490,184 @@ fixture("global-compare-model-and-sharing",
   check = global_models_agree(dose, y, g, expected, c(FALSE, FALSE, FALSE, TRUE), c(FALSE, FALSE, FALSE, FALSE), TRUE, limits(bottom = 0, top = 100), limits(bottom = 0, top = 100, hill = -1), 1), check_packages = "drc",
   options = model_opts(model = "log-inhibitor-normalized-variable-slope", other = "log-inhibitor-normalized-standard-slope", shared = gopts(hillSlope = TRUE)),
   note = "Two stacked inhibition curves with a shared variable slope against the same with the slope held at -1 (a different model): the stacked fits are compared as a whole.")
+
+# --- Weighting and interpolating unknowns (#100, item 40) -------------------
+#
+# Weighted least squares: minimise sum w (y - f)^2; SEs, CIs and the bands use
+# J'WJ and s^2 = weighted SS / df (`ref_optimum` and the runs above take `w`).
+# 1/Y and 1/Y^2 weights come from the fitted curve, refitted from an
+# unweighted start until they settle (Prism's iterative reweighting); the
+# static ones (1/X, 1/X^2, 1/SD^2) are fixed in advance. `check` fits the
+# same data with drc::drm(weights =) -- which multiplies residuals by its
+# weights, so it is given sqrt(w) -- given, for 1/Y and 1/Y^2, the weights
+# at the reported optimum, the fixed point -- and requires the same optimum.
+#
+# Unknowns: the X where the fitted curve reads Y (root finding on the curve,
+# not the closed-form inverse), and a 95% CI where the curve's 95% confidence
+# bands cross Y (Prism's method). The check asks drc's own predict(interval =
+# "confidence") whether the band there does reach Y at each end of the CI, and
+# whether the curve reads Y at the estimate.
+interp_agrees <- function(x, y, w, expected, log_x) {
+  w <- w / mean(w) # the fit is invariant to the weights' scale; drc's numerical Hessian is not
+  d <- drm(y ~ x, weights = sqrt(w), fct = L.4(), control = drmc(relTol = 1e-12, maxIt = 10000))
+  ours <- c(expected$bottom$value, expected$top$value, expected$logec50$value, expected$hill$value)
+  curve <- function(v) ours[1] + (ours[2] - ours[1]) / (1 + 10^((ours[3] - v) * ours[4]))
+  span <- abs(ours[2] - ours[1])
+  lg <- function(v) if (log_x) v else log10(v)
+  mdl <- function(p, v) p[1] + (p[2] - p[1]) / (1 + 10^((p[3] - v) * p[4]))
+  grad <- function(p, v) sapply(1:4, function(i) {
+    h <- 1e-6 * max(abs(p[i]), 1)
+    q1 <- p; q2 <- p; q1[i] <- p[i] + h; q2[i] <- p[i] - h
+    (mdl(q1, v) - mdl(q2, v)) / (2 * h)
+  })
+  ph <- ours
+  Jm <- t(sapply(x, function(v) grad(ph, v)))
+  s2 <- sum(w * (y - mdl(ph, x))^2) / (length(y) - 4)
+  Ainv <- solve(crossprod(Jm, w * Jm))
+  band <- function(v) {
+    g <- grad(ph, v)
+    mdl(ph, v) + c(-1, 1) * qt(0.975, length(y) - 4) * sqrt(drop(t(g) %*% Ainv %*% g) * s2)
+  }
+  n_ok <- 0
+  for (u in expected$unknowns) {
+    if (u$status != "ok") {
+      stopifnot(u$status %in% c("beyond-bottom", "beyond-top"), is.na(u$x))
+      f <- (u$y - ours[1]) / (ours[2] - ours[1])
+      stopifnot(if (u$status == "beyond-bottom") f <= 0 else f >= 1)
+      next
+    }
+    n_ok <- n_ok + 1
+    stopifnot(abs(curve(lg(u$x)) - u$y) <= 1e-9 * span)
+    for (e in c(u$lower, u$upper)) {
+      if (is.na(e)) next
+      # The band from textbook delta-method algebra (central differences for the
+      # gradient), at drc's fitted parameters: drc's own weighted predict() band
+      # scales its variance differently under extreme weights.
+      pr <- band(lg(e))
+      if (min(abs(pr - u$y)) > 2e-3 * span) {
+        stop("the confidence band does not reach Y = ", u$y, " at ", e, ": ", paste(signif(pr, 6), collapse = " "))
+      }
+    }
+    stopifnot(is.na(u$lower) || is.na(u$upper) || u$lower < u$x && u$x < u$upper || u$upper < u$x && u$x < u$lower)
+  }
+  stopifnot(n_ok >= 1)
+  TRUE
+}
+final_w <- function(x, expected, pow) {
+  p <- c(expected$bottom$value, expected$top$value, expected$logec50$value, expected$hill$value)
+  (p[1] + (p[2] - p[1]) / (1 + 10^((p[3] - x) * p[4])))^-pow
+}
+
+fixture("weight-y2-standard-curve",
+  input = list(
+    dose = rep(seq(-3, 2, length.out = 8), each = 2),
+    y = c(0.058, 0.07, 0.102, 0.141, 0.297, 0.313, 0.846, 0.919, 1.68, 1.734, 2.356, 2.366, 2.496, 2.654, 2.604, 2.599),
+    unk = c(0.5, 1.2, 2.0, 2.55, 0.01, 2.9)
+  ),
+  expr = run_fpl(dose, y, ypow = 2, unknown = unk), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, w = final_w(dose, expected, 2)) && interp_agrees(dose, y, final_w(dose, expected, 2), expected, TRUE),
+  check_packages = c("drc", "randtests"),
+  options = list(x = "log", weighting = "y2", interpolate = TRUE),
+  note = "An ELISA-style standard curve in duplicate, 1/Y^2 weights (iteratively reweighted), six unknowns: three inside the curve, one so close to the top plateau its CI has no upper limit, one below Bottom and one above Top (no X reported, not a wrong number).")
+
+fixture("weight-y-falling",
+  input = list(
+    dose = rep(seq(-9, -5, length.out = 9), each = 2),
+    y = c(118.146, 118.369, 111.87, 115.723, 113.189, 115.023, 102.487, 101.852, 63.545, 70.286, 28.568, 34.048, 15.648, 17.745, 10.187, 11.418, 8.729, 7.558),
+    unk = c(90, 50, 20, 2, 130)
+  ),
+  expr = run_fpl(dose, y, ypow = 1, unknown = unk), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, w = final_w(dose, expected, 1)) && interp_agrees(dose, y, final_w(dose, expected, 1), expected, TRUE),
+  check_packages = c("drc", "randtests"),
+  options = list(x = "log", weighting = "y", interpolate = TRUE),
+  note = "A falling curve with 1/Y weights: the CI of an interpolated X comes from the opposite band edge to a rising curve's. Unknowns beyond either plateau are refused.")
+
+fixture("weight-y2-held-bottom",
+  input = list(
+    dose = rep(seq(-3, 2, length.out = 8), each = 2),
+    y = c(0.058, 0.07, 0.102, 0.141, 0.297, 0.313, 0.846, 0.919, 1.68, 1.734, 2.356, 2.366, 2.496, 2.654, 2.604, 2.599)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0.05), ypow = 2), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(bottom = 0.05), w = final_w(dose, expected, 2)), check_packages = c("drc", "randtests"),
+  options = list(x = "log", weighting = "y2", bottom = list(kind = "fixed", value = 0.05)),
+  note = "1/Y^2 weights with Bottom held at 0.05: the constraint and the weights together, df = n - 3.")
+
+fixture("weight-x2-concentration",
+  input = list(
+    dose = c(0, 0, 1e-09, 1e-09, 3e-09, 3e-09, 1e-08, 1e-08, 3e-08, 3e-08, 1e-07, 1e-07, 3e-07, 3e-07, 1e-06, 1e-06, 3e-06, 3e-06, 1e-05, 1e-05),
+    y = c(0.087, 0.048, 0.142, 0.193, 0.132, 0.229, 0.339, 0.436, 0.769, 0.703, 1.247, 1.252, 1.637, 1.725, 1.876, 1.85, 1.972, 1.959, 1.983, 1.982),
+    unk = c(0.5, 1.5)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE, w = ifelse(dose > 0, dose^-2, 1), unknown = unk), setup = reference,
+  check = drc_agrees(log10(dose[dose > 0]), y[dose > 0], expected, ref_optimum, w = dose[dose > 0]^-2) && interp_agrees(log10(dose[dose > 0]), y[dose > 0], dose[dose > 0]^-2, expected, FALSE),
+  check_packages = c("drc", "randtests"),
+  options = list(x = "concentration", weighting = "x2", interpolate = TRUE),
+  note = "Concentrations with a zero-dose control (left out, counted), 1/X^2 weights on the doses as typed, two unknowns whose X and CI come back as concentrations.")
+
+fixture("weight-x-concentration",
+  input = list(
+    dose = c(1e-09, 1e-09, 3e-09, 3e-09, 1e-08, 1e-08, 3e-08, 3e-08, 1e-07, 1e-07, 3e-07, 3e-07, 1e-06, 1e-06, 3e-06, 3e-06, 1e-05, 1e-05),
+    y = c(0.142, 0.193, 0.132, 0.229, 0.339, 0.436, 0.769, 0.703, 1.247, 1.252, 1.637, 1.725, 1.876, 1.85, 1.972, 1.959, 1.983, 1.982)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE, w = 1 / dose), setup = reference,
+  check = drc_agrees(log10(dose), y, expected, ref_optimum, w = 1 / dose), check_packages = c("drc", "randtests"),
+  options = list(x = "concentration", weighting = "x"),
+  note = "1/X weights: the lowest doses count most.")
+
+fixture("weight-sd2-means",
+  input = list(
+    dose = seq(-9, -4, length.out = 7),
+    y = c(2.684, 5.338, 17.937, 54.391, 83.456, 98.101, 99.855),
+    sd = c(1.056, 2.372, 2.01, 5.764, 7.494, 2.864, 7.121),
+    unk = c(30, 60)
+  ),
+  expr = run_fpl(dose, y, w = 1 / sd^2, unknown = unk), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, w = 1 / sd^2) && interp_agrees(dose, y, 1 / sd^2, expected, TRUE), check_packages = c("drc", "randtests"),
+  options = list(x = "log", weighting = "sd2", interpolate = TRUE),
+  note = "Seven means (each of 3 replicates) weighted by 1/SD^2: 7 points, 4 parameters, df 3. The app fits the means, with each row's SD as the weight (the table's summary form).")
+
+fixture("compare-weight-x2",
+  input = list(
+    dose = c(0, 0, 1e-09, 1e-09, 3e-09, 3e-09, 1e-08, 1e-08, 3e-08, 3e-08, 1e-07, 1e-07, 3e-07, 3e-07, 1e-06, 1e-06, 3e-06, 3e-06, 1e-05, 1e-05),
+    y = c(0.087, 0.048, 0.142, 0.193, 0.132, 0.229, 0.339, 0.436, 0.769, 0.703, 1.247, 1.252, 1.637, 1.725, 1.876, 1.85, 1.972, 1.959, 1.983, 1.982)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE, alt = limits(hill = 1), w = ifelse(dose > 0, dose^-2, 1)), setup = reference,
+  check = compare_agrees(dose, y, expected, FALSE, limits(), limits(hill = 1), w = ifelse(dose > 0, dose^-2, 1)),
+  options = list(x = "concentration", weighting = "x2", compare = list(hillSlope = 1)),
+  note = "A comparison of two fits with the same fixed 1/X^2 weights (so their weighted sums of squares are comparable), against nls(weights =).")
+
+gw_dose <- c(seq(-9, -4, length.out = 10), seq(-9, -4, length.out = 8))
+gw_g <- c(rep(1, 10), rep(2, 8))
+gw_y <- c(6.365, 7.925, 14.948, 34.185, 72.269, 82.821, 97.767, 92.967, 93.81, 98.242, 6.448, 6.116, 8.188, 16.461, 50.282, 77.942, 87.001, 95.377)
+
+fixture("global-weight-y2",
+  input = list(dose = gw_dose, g = gw_g, y = replace(replace(gw_y, 3, NA), 14, NA), u = c(40, 30, 3), ug = c(1, 2, 2)),
+  expr = run_global(dose, y, g, shared = c(FALSE, FALSE, FALSE, TRUE), ypow = 2, unknown = list(u[ug == 1], u[ug == 2])), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(FALSE, FALSE, FALSE, TRUE), TRUE, limits(),
+    w = vapply(seq_along(dose), function(r) {
+      s <- expected$series[[match(g[r], sort(unique(g)))]]
+      ref_curve(dose[r], c(s$bottom$value, s$top$value, s$logec50$value, s$hill$value))^-2
+    }, 0)),
+  check_packages = "drc",
+  options = list(x = "log", weighting = "y2", interpolate = TRUE, shared = gopts(hillSlope = TRUE)),
+  note = "Two curves of unequal size (a missing response in each), one HillSlope shared, 1/Y^2 weights reweighted on the stacked fit; one unknown in the first data set and two in the second (the last below Bottom).", parity = FALSE)
+
+fixture("global-weight-y-all-shared",
+  input = list(dose = gw_dose, g = gw_g, y = gw_y, u = c(50), ug = c(1)),
+  expr = run_global(dose, y, g, shared = c(TRUE, TRUE, TRUE, TRUE), ypow = 1, unknown = list(u[ug == 1], numeric(0))), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(TRUE, TRUE, TRUE, TRUE), TRUE, limits(),
+    w = ref_curve(dose, c(expected$series[[1]]$bottom$value, expected$series[[1]]$top$value, expected$series[[1]]$logec50$value, expected$series[[1]]$hill$value))^-1),
+  check_packages = "drc",
+  options = list(x = "log", weighting = "y", interpolate = TRUE, shared = gopts(TRUE, TRUE, TRUE, TRUE)),
+  note = "Everything shared: one curve through both data sets with 1/Y weights.", parity = FALSE)
+
+fixture("global-compare-weight-x",
+  input = list(
+    dose = c(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1, 4, 8, 32, 64, 128, 256, 512),
+    g = c(rep(1, 10), rep(2, 8)),
+    y = c(7.3, 5.39, 13.52, 12.57, 31.73, 42.51, 66.18, 78.04, 91.15, 92.83, 4.01, 9.72, 6.43, 27.51, 38.92, 61.77, 74.7, 87.55)
+  ),
+  expr = run_global_models(dose, y, g, c(FALSE, FALSE, TRUE, FALSE), c(FALSE, FALSE, FALSE, FALSE), log_x = FALSE, role = 2, w = dose^-1), setup = global_compare_reference,
+  check = global_models_agree(dose, y, g, expected, c(FALSE, FALSE, TRUE, FALSE), c(FALSE, FALSE, FALSE, FALSE), FALSE, limits(), limits(), 2, w = dose^-1), check_packages = "drc",
+  options = sharing_opts(gopts(logEc50 = TRUE), gopts(logEc50 = TRUE), x = "concentration", weighting = "x"),
+  note = "A shared-vs-separate EC50 comparison of concentration data (1 to 512) with 1/X weights, both stacked fits weighted alike, against drc's anova().")

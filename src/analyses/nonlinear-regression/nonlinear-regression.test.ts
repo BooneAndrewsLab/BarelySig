@@ -16,6 +16,7 @@ import {
   type ParameterConstraint,
   type SharedParameters,
   type SimplerModel,
+  WEIGHTING_IDS,
 } from '@/model/project';
 import { createXyTable, type XyTable } from '@/model/table';
 import { type Fixture, loadFixtures, mismatches } from '@/test/fixtures';
@@ -65,8 +66,41 @@ function requestFor(f: Fixture): NonlinearRegressionRequest {
     sets.length,
   );
   if (typeof alternative === 'string') throw new Error(alternative);
+  // Weights as `prepare` would send them: 1/X and 1/X² on the doses as typed (a dose that is
+  // left out weighs 1), 1/SD² from the fixture's `sd` column, and ones for 1/Y and 1/Y² (those
+  // come from the fitted curve, inside the engine).
+  const weighting = WEIGHTING_IDS.find((id) => id === f.options?.['weighting']) ?? 'none';
+  const sd = f.input['sd'];
+  const staticWeight = (v: number, i: number): number => {
+    if (weighting === 'x') return v > 0 ? 1 / v : 1;
+    if (weighting === 'x2') return v > 0 ? 1 / (v * v) : 1;
+    const s = sd?.[i];
+    if (weighting === 'sd2' && s !== null && s !== undefined) return 1 / (s * s);
+    return 1;
+  };
+  const weights = sets.map((set) =>
+    x.flatMap((v, i) => {
+      const yv = y[i];
+      if (g !== undefined && g[i] !== set) return [];
+      if (v === null || yv === null || yv === undefined) return [];
+      return [staticWeight(v, i)];
+    }),
+  );
+  // Unknown Ys: one column for a single fit, or `u` with the data set `ug` for a global fit.
+  const u = f.input['u'] ?? f.input['unk'] ?? [];
+  const ug = f.input['ug'];
+  const unknowns = sets.map((set, k) =>
+    u.flatMap((v, i) =>
+      v === null || (ug !== undefined && ug[i] !== set) || (ug === undefined && k > 0)
+        ? []
+        : [{ rowNumber: i + 1, y: v }],
+    ),
+  );
   return {
     model,
+    weighting,
+    weights,
+    unknowns,
     series: sets.map((set) => ({ id: `s${String(set)}`, title: `Series ${String(set)}` })),
     points,
     logX: f.options?.['x'] !== 'concentration',
@@ -556,6 +590,110 @@ describe('prepare', () => {
     ]) {
       expect(nonlinearRegression.prepare(withOptions(options), project2).ok).toBe(false);
     }
+  });
+});
+
+describe('weighting and unknowns in prepare', () => {
+  type Fit = Extract<Analysis, { kind: 'nonlinear-regression' }>;
+
+  function build(
+    xs: readonly (number | null)[],
+    ys: readonly (readonly (number | null)[])[],
+    o: Partial<Fit['options']>,
+  ) {
+    const table = createXyTable({
+      title: 'Standards',
+      groups: ['Y1'],
+      rows: xs.length,
+      format: { kind: 'replicates', count: ys.length },
+    });
+    const [x, y] = table.dataSets;
+    if (!x || !y) throw new Error('table has no data sets');
+    const filled: XyTable = {
+      ...table,
+      dataSets: [
+        { ...x, subcolumns: [xs] },
+        { ...y, subcolumns: ys },
+      ],
+    };
+    const project = createProject('p');
+    const analysis: Fit = {
+      id: newId('a'),
+      title: 'Fit',
+      kind: 'nonlinear-regression',
+      options: { ...DEFAULT_OPTIONS['nonlinear-regression'], x: 'concentration', ...o },
+      input: { kind: 'table', table: filled.id, dataSets: [y.id] },
+    };
+    return nonlinearRegression.prepare(analysis, {
+      ...project,
+      tables: new Map([[filled.id, filled]]),
+    });
+  }
+
+  it('weights 1/X and 1/X² on the doses as typed, and leaves a zero dose at 1', () => {
+    const xs = [0, 1e-9, 1e-8, 1e-7];
+    const ys = [[1, 2, 3, 4]];
+    const one = build(xs, ys, { weighting: 'x' });
+    const two = build(xs, ys, { weighting: 'x2' });
+    expect(one.ok && one.request.weights[0]?.[1]).toBeCloseTo(1e9, -1);
+    expect(one.ok && one.request.weights[0]?.[0]).toBe(1);
+    expect(two.ok && two.request.weights[0]?.[2]).toBeCloseTo(1e16, -3);
+    expect(two.ok && two.request.weights[0]?.[0]).toBe(1);
+  });
+
+  it('refuses 1/X weights when X is already a log (zero or negative)', () => {
+    const r = build([-9, -8, -7, -6], [[1, 2, 3, 4]], { weighting: 'x2', x: 'log' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/log/i);
+  });
+
+  it('weights 1/SD² from the replicates, and refuses one replicate or a zero SD', () => {
+    const xs = [1, 2, 3, 4];
+    const ok = build(
+      xs,
+      [
+        [1, 2, 3, 4],
+        [1.2, 2.5, 3.1, 4.4],
+      ],
+      { weighting: 'sd2' },
+    );
+    if (!ok.ok) throw new Error(ok.reason);
+    expect(ok.request.weights[0]?.[0]).toBeCloseTo(1 / (0.2 ** 2 / 2), 6);
+    expect(build(xs, [[1, 2, 3, 4]], { weighting: 'sd2' }).ok).toBe(false);
+    const flat = build(
+      xs,
+      [
+        [1, 2, 3, 4],
+        [1, 2.5, 3.1, 4.4],
+      ],
+      { weighting: 'sd2' },
+    );
+    expect(flat.ok).toBe(false);
+    if (!flat.ok) expect(flat.reason).toMatch(/SD/);
+  });
+
+  it('refuses 1/Y weights together with a comparison, but allows fixed weights', () => {
+    const xs = [1, 2, 3, 4];
+    const ys = [[1, 2, 3, 4]];
+    const none = { bottom: null, top: null, hillSlope: 1 };
+    expect(build(xs, ys, { weighting: 'y2', compare: none }).ok).toBe(false);
+    expect(
+      build(xs, ys, {
+        weighting: 'y',
+        compareWith: { kind: 'model', model: 'log-agonist-standard-slope' },
+      }).ok,
+    ).toBe(false);
+    expect(build(xs, ys, { weighting: 'x2', compare: none }).ok).toBe(true);
+  });
+
+  it('collects the Y values on rows with no X as the unknowns, only when asked', () => {
+    const xs = [1e-9, 1e-8, 1e-7, null, null];
+    const ys = [[1, 2, 3, 2.5, null]];
+    const on = build(xs, ys, { interpolate: true });
+    const off = build(xs, ys, { interpolate: false });
+    expect(on.ok && on.request.unknowns).toEqual([[{ rowNumber: 4, y: 2.5 }]]);
+    expect(on.ok && on.request.points[0]).toHaveLength(3);
+    expect(off.ok && off.request.unknowns).toEqual([[]]);
   });
 });
 

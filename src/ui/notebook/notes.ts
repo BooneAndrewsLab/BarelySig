@@ -473,6 +473,16 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
                   'The data sets are fitted together: a parameter you shared has one value for all of them, estimated from every data set’s points, while the rest stay each data set’s own. The fit’s degrees of freedom and variance are pooled over all the points, so each data set’s SEs and CIs come from that one combined fit.',
                 ]
               : []),
+            ...(analysis.options.weighting !== 'none'
+              ? [
+                  'The fit is weighted: points expected to scatter more count for less. 1/Y and 1/Y² use the height of the fitted curve (the fit is repeated until the weights settle); 1/X and 1/X² favour low X; 1/SD² uses the spread of the replicates at each X and fits their means. The sum of squares and Sy.x are then weighted, so they are not comparable with an unweighted fit’s.',
+                ]
+              : []),
+            ...(analysis.options.interpolate
+              ? [
+                  'Rows with a Y value but no X are treated as unknowns and read off the fitted curve. The 95% CI of each X is where the curve’s confidence bands cross that Y; a Y at or beyond a plateau has no X.',
+                ]
+              : []),
             ...(analysis.options.compare
               ? [
                   'The fit is compared with a simpler curve that holds some parameters at constants. The F test asks whether estimating them improves the fit by more than chance (P below 0.05 says yes); a large P is no evidence of an improvement, which is not proof of none. AICc weighs the fit against the number of parameters and gives the chance each model is the better one.',

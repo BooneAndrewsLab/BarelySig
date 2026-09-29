@@ -10,6 +10,8 @@ import {
   comparisonWithProblem,
   optionsProblem,
 } from '@/analyses/nonlinear-regression/constraints';
+import { WEIGHTING_LABELS, weightingProblem } from '@/analyses/nonlinear-regression/weighting';
+import { WEIGHTING_IDS } from '@/model/project';
 import {
   DOSE_RESPONSE_MODELS,
   doseResponseModel,
@@ -994,6 +996,60 @@ function CompareWithFields(props: {
           {problem}
         </p>
       )}
+    </fieldset>
+  );
+}
+
+function WeightingFields(props: {
+  readonly o: NonlinearRegressionOptions;
+  readonly set: (o: NonlinearRegressionOptions) => void;
+}) {
+  const { o, set } = props;
+  const problem = weightingProblem(o);
+  return (
+    <fieldset>
+      <legend>Weighting and unknowns</legend>
+      <label className="constraint-name">
+        <span>Weight points by</span>
+        <select
+          aria-label="Weighting"
+          value={o.weighting}
+          onChange={(e) => {
+            const v = WEIGHTING_IDS.find((w) => w === e.currentTarget.value);
+            if (v) set({ ...o, weighting: v });
+          }}
+        >
+          {WEIGHTING_IDS.map((w) => (
+            <option key={w} value={w}>
+              {WEIGHTING_LABELS[w]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint">
+        Use weights when the scatter grows with the response (1/Y² is common for ELISA-type standard
+        curves), or when you have replicates and want noisy points to count less (1/SD², which fits
+        the mean at each X). Unweighted is right when the scatter is about the same everywhere.
+      </p>
+      {problem && (
+        <p className="hint" role="alert">
+          {problem}
+        </p>
+      )}
+      <label className="option">
+        <input
+          type="checkbox"
+          checked={o.interpolate}
+          onChange={(e) => {
+            set({ ...o, interpolate: e.currentTarget.checked });
+          }}
+        />
+        Read unknowns off the curve
+      </label>
+      <p className="hint">
+        Type the unknowns’ Y values in the same table on rows where X is left empty. Each gets an X
+        read off the fitted curve, with a 95% CI.
+      </p>
     </fieldset>
   );
 }
@@ -2100,6 +2156,12 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
                   set('nonlinear-regression', o);
                 }}
               />
+              <WeightingFields
+                o={options['nonlinear-regression']}
+                set={(o) => {
+                  set('nonlinear-regression', o);
+                }}
+              />
               <ComparisonFields
                 o={options['nonlinear-regression']}
                 set={(o) => {
@@ -2148,7 +2210,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               disabled={
                 picked.length === 0 ||
                 (kind === 'nonlinear-regression' &&
-                  optionsProblem(options[kind], picked.length) !== null)
+                  (optionsProblem(options[kind], picked.length) !== null ||
+                    weightingProblem(options[kind]) !== null))
               }
             >
               {analysis ? 'Update' : 'Analyze'}

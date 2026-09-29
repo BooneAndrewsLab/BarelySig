@@ -32,6 +32,7 @@ import { doseResponseModel } from '@/analyses/nonlinear-regression/models';
 import type {
   ComparisonOutcome,
   FitParameter,
+  Interpolation,
   NonlinearRegressionResult,
   NonlinearRegressionSeries,
 } from '@/analyses/nonlinear-regression/types';
@@ -1037,6 +1038,47 @@ function comparisonGrid(
 }
 
 /** The methods line’s sentence about the comparison, or nothing. */
+function weightingSentence(w: NonlinearRegressionResult['weighting']): string {
+  switch (w) {
+    case 'none':
+      return 'no weighting; each replicate is its own point.';
+    case 'y':
+      return 'weighted by 1/Y (Y from the fitted curve, iteratively reweighted); each replicate is its own point. Sums of squares and Sy.x are weighted.';
+    case 'y2':
+      return 'weighted by 1/Y² (Y from the fitted curve, iteratively reweighted); each replicate is its own point. Sums of squares and Sy.x are weighted.';
+    case 'x':
+      return 'weighted by 1/X; each replicate is its own point. Sums of squares and Sy.x are weighted.';
+    case 'x2':
+      return 'weighted by 1/X²; each replicate is its own point. Sums of squares and Sy.x are weighted.';
+    case 'sd2':
+      return 'weighted by 1/SD² of the replicates at each X; the mean at each X is one point. Sums of squares and Sy.x are weighted.';
+  }
+}
+
+function interpolationRow(u: Interpolation): string[] {
+  const head = [String(u.rowNumber), sig(u.y)];
+  switch (u.status) {
+    case 'ok':
+      return [
+        ...head,
+        sig(u.x),
+        u.lower !== null && u.upper !== null
+          ? interval(u.lower, u.upper)
+          : u.lower !== null
+            ? `${sig(u.lower)} to no upper limit`
+            : u.upper !== null
+              ? `no lower limit to ${sig(u.upper)}`
+              : 'unbounded',
+      ];
+    case 'beyond-bottom':
+      return [...head, '—', 'Y is at or beyond the bottom plateau: no X'];
+    case 'beyond-top':
+      return [...head, '—', 'Y is at or beyond the top plateau: no X'];
+    case 'undefined':
+      return [...head, '—', 'the curve is flat: no X'];
+  }
+}
+
 function comparisonMethod(r: NonlinearRegressionResult): string {
   const sides = comparisonSides(r);
   if (sides === null) return '';
@@ -1091,6 +1133,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
         ? 'very wide'
         : interval(p.lower, p.upper);
   const anyRan = r.series.some((s) => s.outcome.ran);
+  const weighted = r.weighting !== 'none';
   const runs = (o: Fit): string => {
     const t = o.runs;
     if (t.ran) return pValue(t.p);
@@ -1108,7 +1151,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
         {r.logX
           ? 'X is the log of the dose.'
           : 'X is a dose, fitted on a log scale (log₁₀); a zero or negative dose is left out.'}{' '}
-        Asymptotic 95% CIs; no weighting; each replicate is its own point.
+        Asymptotic 95% CIs; {weightingSentence(r.weighting)}
         {comparisonMethod(r)}
       </p>
       {anyRan && (
@@ -1154,8 +1197,8 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             rows={[
               row('Degrees of freedom', (o) => sig(o.df, 0)),
               row('R squared', (o) => sig(o.r2)),
-              row('Sum of squares', (o) => sig(o.ss)),
-              row('Sy.x', (o) => sig(o.syx)),
+              row(weighted ? 'Weighted sum of squares' : 'Sum of squares', (o) => sig(o.ss)),
+              row(weighted ? 'Weighted Sy.x' : 'Sy.x', (o) => sig(o.syx)),
               row('Runs test (lack of fit), P value', runs),
               [
                 'Number of points analyzed',
@@ -1168,6 +1211,26 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             ]}
           />
         </div>
+      )}
+      {r.series.map((s) =>
+        s.outcome.ran && s.outcome.unknowns.length > 0 ? (
+          <div className="results-grid" key={s.id}>
+            <Grid
+              label={`Interpolated X from unknown Y${r.series.length > 1 ? `: ${s.title}` : ''}`}
+              head={['Row', 'Y', 'X', '95% CI of X']}
+              rows={s.outcome.unknowns.map(interpolationRow)}
+            />
+          </div>
+        ) : null,
+      )}
+      {r.series.some((s) => s.outcome.ran && s.outcome.unknowns.length > 0) && (
+        <p className="method">
+          Each unknown Y is read off the fitted curve. The 95% CI is where the curve’s 95%
+          confidence bands cross that Y (the method Prism describes), so it reflects only how well
+          the curve is known, not any scatter in the unknown’s own replicates. “No upper limit” or
+          “no lower limit” means the bands never reach that Y within a wide range. A Y at or beyond
+          a plateau of the curve has no X and is left blank rather than guessed.
+        </p>
       )}
       {r.global !== null && (
         <div className="results-grid">

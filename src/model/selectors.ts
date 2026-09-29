@@ -348,6 +348,99 @@ export function xySeries(
   });
 }
 
+/** One X of a Y data set with the spread of what was measured there (item 40, #100). */
+export interface XyRowSummary {
+  readonly row: Id;
+  readonly x: number;
+  readonly mean: number;
+  /** Null when the table has no SD to give (interval-only summary) or a raw row has fewer than two replicates. */
+  readonly sd: number | null;
+  readonly n: number | null;
+}
+
+/**
+ * Each Y data set's rows as a mean and SD, for weighting by the SD of the
+ * replicates (item 40, #100): raw data gives the mean and SD of the row's
+ * replicates; summary data its own mean and SD (an SEM or CV converted).
+ * Rows without a usable X or mean are left out, as in `xySeries`.
+ */
+export function xyRowSummaries(
+  table: XyTable,
+  dataSets: readonly Id[],
+): { id: Id; title: string; rows: XyRowSummary[] }[] {
+  const x = table.dataSets[0];
+  if (!x) throw new DataError(`Table "${table.title}" has no X column.`);
+  if (dataSets.includes(x.id)) throw new DataError('The X column is not a Y data set.');
+  const { format } = table;
+  return dataSets.map((id) => {
+    const ds = requireDataSet(table, id);
+    const rows: XyRowSummary[] = [];
+    table.rows.forEach((row, r) => {
+      const xv = usable(table, x, 0, r);
+      if (xv === null) return;
+      if (format.kind === 'summary') {
+        const g = summaryAt(table, ds, format.stats, r);
+        if (g.kind === 'summary' && g.mean !== null) {
+          rows.push({ row: row.id, x: xv, mean: g.mean, sd: g.sd, n: g.n });
+        }
+        return;
+      }
+      const values: number[] = [];
+      for (let s = 0; s < format.count; s += 1) {
+        const v = usable(table, ds, s, r);
+        if (v !== null) values.push(v);
+      }
+      if (values.length === 0) return;
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      const sd =
+        values.length < 2
+          ? null
+          : Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1));
+      rows.push({ row: row.id, x: xv, mean, sd, n: values.length });
+    });
+    return { id, title: ds.title, rows };
+  });
+}
+
+/** A Y value with no X beside it: an unknown to read off a fitted curve (item 40, #100). */
+export interface XyUnknown {
+  readonly row: Id;
+  /** 1-based position of the row in the table, for saying which one. */
+  readonly rowNumber: number;
+  readonly y: number;
+}
+
+/**
+ * Per Y data set, the Y values at rows whose X is empty: Prism's unknowns,
+ * typed into the same table. Raw data gives every replicate separately;
+ * summary data its mean. Empty and excluded cells are left out.
+ */
+export function xyUnknowns(table: XyTable, dataSets: readonly Id[]): XyUnknown[][] {
+  const x = table.dataSets[0];
+  if (!x) throw new DataError(`Table "${table.title}" has no X column.`);
+  if (dataSets.includes(x.id)) throw new DataError('The X column is not a Y data set.');
+  const { format } = table;
+  return dataSets.map((id) => {
+    const ds = requireDataSet(table, id);
+    const out: XyUnknown[] = [];
+    table.rows.forEach((row, r) => {
+      if (usable(table, x, 0, r) !== null) return;
+      if (format.kind === 'summary') {
+        const g = summaryAt(table, ds, format.stats, r);
+        if (g.kind === 'summary' && g.mean !== null) {
+          out.push({ row: row.id, rowNumber: r + 1, y: g.mean });
+        }
+        return;
+      }
+      for (let s = 0; s < format.count; s += 1) {
+        const v = usable(table, ds, s, r);
+        if (v !== null) out.push({ row: row.id, rowNumber: r + 1, y: v });
+      }
+    });
+    return out;
+  });
+}
+
 /**
  * One replicate subcolumn's points per Y data set, in row order (item 34, #93): a trace is a
  * single subject followed across X. Empty for summary data, which has no replicates to follow.

@@ -6,6 +6,7 @@
 import type { RegressionBand, Residual, RunsOutcome } from '../linear-regression/types';
 import type {
   ComparisonWith,
+  WeightingId,
   DoseResponseModelId,
   ParameterConstraint,
   SharedParameters,
@@ -48,7 +49,36 @@ export interface NonlinearRegressionRequest {
    * false for independent fits (also whenever there is only one data set).
    */
   readonly shared: SharedParameters;
+  /** How the points are weighted (item 40, #100). */
+  readonly weighting: WeightingId;
+  /** Each series' points' weights, parallel to `points` (1/X, 1/X², 1/SD²; else all 1). */
+  readonly weights: readonly (readonly number[])[];
+  /** Each series' unknown Y values to read off the curve (empty unless asked for). */
+  readonly unknowns: readonly (readonly UnknownY[])[];
 }
+
+/** A Y value with no X, to interpolate (item 40, #100). */
+export interface UnknownY {
+  /** 1-based row of the table it was typed on. */
+  readonly rowNumber: number;
+  readonly y: number;
+}
+
+/**
+ * An unknown Y read off the fitted curve (item 40, #100). `ok`: the X at that
+ * Y with its 95% CI from where the curve's confidence bands cross it; a side
+ * is null when the bands never reach that Y (an open interval). A Y at or
+ * beyond a plateau has no X.
+ */
+export type Interpolation = { readonly rowNumber: number; readonly y: number } & (
+  | {
+      readonly status: 'ok';
+      readonly x: number;
+      readonly lower: number | null;
+      readonly upper: number | null;
+    }
+  | { readonly status: 'beyond-bottom' | 'beyond-top' | 'undefined' }
+);
 
 /**
  * A fit compared with the simpler model that holds some of its parameters
@@ -142,12 +172,14 @@ export type DoseResponseOutcome =
       readonly band: RegressionBand;
       /** The comparison with the simpler model, when one was asked for. */
       readonly comparison: ComparisonOutcome | null;
+      /** The unknown Y values read off the curve, in table order. */
+      readonly unknowns: readonly Interpolation[];
     }
   | {
       readonly ran: false;
       readonly n: number;
       readonly dropped: number;
-      readonly why: 'few' | 'few-x' | 'constant-y' | 'no-fit';
+      readonly why: 'few' | 'few-x' | 'constant-y' | 'no-fit' | 'weights';
       readonly minimum: number | null;
     };
 
@@ -185,6 +217,7 @@ export interface NonlinearRegressionResult {
    */
   readonly comparison: ComparisonOutcome | null;
   readonly shared: SharedParameters;
+  readonly weighting: WeightingId;
   /** The stacked fit's totals when parameters were shared and the fit ran; else null. */
   readonly global: GlobalFit | null;
   readonly series: readonly NonlinearRegressionSeries[];

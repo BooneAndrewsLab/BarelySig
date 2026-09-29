@@ -149,7 +149,18 @@ export interface NonlinearRegressionOptions {
   readonly compareAlpha: number;
   /** Parameters that take one value for every chosen data set (item 38, #97); all false = independent fits. */
   readonly shared: SharedParameters;
+  /** How much each point counts in the fit (item 40, #100); Prism's default is none. */
+  readonly weighting: WeightingId;
+  /** Read the unknown Y values (rows with a Y but no X) off the fitted curve (item 40, #100). */
+  readonly interpolate: boolean;
 }
+
+/**
+ * Weights for the least-squares fit (item 40, #100): none, 1/Y or 1/Y² (Y
+ * being the fitted curve's), 1/X or 1/X², or 1/SD² of the replicates at each X.
+ */
+export const WEIGHTING_IDS = ['none', 'y', 'y2', 'x', 'x2', 'sd2'] as const;
+export type WeightingId = (typeof WEIGHTING_IDS)[number];
 
 /**
  * Which curve parameters are shared across the Y data sets of a global fit
@@ -440,6 +451,8 @@ export const DEFAULT_OPTIONS: {
     compareWith: null,
     compareAlpha: 0.05,
     shared: { bottom: false, top: false, hillSlope: false, logEc50: false },
+    weighting: 'none',
+    interpolate: false,
   },
   'growth-curve': { model: 'gompertz' },
   'graph-summary': { whiskers: null, kde: null },

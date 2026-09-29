@@ -19,7 +19,7 @@ bs_fpl_jacobian <- function(x, p) {
 }
 
 # The least-squares fit from a small grid of starts, or NULL if none converged.
-bs_fpl_nls <- function(x, y) {
+bs_fpl_nls <- function(x, y, w = rep(1, length(x))) {
   span <- max(x) - min(x)
   starts <- expand.grid(
     logec50 = unname(quantile(x, c(0.25, 0.5, 0.75))),
@@ -30,7 +30,7 @@ bs_fpl_nls <- function(x, y) {
     m <- tryCatch(
       nls(y ~ cbind(1 - bs_fpl_frac(x, logec50, hill), bs_fpl_frac(x, logec50, hill)),
         start = list(logec50 = starts$logec50[i], hill = starts$hill[i]),
-        algorithm = "plinear",
+        algorithm = "plinear", weights = w,
         control = nls.control(maxiter = 200, tol = 1e-8, scaleOffset = 1)
       ),
       error = function(e) NULL
@@ -47,11 +47,13 @@ bs_fpl_nls <- function(x, y) {
 #
 # `idx`: the parameters being estimated (the others are fixed, or sit on a
 # bound, and stay put); `lower`/`upper`: a step that leaves them is refused.
-bs_fpl_polish <- function(x, y, p, idx = 1:4, lower = rep(-Inf, 4), upper = rep(Inf, 4)) {
-  ss <- sum((y - bs_fpl_curve(x, p))^2)
+bs_fpl_polish <- function(x, y, p, idx = 1:4, lower = rep(-Inf, 4), upper = rep(Inf, 4),
+                          w = rep(1, length(x))) {
+  sw <- sqrt(w)
+  ss <- sum(w * (y - bs_fpl_curve(x, p))^2)
   gn <- function(p) {
     step <- tryCatch(
-      qr.coef(qr(bs_fpl_jacobian(x, p)[, idx, drop = FALSE]), y - bs_fpl_curve(x, p)),
+      qr.coef(qr(sw * bs_fpl_jacobian(x, p)[, idx, drop = FALSE]), sw * (y - bs_fpl_curve(x, p))),
       error = function(e) NULL
     )
     if (is.null(step) || any(!is.finite(step))) return(NULL)
@@ -63,7 +65,7 @@ bs_fpl_polish <- function(x, y, p, idx = 1:4, lower = rep(-Inf, 4), upper = rep(
     q <- p
     q[idx] <- p[idx] + step
     if (any(q < lower | q > upper)) break
-    ss_q <- sum((y - bs_fpl_curve(x, q))^2)
+    ss_q <- sum(w * (y - bs_fpl_curve(x, q))^2)
     if (!(ss_q <= ss)) break
     p <- q
     ss <- ss_q
@@ -88,7 +90,7 @@ bs_fpl_polish <- function(x, y, p, idx = 1:4, lower = rep(-Inf, 4), upper = rep(
 # "port") estimates the rest inside the bounds, from a small grid of starts
 # (both plateau orders as well as several LogEC50 and HillSlope); returns
 # the best p, or NULL when no start converged.
-bs_fpl_constrained_nls <- function(x, y, lower, upper) {
+bs_fpl_constrained_nls <- function(x, y, lower, upper, w = rep(1, length(x))) {
   fixed <- lower == upper
   span <- max(x) - min(x)
   clamp <- function(v, i) min(max(v, lower[i]), upper[i])
@@ -105,7 +107,7 @@ bs_fpl_constrained_nls <- function(x, y, lower, upper) {
     start <- c(b = clamp(pl[1], 1), t = clamp(pl[2], 2), l = l, h = clamp(h, 4))
     m <- tryCatch(
       nls(fml,
-        start = as.list(start[!fixed]), algorithm = "port",
+        start = as.list(start[!fixed]), algorithm = "port", weights = w,
         lower = lower[!fixed], upper = upper[!fixed],
         control = nls.control(maxiter = 500, tol = 1e-8, scaleOffset = 1)
       ),
@@ -114,7 +116,7 @@ bs_fpl_constrained_nls <- function(x, y, lower, upper) {
     if (is.null(m)) next
     p <- lower
     p[!fixed] <- unname(coef(m))
-    ss <- sum((y - bs_fpl_curve(x, p))^2)
+    ss <- sum(w * (y - bs_fpl_curve(x, p))^2)
     if (is.finite(ss) && ss < best_ss) {
       best <- p
       best_ss <- ss
@@ -137,10 +139,57 @@ bs_fpl_held <- function(value, status) {
   list(value = unname(value), status = status, ambiguous = FALSE)
 }
 
-# x: log dose. `unlog` maps it back to the table's own X units. `lower` /
-# `upper`: bounds on (Bottom, Top, LogEC50, HillSlope), a fixed parameter
-# having lower == upper (#96); unbounded by default.
-bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(Inf, 4)) {
+# Interpolating unknowns (#100): the X at which the curve reaches each Y in
+# `y0`, with the 95% CI where the two confidence bands of the curve cross
+# that Y (Prism's method). p: the curve's parameters; `half(v)`: the
+# half-width of the confidence band at log dose v; `span`: the range of the
+# fitted log doses. A Y at or beyond a plateau has no X: it is reported as
+# such, never as a number. A side of the CI the bands never reach within
+# five spans of the estimate is open (NA).
+bs_interpolate <- function(y0, p, span, half, unlog) {
+  reach <- 5 * max(span, 1)
+  one <- function(y0) {
+    res <- function(status, x = NA_real_, lower = NA_real_, upper = NA_real_) {
+      list(y = y0, status = status, x = x, lower = lower, upper = upper)
+    }
+    f <- (y0 - p[1]) / (p[2] - p[1])
+    if (!is.finite(f) || p[4] == 0) return(res("undefined"))
+    if (f <= 0) return(res("beyond-bottom"))
+    if (f >= 1) return(res("beyond-top"))
+    xh <- p[3] - log10((1 - f) / f) / p[4]
+    if (!is.finite(xh)) return(res("undefined"))
+    up <- function(v) bs_fpl_curve(v, p) + half(v) - y0
+    dn <- function(v) bs_fpl_curve(v, p) - half(v) - y0
+    # The first place going from the estimate in direction `dir` where `fun` changes sign.
+    find <- function(fun, dir) {
+      steps <- xh + dir * reach * (0:400) / 400
+      vals <- fun(steps)
+      hit <- which(sign(vals[-1]) != sign(vals[1]))
+      if (length(hit) == 0) return(NA_real_)
+      i <- hit[1]
+      uniroot(fun, sort(c(steps[i], steps[i + 1])), tol = 1e-13)$root
+    }
+    rising <- (p[2] - p[1]) * p[4] > 0
+    lo <- find(if (rising) up else dn, -1)
+    hi <- find(if (rising) dn else up, 1)
+    if (half(xh) == 0) {
+      lo <- xh
+      hi <- xh
+    }
+    res("ok", unlog(xh), unlog(lo), unlog(hi))
+  }
+  lapply(y0, one)
+}
+
+# x: log dose. `w`: the point weights (1 = unweighted; static ones from the
+# table); `ypow`: 1 or 2 for 1/Y or 1/Y^2, whose weights come from the fitted
+# curve, iteratively reweighted from an unweighted start (Prism's way; #100),
+# `w` then being ones. `unlog` maps x back to the table's own X units.
+# `lower` / `upper`: bounds on (Bottom, Top, LogEC50, HillSlope), a fixed
+# parameter having lower == upper (#96); unbounded by default. `unknown`: Y
+# values to interpolate from the fitted curve.
+bs_fpl_one <- function(x, y, w, unlog, dropped, lower = rep(-Inf, 4), upper = rep(Inf, 4),
+                       ypow = 0, unknown = numeric(0)) {
   n <- length(x)
   fixed <- lower == upper
   constrained <- any(is.finite(lower) | is.finite(upper))
@@ -152,16 +201,16 @@ bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(I
   if (max(y) == min(y)) return(list(n = n, dropped = dropped, ran = FALSE, why = "constant_y"))
   idx <- 1:4
   if (!constrained) {
-    m <- bs_fpl_nls(x, y)
+    m <- bs_fpl_nls(x, y, w)
     if (is.null(m)) return(list(n = n, dropped = dropped, ran = FALSE, why = "no_fit"))
     cf <- coef(m)
     p <- unname(c(cf[".lin1"], cf[".lin2"], cf["logec50"], cf["hill"]))
     # The same curve with the plateaus swapped and the slope negated: report
     # the one Prism does, Bottom <= Top, the slope's sign giving the direction.
     if (p[1] > p[2]) p <- c(p[2], p[1], p[3], -p[4])
-    p <- bs_fpl_polish(x, y, p)
+    p <- bs_fpl_polish(x, y, p, w = w)
   } else {
-    p <- bs_fpl_constrained_nls(x, y, lower, upper)
+    p <- bs_fpl_constrained_nls(x, y, lower, upper, w)
     if (is.null(p)) return(list(n = n, dropped = dropped, ran = FALSE, why = "no_fit"))
     # A parameter the fit pushed onto a bound is held there: the fit is then
     # the one without it, and it is reported as at its bound, without an SE.
@@ -171,9 +220,28 @@ bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(I
     p[at_lower] <- lower[at_lower]
     p[at_upper] <- upper[at_upper]
     idx <- which(!fixed & !at_lower & !at_upper)
-    p <- bs_fpl_polish(x, y, p, idx, lower, upper)
+    p <- bs_fpl_polish(x, y, p, idx, lower, upper, w)
   }
-  J <- bs_fpl_jacobian(x, p)[, idx, drop = FALSE]
+  if (ypow > 0) {
+    for (it in 1:200) {
+      f <- bs_fpl_curve(x, p)
+      if (any(!is.finite(f)) || any(f <= 0)) {
+        return(list(n = n, dropped = dropped, ran = FALSE, why = "weights"))
+      }
+      w <- f^-ypow
+      q <- bs_fpl_polish(x, y, p, idx, lower, upper, w)
+      change <- max(abs(q - p) / pmax(abs(p), 1e-8))
+      p <- q
+      if (change < 1e-12) break
+    }
+    f <- bs_fpl_curve(x, p)
+    if (any(!is.finite(f)) || any(f <= 0)) {
+      return(list(n = n, dropped = dropped, ran = FALSE, why = "weights"))
+    }
+    w <- f^-ypow
+  }
+  sw <- sqrt(w)
+  J <- sw * bs_fpl_jacobian(x, p)[, idx, drop = FALSE]
   A <- crossprod(J)
   Ainv <- tryCatch(solve(A), error = function(e) NULL)
   if (is.null(Ainv) || any(!is.finite(Ainv))) {
@@ -182,7 +250,7 @@ bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(I
   fitted <- bs_fpl_curve(x, p)
   resid <- y - fitted
   df <- n - length(idx)
-  ss <- sum(resid^2)
+  ss <- sum(w * resid^2)
   s2 <- ss / df
   se <- sqrt(s2 * diag(Ainv))
   # Prism's dependency: 1 - (SE with the others fixed / SE)^2.
@@ -192,8 +260,14 @@ bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(I
   resid_ord <- resid[ord]
   runs <- bs_runs_test(sign(resid_ord)[sign(resid_ord) != 0])
   grid <- seq(min(x), max(x), length.out = 100)
-  G <- bs_fpl_jacobian(grid, p)[, idx, drop = FALSE]
-  cg <- rowSums((G %*% Ainv) * G)
+  band_half <- function(v) {
+    G <- bs_fpl_jacobian(v, p)[, idx, drop = FALSE]
+    t * sqrt(rowSums((G %*% Ainv) * G) * s2)
+  }
+  half_grid <- band_half(grid)
+  # A new observation is assumed to weigh what the nearest measured X does.
+  w_new <- vapply(grid, function(v) w[which.min(abs(x - v))], 0)
+  pred_half <- t * sqrt((half_grid / t)^2 + s2 / w_new)
   fit_grid <- bs_fpl_curve(grid, p)
   # se and dependency are per estimated parameter (idx); the others are held.
   param <- function(i) {
@@ -216,7 +290,7 @@ bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(I
     df = df,
     ss = ss,
     syx = sqrt(s2),
-    r2 = 1 - ss / sum((y - mean(y))^2),
+    r2 = 1 - ss / sum(w * (y - weighted.mean(y, w))^2),
     x = unlog(x[ord]),
     y = y[ord],
     fitted = fitted[ord],
@@ -225,11 +299,12 @@ bs_fpl_one <- function(x, y, unlog, dropped, lower = rep(-Inf, 4), upper = rep(I
     band = list(
       x = unlog(grid),
       fit = fit_grid,
-      confidence_lower = fit_grid - t * sqrt(cg * s2),
-      confidence_upper = fit_grid + t * sqrt(cg * s2),
-      prediction_lower = fit_grid - t * sqrt((cg + 1) * s2),
-      prediction_upper = fit_grid + t * sqrt((cg + 1) * s2)
-    )
+      confidence_lower = fit_grid - half_grid,
+      confidence_upper = fit_grid + half_grid,
+      prediction_lower = fit_grid - pred_half,
+      prediction_upper = fit_grid + pred_half
+    ),
+    unknowns = bs_interpolate(unknown, p, diff(range(x)), band_half, unlog)
   )
 }
 
@@ -349,17 +424,18 @@ bs_global_jacobian <- function(x, g, theta, map, held) {
 # Levenberg-Marquardt from `theta`, then plain Gauss-Newton steps kept while
 # they lower the sum of squares; returns theta (NULL if the step is singular
 # or not finite at the start).
-bs_global_lm <- function(x, y, g, map, held, theta) {
+bs_global_lm <- function(x, y, w, g, map, held, theta) {
+  sw <- sqrt(w)
   ss_of <- function(th) {
     r <- y - bs_global_curve(x, bs_global_params(th, map, held)[g, , drop = FALSE])
-    if (any(!is.finite(r))) Inf else sum(r^2)
+    if (any(!is.finite(r))) Inf else sum(w * r^2)
   }
   ss <- ss_of(theta)
   if (!is.finite(ss)) return(NULL)
   lambda <- 1e-3
   for (it in 1:500) {
-    J <- bs_global_jacobian(x, g, theta, map, held)
-    r <- y - bs_global_curve(x, bs_global_params(theta, map, held)[g, , drop = FALSE])
+    J <- sw * bs_global_jacobian(x, g, theta, map, held)
+    r <- sw * (y - bs_global_curve(x, bs_global_params(theta, map, held)[g, , drop = FALSE]))
     A <- crossprod(J)
     step <- tryCatch(
       solve(A + lambda * diag(pmax(diag(A), 1e-12), ncol(J)), crossprod(J, r)),
@@ -384,8 +460,8 @@ bs_global_lm <- function(x, y, g, map, held, theta) {
     }
   }
   for (it in 1:5) {
-    J <- bs_global_jacobian(x, g, theta, map, held)
-    r <- y - bs_global_curve(x, bs_global_params(theta, map, held)[g, , drop = FALSE])
+    J <- sw * bs_global_jacobian(x, g, theta, map, held)
+    r <- sw * (y - bs_global_curve(x, bs_global_params(theta, map, held)[g, , drop = FALSE]))
     step <- tryCatch(qr.coef(qr(J), r), error = function(e) NULL)
     if (is.null(step) || any(!is.finite(step))) break
     cand <- theta + unname(step)
@@ -399,7 +475,8 @@ bs_global_lm <- function(x, y, g, map, held, theta) {
 # (1..k), xs/ys: per data set. `lower == upper` = held. `unlog`/`dropped`:
 # per data set, as bs_fpl_one takes them. Returns one entry per data set and
 # the whole fit's numbers.
-bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
+bs_global_fit <- function(xs, ys, ws, unlogs, dropped, shared, lower, upper, ypow = 0,
+                          unknowns = NULL) {
   k <- length(xs)
   fixed <- lower == upper
   held <- ifelse(fixed, lower, 0)
@@ -416,6 +493,7 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
   if (length(use) < 2) return(none("few"))
   x <- unlist(xs[use])
   y <- unlist(ys[use])
+  w <- unlist(ws[use])
   g <- rep(seq_along(use), ns[use])
   kk <- length(use)
   layout <- bs_global_map(kk, shared, fixed)
@@ -425,8 +503,8 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
   if (n < m + 1) return(none("few", m + 1))
   if (max(y) == min(y)) return(none("constant_y"))
   # Starts: every data set's own fit (shared parameters averaged), and the pooled fit.
-  pooled <- bs_fpl_one(x, y, identity, 0, lower, upper)
-  singles <- lapply(seq_len(kk), function(i) bs_fpl_one(xs[[use[i]]], ys[[use[i]]], identity, 0, lower, upper))
+  pooled <- bs_fpl_one(x, y, w, identity, 0, lower, upper)
+  singles <- lapply(seq_len(kk), function(i) bs_fpl_one(xs[[use[i]]], ys[[use[i]]], ws[[use[i]]], identity, 0, lower, upper))
   pvec <- function(f) c(f$bottom$value, f$top$value, f$logec50$value, f$hill$value)
   pooled_p <- if (isTRUE(pooled$ran)) pvec(pooled) else NULL
   starts <- list()
@@ -449,9 +527,9 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
   best <- NULL
   best_ss <- Inf
   for (s in starts) {
-    th <- bs_global_lm(x, y, g, map, held, s)
+    th <- bs_global_lm(x, y, w, g, map, held, s)
     if (is.null(th)) next
-    ss <- sum((y - bs_global_curve(x, bs_global_params(th, map, held)[g, , drop = FALSE]))^2)
+    ss <- sum(w * (y - bs_global_curve(x, bs_global_params(th, map, held)[g, , drop = FALSE]))^2)
     if (is.finite(ss) && ss < best_ss) {
       best <- th
       best_ss <- ss
@@ -459,6 +537,23 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
   }
   if (is.null(best)) return(none("no_fit"))
   theta <- best
+  if (ypow > 0) {
+    # Weights from the fitted curve (1/Y, 1/Y^2), iterated from the unweighted fit (#100).
+    curve_at <- function(th) bs_global_curve(x, bs_global_params(th, map, held)[g, , drop = FALSE])
+    for (it in 1:200) {
+      f <- curve_at(theta)
+      if (any(!is.finite(f)) || any(f <= 0)) return(none("weights"))
+      w <- f^-ypow
+      nxt <- bs_global_lm(x, y, w, g, map, held, theta)
+      if (is.null(nxt)) return(none("no_fit"))
+      change <- max(abs(nxt - theta) / pmax(abs(theta), 1e-8))
+      theta <- nxt
+      if (change < 1e-12) break
+    }
+    f <- curve_at(theta)
+    if (any(!is.finite(f)) || any(f <= 0)) return(none("weights"))
+    w <- f^-ypow
+  }
   P <- bs_global_params(theta, map, held)
   # A plateau far beyond the data or a LogEC50 far outside the dose range is
   # the optimiser running off to infinity: the data don't define the curve.
@@ -467,13 +562,13 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
       any(P[, 3] < min(x) - 10 * span | P[, 3] > max(x) + 10 * span)) {
     return(none("no_fit"))
   }
-  J <- bs_global_jacobian(x, g, theta, map, held)
+  J <- sqrt(w) * bs_global_jacobian(x, g, theta, map, held)
   A <- crossprod(J)
   Ainv <- tryCatch(solve(A), error = function(e) NULL)
   if (is.null(Ainv) || any(!is.finite(Ainv))) return(none("no_fit"))
   df <- n - m
   resid <- y - bs_global_curve(x, P[g, , drop = FALSE])
-  ss_all <- sum(resid^2)
+  ss_all <- sum(w * resid^2)
   s2 <- ss_all / df
   se <- sqrt(s2 * diag(Ainv))
   dependency <- pmax(0, 1 - 1 / (diag(A) * diag(Ainv)))
@@ -489,8 +584,9 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
     xi <- x[rows]
     yi <- y[rows]
     ri <- resid[rows]
+    wi <- w[rows]
     ord <- order(xi)
-    ssi <- sum(ri^2)
+    ssi <- sum(wi * ri^2)
     param <- function(j) {
       th <- map[u, j]
       if (th == 0) return(bs_fpl_held(P[u, j], "fixed"))
@@ -504,20 +600,29 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
     Ai <- Ainv[map[u, on], map[u, on], drop = FALSE]
     cg <- rowSums((Gi %*% Ai) * Gi)
     fit_grid <- bs_global_curve(grid, matrix(P[u, ], length(grid), 4, byrow = TRUE))
+    band_half <- function(v) {
+      G4v <- bs_global_jacobian4(v, matrix(P[u, ], length(v), 4, byrow = TRUE))[, on, drop = FALSE]
+      t * sqrt(rowSums((G4v %*% Ai) * G4v) * s2)
+    }
+    w_new <- vapply(grid, function(v) wi[which.min(abs(xi - v))], 0)
     ri_ord <- ri[ord]
     series[[i]] <- list(
       n = ns[i], dropped = dropped[i], ran = TRUE,
       bottom = param(1), top = param(2), logec50 = logec50, hill = param(4),
       ec50 = 10^P[u, 3], ec50_lower = 10^logec50$lower, ec50_upper = 10^logec50$upper,
-      df = df, ss = ssi, syx = sqrt(s2), r2 = 1 - ssi / sum((yi - mean(yi))^2),
+      df = df, ss = ssi, syx = sqrt(s2), r2 = 1 - ssi / sum(wi * (yi - weighted.mean(yi, wi))^2),
       x = unlogs[[i]](xi[ord]), y = yi[ord], fitted = (yi - ri)[ord], residual = ri_ord,
       runs = bs_runs_test(sign(ri_ord)[sign(ri_ord) != 0]),
       band = list(
         x = unlogs[[i]](grid), fit = fit_grid,
         confidence_lower = fit_grid - t * sqrt(cg * s2),
         confidence_upper = fit_grid + t * sqrt(cg * s2),
-        prediction_lower = fit_grid - t * sqrt((cg + 1) * s2),
-        prediction_upper = fit_grid + t * sqrt((cg + 1) * s2)
+        prediction_lower = fit_grid - t * sqrt((cg + 1 / w_new) * s2),
+        prediction_upper = fit_grid + t * sqrt((cg + 1 / w_new) * s2)
+      ),
+      unknowns = bs_interpolate(
+        if (is.null(unknowns)) numeric(0) else unknowns[[i]], P[u, ],
+        diff(range(xi)), band_half, unlogs[[i]]
       )
     )
   }
@@ -528,6 +633,10 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
 }
 
 # x, y: every series' points, concatenated; g: each point's series (1..k).
+# w: each point's weight (1 = unweighted; 1/X, 1/X^2 and 1/SD^2 weights are
+# worked out from the table by the caller); ypow: 1 or 2 when the weights are
+# 1/Y or 1/Y^2 of the fitted curve (then w is ones). u, ug: Y values to
+# interpolate and the series each belongs to (#100).
 # log_x: X is already log10(dose) (Prism's model); otherwise X is a dose,
 # fit against its log10, and a dose <= 0 (no log) is left out and counted.
 # lo, hi: bounds on (Bottom, Top, HillSlope), used where has_lo / has_hi;
@@ -541,11 +650,12 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
 # is a special case of the fit, 2 the fit is a special case of the other,
 # 3 neither (AICc only). If either fit shares anything the comparison is of
 # the two stacked fits (one, at the top level); else one per data set.
-bs_nonlinear_regression <- function(x, y, g, k, log_x, lo, hi, has_lo, has_hi,
+bs_nonlinear_regression <- function(x, y, w, g, k, log_x, lo, hi, has_lo, has_hi,
                                     cmp_val = c(0, 0, 0), cmp_has = c(0, 0, 0),
                                     shared = c(0, 0, 0, 0),
                                     alt_lo = lo, alt_hi = hi, alt_has_lo = has_lo,
-                                    alt_has_hi = has_hi, alt_shared = shared, alt_role = 0) {
+                                    alt_has_hi = has_hi, alt_shared = shared, alt_role = 0,
+                                    ypow = 0, u = numeric(0), ug = numeric(0)) {
   lo <- ifelse(has_lo != 0, lo, -Inf)
   hi <- ifelse(has_hi != 0, hi, Inf)
   lower <- c(lo[1], lo[2], -Inf, lo[3])
@@ -563,18 +673,24 @@ bs_nonlinear_regression <- function(x, y, g, k, log_x, lo, hi, has_lo, has_hi,
   parts <- lapply(seq_len(k), function(i) {
     xi <- x[g == i]
     yi <- y[g == i]
-    if (log_x) return(list(x = xi, y = yi, unlog = identity, dropped = 0))
+    wi <- w[g == i]
+    ui <- u[ug == i]
+    if (log_x) return(list(x = xi, y = yi, w = wi, unlog = identity, dropped = 0, u = ui))
     keep <- xi > 0
-    list(x = log10(xi[keep]), y = yi[keep], unlog = function(v) 10^v, dropped = sum(!keep))
+    list(
+      x = log10(xi[keep]), y = yi[keep], w = wi[keep], unlog = function(v) 10^v,
+      dropped = sum(!keep), u = ui
+    )
   })
-  stacked <- function(sh, lw, up) {
+  stacked <- function(sh, lw, up, unknowns = NULL) {
     bs_global_fit(
-      lapply(parts, `[[`, "x"), lapply(parts, `[[`, "y"), lapply(parts, `[[`, "unlog"),
-      vapply(parts, `[[`, 0, "dropped"), sh != 0, lw, up
+      lapply(parts, `[[`, "x"), lapply(parts, `[[`, "y"), lapply(parts, `[[`, "w"),
+      lapply(parts, `[[`, "unlog"), vapply(parts, `[[`, 0, "dropped"), sh != 0, lw, up, ypow,
+      unknowns
     )
   }
   if (any(shared != 0) || (role > 0 && any(alt_shared != 0))) {
-    fit <- stacked(shared, lower, upper)
+    fit <- stacked(shared, lower, upper, lapply(parts, `[[`, "u"))
     if (role > 0 && !is.null(fit$global)) {
       alt <- stacked(alt_shared, alt_lower, alt_upper)
       fit$comparison <- if (is.null(alt$global)) {
@@ -596,9 +712,9 @@ bs_nonlinear_regression <- function(x, y, g, k, log_x, lo, hi, has_lo, has_hi,
     return(fit)
   }
   one <- function(part) {
-    fit <- bs_fpl_one(part$x, part$y, part$unlog, part$dropped, lower, upper)
+    fit <- bs_fpl_one(part$x, part$y, part$w, part$unlog, part$dropped, lower, upper, ypow, part$u)
     if (role == 0 || !isTRUE(fit$ran)) return(fit)
-    alt <- bs_fpl_one(part$x, part$y, part$unlog, part$dropped, alt_lower, alt_upper)
+    alt <- bs_fpl_one(part$x, part$y, part$w, part$unlog, part$dropped, alt_lower, alt_upper, ypow)
     fit$comparison <- if (!isTRUE(alt$ran)) {
       list(ran = FALSE, why = "no_fit")
     } else if (role == 2) {

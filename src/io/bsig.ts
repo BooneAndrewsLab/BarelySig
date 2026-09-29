@@ -35,6 +35,7 @@ import {
   type SimplerModel,
   type ParameterConstraint,
   DOSE_RESPONSE_MODEL_IDS,
+  WEIGHTING_IDS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
   type KruskalWallisOptions,
@@ -278,6 +279,8 @@ function optionsJson(a: AnalysisSpec): Json {
           hillSlope: a.options.shared.hillSlope,
           logEc50: a.options.shared.logEc50,
         },
+        weighting: a.options.weighting,
+        interpolate: a.options.interpolate,
       };
     case 'growth-curve':
       return { model: a.options.model };
@@ -635,6 +638,15 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
         compareAlpha: alpha(opts['compareAlpha'], q.key('compareAlpha')),
         // Files from before #97 share nothing.
         shared: sharedParameters(opts['shared'], q.key('shared')),
+        // Files from before #100 are unweighted and interpolate nothing.
+        weighting:
+          opts['weighting'] === undefined
+            ? 'none'
+            : oneOf(opts['weighting'], q.key('weighting'), WEIGHTING_IDS),
+        interpolate:
+          opts['interpolate'] === undefined
+            ? false
+            : bool(opts['interpolate'], q.key('interpolate')),
       };
       return { kind, options };
     }
