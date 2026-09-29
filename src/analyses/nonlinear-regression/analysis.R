@@ -241,41 +241,55 @@ bs_fpl_aicc <- function(ss, n, params) {
   n * log(ss / n) + 2 * k + 2 * k * (k + 1) / (n - k - 1)
 }
 
-# The fit `main` against the simpler model `alt` that holds some of its
-# parameters (#98): extra sum-of-squares F test and AICc. Both are bs_fpl_one
-# results that ran. `alt` is nested in `main`, so its sum of squares can only
-# be the larger; a smaller one means an optimiser missed the optimum.
-bs_fpl_compare <- function(main, alt, n) {
-  if (alt$ss < main$ss * (1 - 1e-9)) return(list(ran = FALSE, why = "worse"))
-  df_num <- alt$df - main$df
-  f_test <- if (main$ss <= 0) {
+# Two fits of the same n points (#98, #105): each a list with `ss` and `df`
+# (a bs_fpl_one result, or a global fit's totals). `simpler` is nested in
+# `complex`, so its sum of squares can only be the larger; a smaller one means
+# an optimiser missed the optimum. The extra sum-of-squares F test and AICc.
+# With nested = FALSE the pair is not nested: there is no F test (not_nested),
+# `complex` is then just the first model and `simpler` the second, and only
+# AICc compares them.
+bs_compare_stats <- function(complex, simpler, n, nested = TRUE) {
+  if (nested && simpler$ss < complex$ss * (1 - 1e-9)) return(NULL)
+  df_num <- simpler$df - complex$df
+  f_test <- if (!nested) {
+    list(ok = FALSE, why = "not_nested")
+  } else if (complex$ss <= 0) {
     list(ok = FALSE, why = "exact_fit")
-  } else if (df_num < 1 || main$df < 1) {
+  } else if (df_num < 1 || complex$df < 1) {
     list(ok = FALSE, why = "no_extra")
   } else {
-    f <- max(0, (alt$ss - main$ss) / df_num) / (main$ss / main$df)
+    f <- max(0, (simpler$ss - complex$ss) / df_num) / (complex$ss / complex$df)
     list(
-      ok = TRUE, f = f, df_num = df_num, df_den = main$df,
-      p = pf(f, df_num, main$df, lower.tail = FALSE)
+      ok = TRUE, f = f, df_num = df_num, df_den = complex$df,
+      p = pf(f, df_num, complex$df, lower.tail = FALSE)
     )
   }
-  a_main <- bs_fpl_aicc(main$ss, n, n - main$df)
-  a_alt <- bs_fpl_aicc(alt$ss, n, n - alt$df)
-  aicc <- if (is.na(a_main) || is.na(a_alt)) {
+  a_cx <- bs_fpl_aicc(complex$ss, n, n - complex$df)
+  a_sm <- bs_fpl_aicc(simpler$ss, n, n - simpler$df)
+  aicc <- if (is.na(a_cx) || is.na(a_sm)) {
     list(ok = FALSE)
   } else {
     list(
-      ok = TRUE, fit = a_main, simpler = a_alt,
-      prob_fit = plogis((a_alt - a_main) / 2), prob_simpler = plogis((a_main - a_alt) / 2)
+      ok = TRUE, fit = a_cx, simpler = a_sm,
+      prob_fit = plogis((a_sm - a_cx) / 2), prob_simpler = plogis((a_cx - a_sm) / 2)
     )
   }
+  list(f_test = f_test, aicc = aicc)
+}
+
+# The fit `main` against the simpler model `alt` that holds some of its
+# parameters (#98), or (#105) two single-data-set fits in either orientation:
+# `main` = the more complex one. Both are bs_fpl_one results that ran.
+bs_fpl_compare <- function(main, alt, n, nested = TRUE) {
+  st <- bs_compare_stats(main, alt, n, nested)
+  if (is.null(st)) return(list(ran = FALSE, why = "worse"))
   list(
     ran = TRUE,
     simpler = list(
       bottom = alt$bottom$value, top = alt$top$value, logec50 = alt$logec50$value,
       hill = alt$hill$value, ec50 = alt$ec50, ss = alt$ss, df = alt$df
     ),
-    f_test = f_test, aicc = aicc
+    f_test = st$f_test, aicc = st$aicc
   )
 }
 
@@ -522,47 +536,77 @@ bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
 # (Bottom, Top, HillSlope), used where cmp_has; nothing if none is.
 # shared: which of (Bottom, Top, LogEC50, HillSlope) are one value for all
 # the data sets (#97); any at all makes it one stacked fit.
+# alt_*: the other fit of a comparison of models or of shared vs. separate
+# (#105), in the same terms as lo .. shared; alt_role: 0 none, 1 the other
+# is a special case of the fit, 2 the fit is a special case of the other,
+# 3 neither (AICc only). If either fit shares anything the comparison is of
+# the two stacked fits (one, at the top level); else one per data set.
 bs_nonlinear_regression <- function(x, y, g, k, log_x, lo, hi, has_lo, has_hi,
                                     cmp_val = c(0, 0, 0), cmp_has = c(0, 0, 0),
-                                    shared = c(0, 0, 0, 0)) {
+                                    shared = c(0, 0, 0, 0),
+                                    alt_lo = lo, alt_hi = hi, alt_has_lo = has_lo,
+                                    alt_has_hi = has_hi, alt_shared = shared, alt_role = 0) {
   lo <- ifelse(has_lo != 0, lo, -Inf)
   hi <- ifelse(has_hi != 0, hi, Inf)
   lower <- c(lo[1], lo[2], -Inf, lo[3])
   upper <- c(hi[1], hi[2], Inf, hi[3])
-  if (any(shared != 0)) {
-    parts <- lapply(seq_len(k), function(i) {
-      xi <- x[g == i]
-      yi <- y[g == i]
-      if (log_x) return(list(x = xi, y = yi, unlog = identity, dropped = 0))
-      keep <- xi > 0
-      list(x = log10(xi[keep]), y = yi[keep], unlog = function(v) 10^v, dropped = sum(!keep))
-    })
-    return(bs_global_fit(
-      lapply(parts, `[[`, "x"), lapply(parts, `[[`, "y"), lapply(parts, `[[`, "unlog"),
-      vapply(parts, `[[`, 0, "dropped"), shared != 0, lower, upper
-    ))
-  }
-  alt_lower <- lower
-  alt_upper <- upper
+  alo <- ifelse(alt_has_lo != 0, alt_lo, -Inf)
+  ahi <- ifelse(alt_has_hi != 0, alt_hi, Inf)
+  alt_lower <- c(alo[1], alo[2], -Inf, alo[3])
+  alt_upper <- c(ahi[1], ahi[2], Inf, ahi[3])
   held <- c(1, 2, 4)[cmp_has != 0]
-  alt_lower[held] <- cmp_val[cmp_has != 0]
-  alt_upper[held] <- cmp_val[cmp_has != 0]
-  one <- function(xs, ys, unlog, dropped) {
-    fit <- bs_fpl_one(xs, ys, unlog, dropped, lower, upper)
-    if (length(held) == 0 || !isTRUE(fit$ran)) return(fit)
-    alt <- bs_fpl_one(xs, ys, unlog, dropped, alt_lower, alt_upper)
-    fit$comparison <- if (isTRUE(alt$ran)) {
-      bs_fpl_compare(fit, alt, length(xs))
-    } else {
+  if (length(held) > 0) {
+    alt_lower[held] <- cmp_val[cmp_has != 0]
+    alt_upper[held] <- cmp_val[cmp_has != 0]
+  }
+  role <- if (length(held) > 0) 1 else alt_role
+  parts <- lapply(seq_len(k), function(i) {
+    xi <- x[g == i]
+    yi <- y[g == i]
+    if (log_x) return(list(x = xi, y = yi, unlog = identity, dropped = 0))
+    keep <- xi > 0
+    list(x = log10(xi[keep]), y = yi[keep], unlog = function(v) 10^v, dropped = sum(!keep))
+  })
+  stacked <- function(sh, lw, up) {
+    bs_global_fit(
+      lapply(parts, `[[`, "x"), lapply(parts, `[[`, "y"), lapply(parts, `[[`, "unlog"),
+      vapply(parts, `[[`, 0, "dropped"), sh != 0, lw, up
+    )
+  }
+  if (any(shared != 0) || (role > 0 && any(alt_shared != 0))) {
+    fit <- stacked(shared, lower, upper)
+    if (role > 0 && !is.null(fit$global)) {
+      alt <- stacked(alt_shared, alt_lower, alt_upper)
+      fit$comparison <- if (is.null(alt$global)) {
+        list(ran = FALSE, why = "no_fit")
+      } else {
+        cx <- if (role == 2) alt$global else fit$global
+        sm <- if (role == 2) fit$global else alt$global
+        st <- bs_compare_stats(cx, sm, fit$global$n, role != 3)
+        if (is.null(st)) {
+          list(ran = FALSE, why = "worse")
+        } else {
+          list(
+            ran = TRUE, simpler = list(ss = sm$ss, df = sm$df),
+            f_test = st$f_test, aicc = st$aicc
+          )
+        }
+      }
+    }
+    return(fit)
+  }
+  one <- function(part) {
+    fit <- bs_fpl_one(part$x, part$y, part$unlog, part$dropped, lower, upper)
+    if (role == 0 || !isTRUE(fit$ran)) return(fit)
+    alt <- bs_fpl_one(part$x, part$y, part$unlog, part$dropped, alt_lower, alt_upper)
+    fit$comparison <- if (!isTRUE(alt$ran)) {
       list(ran = FALSE, why = "no_fit")
+    } else if (role == 2) {
+      bs_fpl_compare(alt, fit, length(part$x))
+    } else {
+      bs_fpl_compare(fit, alt, length(part$x), role != 3)
     }
     fit
   }
-  list(series = lapply(seq_len(k), function(i) {
-    xi <- x[g == i]
-    yi <- y[g == i]
-    if (log_x) return(one(xi, yi, identity, 0))
-    keep <- xi > 0
-    one(log10(xi[keep]), yi[keep], function(v) 10^v, sum(!keep))
-  }))
+  list(series = lapply(parts, one))
 }

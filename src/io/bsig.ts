@@ -31,6 +31,7 @@ import {
   type GrowthCurveOptions,
   type NonlinearRegressionOptions,
   type SharedParameters,
+  type ComparisonWith,
   type SimplerModel,
   type ParameterConstraint,
   DOSE_RESPONSE_MODEL_IDS,
@@ -186,6 +187,43 @@ function simplerModel(v: Json | undefined, p: Path): SimplerModel | null {
   return m;
 }
 
+/** What else a fit is compared with (#105); absent or null = nothing. */
+function comparisonWith(v: Json | undefined, p: Path): ComparisonWith | null {
+  if (v === undefined || v === null) return null;
+  const o = obj(v, p);
+  const kind = oneOf(o['kind'], p.key('kind'), ['model', 'sharing'] as const);
+  if (kind === 'model') {
+    return { kind, model: oneOf(o['model'], p.key('model'), DOSE_RESPONSE_MODEL_IDS) };
+  }
+  const test = sharedParameters(o['test'], p.key('test'));
+  if (!test.bottom && !test.top && !test.hillSlope && !test.logEc50) {
+    p.key('test').fail('should name at least one parameter');
+  }
+  return { kind, test };
+}
+
+function comparisonWithJson(c: ComparisonWith | null): Json {
+  if (c === null) return null;
+  if (c.kind === 'model') return { kind: 'model', model: c.model };
+  return {
+    kind: 'sharing',
+    test: {
+      bottom: c.test.bottom,
+      top: c.test.top,
+      hillSlope: c.test.hillSlope,
+      logEc50: c.test.logEc50,
+    },
+  };
+}
+
+/** The F test's alpha (#105); absent = Prism's 0.05. */
+function alpha(v: Json | undefined, p: Path): number {
+  if (v === undefined || v === null) return 0.05;
+  const a = num(v, p);
+  if (!(a > 0 && a < 1)) p.fail('should be a number between 0 and 1');
+  return a;
+}
+
 /** The parameters a global fit shares (#97); absent = none. */
 function sharedParameters(v: Json | undefined, p: Path): SharedParameters {
   if (v === undefined || v === null) {
@@ -232,6 +270,8 @@ function optionsJson(a: AnalysisSpec): Json {
           top: a.options.compare.top,
           hillSlope: a.options.compare.hillSlope,
         },
+        compareWith: comparisonWithJson(a.options.compareWith),
+        compareAlpha: a.options.compareAlpha,
         shared: {
           bottom: a.options.shared.bottom,
           top: a.options.shared.top,
@@ -590,6 +630,9 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
         hillSlope: constraint(opts['hillSlope'], q.key('hillSlope')),
         // Files from before #98 compare nothing.
         compare: simplerModel(opts['compare'], q.key('compare')),
+        // Files from before #105 compare nothing else, at alpha 0.05.
+        compareWith: comparisonWith(opts['compareWith'], q.key('compareWith')),
+        compareAlpha: alpha(opts['compareAlpha'], q.key('compareAlpha')),
         // Files from before #97 share nothing.
         shared: sharedParameters(opts['shared'], q.key('shared')),
       };

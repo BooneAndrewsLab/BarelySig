@@ -139,6 +139,14 @@ export interface NonlinearRegressionOptions {
   readonly hillSlope: ParameterConstraint;
   /** Compare the fit with a simpler model (item 36, #98); null = just fit. */
   readonly compare: SimplerModel | null;
+  /**
+   * Compare the fit with a different model, or with the same fit with shared
+   * parameters unshared (item 39, #105); null = no such comparison. Not
+   * combined with `compare`.
+   */
+  readonly compareWith: ComparisonWith | null;
+  /** The F test's cut-off for preferring the more complex model (item 39, #105); Prism's default 0.05. */
+  readonly compareAlpha: number;
   /** Parameters that take one value for every chosen data set (item 38, #97); all false = independent fits. */
   readonly shared: SharedParameters;
 }
@@ -154,6 +162,16 @@ export type SharedParameters = Readonly<{
   hillSlope: boolean;
   logEc50: boolean;
 }>;
+
+/**
+ * What a fit is compared with besides a simpler model made by holding values
+ * (item 39, #105): another of the dose-response models fitted to the same
+ * data, or (for two or more data sets) the same fit with these of its shared
+ * parameters unshared, "does the EC50 differ between the data sets?".
+ */
+export type ComparisonWith =
+  | { readonly kind: 'model'; readonly model: DoseResponseModelId }
+  | { readonly kind: 'sharing'; readonly test: SharedParameters };
 
 /**
  * The simpler model a dose-response fit is compared with (item 36, #98):
@@ -419,6 +437,8 @@ export const DEFAULT_OPTIONS: {
     top: { kind: 'free' },
     hillSlope: { kind: 'free' },
     compare: null,
+    compareWith: null,
+    compareAlpha: 0.05,
     shared: { bottom: false, top: false, hillSlope: false, logEc50: false },
   },
   'growth-curve': { model: 'gompertz' },

@@ -168,8 +168,39 @@ comparison table:
 The two can disagree, especially with few points; AICc leans towards the
 simpler model more readily than an F test at 0.05 does. The simpler model
 can only hold a parameter your fit estimates: to ask about Bottom, leave
-Bottom on "Estimate it" in the fit itself. Comparing a shared parameter
-across data sets, or different curve shapes, will come with those features.
+Bottom on "Estimate it" in the fit itself. To compare different curve
+shapes, or shared against separate values, see the next two sections.
+
+#### Comparing two curve shapes
+
+**Compare with another model** in the Analyze dialog fits the same data with a
+second curve shape (say, variable slope against standard slope, or normalized
+against not) and compares the two fits with the same F test and AICc as above.
+The F test only works when one shape is a special case of the other, which is
+when the simpler one just holds some parameters the other estimates (the
+standard slope holds HillSlope at 1, so it sits inside the variable slope). It
+tests whether the more flexible shape fits better than chance would give; a
+larger P is _no evidence_ of an improvement, not proof that there is none. If
+neither shape contains the other (a standard slope against a normalized
+variable slope), there is no F test and the table says so; AICc still gives
+the chance that each is the better one, and it works for any two shapes. The
+results state which model each test prefers. **Alpha** (0.05 unless you change
+it) is the cut-off the F test's P value is judged by.
+Only the eight dose-response models can be compared with each other, and the
+comparison can't be combined with "Compare with a simpler model" above.
+
+#### Sharing or not sharing a parameter
+
+With two or more Y data sets and some parameters shared (see below), choose
+**The same model with parameters unshared** and tick the shared parameters you
+want to test, for example LogEC50 to ask "is the EC50 different between these
+data sets?". The whole fit is compared with the fit where each data set gets its
+own value of those parameters. A small P says the data sets really differ in
+those parameters; a large P is _no evidence of a difference_, which is not proof
+that they are the same. The comparison is of the fits of all data sets together,
+so it appears once, in a "Whole fit" column, with the F test's degrees of freedom
+and AICc's probabilities. If nothing is shared and you compare two curve shapes,
+each data set gets its own comparison.
 
 #### Sharing parameters between data sets
 
@@ -191,8 +222,10 @@ are the whole fit's, not each data set's own, and every SE and CI comes from tha
 combined fit; each data set's R² and sum of squares are its own. With nothing
 ticked the fit is just each data set on its own, as before.
 
-Limits (see above) and the comparison with a simpler model can't be combined
-with sharing yet: hold the parameter at a value instead, or turn sharing off.
+Limits (see above) and the comparison with a simpler model (holding values)
+can't be combined with sharing yet: hold the parameter at a value instead, or
+turn sharing off. (Comparing two curve shapes or shared against separate does
+work with sharing.)
 Sharing works on all the data sets you picked, or none of them; sharing among
 some of them only isn't offered.
 

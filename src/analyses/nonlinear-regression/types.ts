@@ -5,12 +5,14 @@
  */
 import type { RegressionBand, Residual, RunsOutcome } from '../linear-regression/types';
 import type {
+  ComparisonWith,
   DoseResponseModelId,
   ParameterConstraint,
   SharedParameters,
   SimplerModel,
 } from '@/model/project';
 import type { Named } from '../ttest/types';
+import type { AlternativeFit } from './constraints';
 
 export interface NonlinearRegressionRequest {
   /** Which dose-response model (item 37, #95); it names the potency and holds some parameters. */
@@ -33,6 +35,15 @@ export interface NonlinearRegressionRequest {
   /** The simpler model to compare each fit with (item 36, #98), or null. */
   readonly compare: SimplerModel | null;
   /**
+   * The other fit of a comparison with a different model or with shared
+   * parameters unshared (item 39, #105), null when there is none; the user's
+   * choice of what to compare with is `compareWith`.
+   */
+  readonly alternative: AlternativeFit | null;
+  readonly compareWith: ComparisonWith | null;
+  /** Cut-off for the F test's preferred model (item 39, #105). */
+  readonly alpha: number;
+  /**
    * Parameters shared by every data set (item 38, #97), one stacked fit; all
    * false for independent fits (also whenever there is only one data set).
    */
@@ -45,13 +56,17 @@ export interface NonlinearRegressionRequest {
  * be unavailable (`ok: false`) without the other.
  */
 export interface ModelComparison {
-  /** The simpler model's own best-fit values. */
+  /**
+   * The simpler model's own best-fit values (null for a comparison of stacked
+   * fits, #105, where each data set has its own). For a comparison of two
+   * models that are not nested (AICc only) this is the second model.
+   */
   readonly simpler: {
-    readonly bottom: number;
-    readonly top: number;
-    readonly logEc50: number;
-    readonly hillSlope: number;
-    readonly ec50: number;
+    readonly bottom: number | null;
+    readonly top: number | null;
+    readonly logEc50: number | null;
+    readonly hillSlope: number | null;
+    readonly ec50: number | null;
     readonly ss: number;
     readonly df: number;
   };
@@ -64,7 +79,7 @@ export interface ModelComparison {
         readonly dfDenominator: number;
         readonly p: number;
       }
-    | { readonly ok: false; readonly why: 'exact-fit' | 'no-extra' };
+    | { readonly ok: false; readonly why: 'exact-fit' | 'no-extra' | 'not-nested' };
   readonly aicc:
     | {
         readonly ok: true;
@@ -161,6 +176,14 @@ export interface NonlinearRegressionResult {
   readonly logX: boolean;
   readonly constraints: NonlinearRegressionRequest['constraints'];
   readonly compare: SimplerModel | null;
+  readonly alternative: AlternativeFit | null;
+  readonly compareWith: ComparisonWith | null;
+  readonly alpha: number;
+  /**
+   * The comparison of two stacked fits (item 39, #105) when either shares
+   * parameters: one for the whole fit rather than one per data set; else null.
+   */
+  readonly comparison: ComparisonOutcome | null;
   readonly shared: SharedParameters;
   /** The stacked fit's totals when parameters were shared and the fit ran; else null. */
   readonly global: GlobalFit | null;

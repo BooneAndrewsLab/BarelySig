@@ -14,7 +14,7 @@ import type { AnalysisModule, Prepared } from '../module';
 import type { ParameterConstraint } from '@/model/project';
 import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
-import { effectiveShared, optionsProblem } from './constraints';
+import { alternativeFit, effectiveShared, optionsProblem } from './constraints';
 import { effectiveConstraints } from './models';
 import type {
   ComparisonOutcome,
@@ -88,11 +88,11 @@ function comparison(v: Plain | undefined): ComparisonOutcome | null {
   return {
     ran: true,
     simpler: {
-      bottom: need(s['bottom'], 'simpler Bottom'),
-      top: need(s['top'], 'simpler Top'),
-      logEc50: need(s['logec50'], 'simpler LogEC50'),
-      hillSlope: need(s['hill'], 'simpler HillSlope'),
-      ec50: need(s['ec50'], 'simpler EC50'),
+      bottom: num(s['bottom']),
+      top: num(s['top']),
+      logEc50: num(s['logec50']),
+      hillSlope: num(s['hill']),
+      ec50: num(s['ec50']),
       ss: need(s['ss'], 'simpler sum of squares'),
       df: need(s['df'], 'simpler df'),
     },
@@ -105,7 +105,15 @@ function comparison(v: Plain | undefined): ComparisonOutcome | null {
             dfDenominator: need(f['df_den'], 'F denominator df'),
             p: need(f['p'], 'F test P'),
           }
-        : { ok: false, why: f['why'] === 'exact_fit' ? 'exact-fit' : 'no-extra' },
+        : {
+            ok: false,
+            why:
+              f['why'] === 'exact_fit'
+                ? 'exact-fit'
+                : f['why'] === 'not_nested'
+                  ? 'not-nested'
+                  : 'no-extra',
+          },
     aicc:
       a['ok'] === true
         ? {
@@ -189,7 +197,7 @@ export const nonlinearRegression: AnalysisModule<
   NonlinearRegressionResult
 > = {
   kind: 'nonlinear-regression',
-  version: 5,
+  version: 6,
   code,
 
   prepare(analysis, project): Prepared<NonlinearRegressionRequest> {
@@ -207,6 +215,8 @@ export const nonlinearRegression: AnalysisModule<
     const { bottom, top, hillSlope } = effectiveConstraints(analysis.options);
     const problem = optionsProblem(analysis.options, analysis.input.dataSets.length);
     if (problem) return { ok: false, reason: problem };
+    const alternative = alternativeFit(analysis.options, analysis.input.dataSets.length);
+    if (typeof alternative === 'string') return { ok: false, reason: alternative };
     const series = xySeries(table, analysis.input.dataSets);
     const points: { readonly x: number; readonly y: number }[][] = [];
     for (const s of series) {
@@ -227,6 +237,9 @@ export const nonlinearRegression: AnalysisModule<
         logX: analysis.options.x === 'log',
         constraints: { bottom, top, hillSlope },
         compare: analysis.options.compare,
+        alternative,
+        compareWith: analysis.options.compareWith,
+        alpha: analysis.options.compareAlpha,
         shared: effectiveShared(analysis.options.shared, series.length),
       },
     };
@@ -243,8 +256,18 @@ export const nonlinearRegression: AnalysisModule<
     ];
     const cmp = request.compare;
     const sh = request.shared;
+    const alt = request.alternative;
+    const altLimits = alt
+      ? [
+          limits(alt.constraints.bottom),
+          limits(alt.constraints.top),
+          limits(alt.constraints.hillSlope),
+        ]
+      : c;
+    const altShared = alt?.shared ?? sh;
+    const role = { none: 0, 'alternative-simpler': 1, 'alternative-complex': 2, 'not-nested': 3 };
     return {
-      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has, shared)`,
+      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has, shared,\n  alt_lo, alt_hi, alt_has_lo, alt_has_hi, alt_shared, alt_role)`,
       inputs: {
         x,
         y,
@@ -256,6 +279,14 @@ export const nonlinearRegression: AnalysisModule<
         has_lo: c.map((p) => (p.hasLo ? 1 : 0)),
         has_hi: c.map((p) => (p.hasHi ? 1 : 0)),
         cmp_val: [cmp?.bottom ?? 0, cmp?.top ?? 0, cmp?.hillSlope ?? 0],
+        alt_lo: altLimits.map((p) => p.lo),
+        alt_hi: altLimits.map((p) => p.hi),
+        alt_has_lo: altLimits.map((p) => (p.hasLo ? 1 : 0)),
+        alt_has_hi: altLimits.map((p) => (p.hasHi ? 1 : 0)),
+        alt_shared: [altShared.bottom, altShared.top, altShared.logEc50, altShared.hillSlope].map(
+          (v) => (v ? 1 : 0),
+        ),
+        alt_role: alt ? role[alt.relation] : role.none,
         shared: [sh.bottom, sh.top, sh.logEc50, sh.hillSlope].map((v) => (v ? 1 : 0)),
         cmp_has: [cmp?.bottom, cmp?.top, cmp?.hillSlope].map((v) =>
           v === null || v === undefined ? 0 : 1,
@@ -272,6 +303,10 @@ export const nonlinearRegression: AnalysisModule<
       logX: request.logX,
       constraints: request.constraints,
       compare: request.compare,
+      alternative: request.alternative,
+      compareWith: request.compareWith,
+      alpha: request.alpha,
+      comparison: comparison(r['comparison']),
       shared: request.shared,
       global: globalFit(r['global']),
       series: list(r['series']).map((v, i) => {

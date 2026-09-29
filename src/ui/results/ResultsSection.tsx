@@ -75,6 +75,7 @@ import {
   linearRegressionReading,
   nestedNormalityReading,
   aiccPrefers,
+  comparisonSides,
   fTestPrefers,
   nonlinearRegressionReading,
   simplerModelPhrase,
@@ -981,22 +982,35 @@ function sharedSentence(r: NonlinearRegressionResult): string {
   return `${names.join(', ')} shared: fitted to all the data sets together, so each has one value (the same in every column) estimated from all their points; the other parameters are each data set’s own. Standard errors and CIs come from that one combined fit, with its pooled residual variance and degrees of freedom. `;
 }
 
-/** The comparison grid's rows, one column per data set (item 36, #98). */
-function comparisonRows(r: NonlinearRegressionResult): string[][] {
-  const compare = r.compare;
-  if (compare === null) return [];
+/**
+ * The comparison grid: one column per data set, or one "Whole fit" column
+ * when the comparison is of two stacked fits (items 36 and 39).
+ */
+function comparisonGrid(
+  r: NonlinearRegressionResult,
+  head: readonly string[],
+): { readonly head: string[]; readonly rows: string[][] } | null {
+  const sides = comparisonSides(r);
+  if (sides === null) return null;
+  const columns: (ComparisonOutcome | null)[] =
+    r.comparison !== null
+      ? [r.comparison]
+      : r.series.map((s) => (s.outcome.ran ? s.outcome.comparison : null));
   const cell = (f: (c: Extract<ComparisonOutcome, { ran: true }>) => string) =>
-    r.series.map((s) => {
-      const c = s.outcome.ran ? s.outcome.comparison : null;
-      if (c === null) return '—';
-      return c.ran ? f(c) : 'Could not be compared';
-    });
+    columns.map((c) => (c === null ? '—' : c.ran ? f(c) : 'Could not be compared'));
   const who = (p: 'fit' | 'simpler' | null) =>
-    p === null ? '—' : p === 'fit' ? 'Your model (all estimated)' : 'Simpler model';
-  return [
-    [`Simpler model: ${doseResponseModel(r.model).potency}`, ...cell((c) => sig(c.simpler.ec50))],
-    ['Simpler model: sum of squares', ...cell((c) => sig(c.simpler.ss))],
-    ['Simpler model: degrees of freedom', ...cell((c) => sig(c.simpler.df, 0))],
+    p === null ? '—' : cap(p === 'fit' ? sides.complex : sides.simpler);
+  const potency = doseResponseModel(r.model).potency;
+  const second =
+    r.compare === null && sides.nested ? 'Simpler' : r.compare === null ? 'Second' : 'Simpler';
+  const rows: string[][] = [];
+  const ec50 = cell((c) => (c.simpler.ec50 === null ? '—' : sig(c.simpler.ec50)));
+  if (ec50.some((v) => v !== '—' && v !== 'Could not be compared')) {
+    rows.push([`${second} model: ${potency}`, ...ec50]);
+  }
+  rows.push(
+    [`${second} model: sum of squares`, ...cell((c) => sig(c.simpler.ss))],
+    [`${second} model: degrees of freedom`, ...cell((c) => sig(c.simpler.df, 0))],
     [
       'F (DFn, DFd)',
       ...cell((c) =>
@@ -1006,19 +1020,41 @@ function comparisonRows(r: NonlinearRegressionResult): string[][] {
       ),
     ],
     ['F test P value', ...cell((c) => (c.fTest.ok ? pValue(c.fTest.p) : 'Not available'))],
-    ['F test prefers (alpha 0.05)', ...cell((c) => who(fTestPrefers(c)))],
-    ['AICc, your model', ...cell((c) => (c.aicc.ok ? sig(c.aicc.fit) : 'Not available'))],
-    ['AICc, simpler model', ...cell((c) => (c.aicc.ok ? sig(c.aicc.simpler) : 'Not available'))],
+    [`F test prefers (alpha ${sig(r.alpha)})`, ...cell((c) => who(fTestPrefers(c, r.alpha)))],
+    [`AICc, ${sides.complex}`, ...cell((c) => (c.aicc.ok ? sig(c.aicc.fit) : 'Not available'))],
+    [`AICc, ${sides.simpler}`, ...cell((c) => (c.aicc.ok ? sig(c.aicc.simpler) : 'Not available'))],
     [
-      'Chance your model is the better',
+      `Chance ${sides.complex} is the better`,
       ...cell((c) => (c.aicc.ok ? `${sig(c.aicc.probabilityFit * 100, 3)}%` : 'Not available')),
     ],
     [
-      'Chance the simpler model is the better',
+      `Chance ${sides.simpler} is the better`,
       ...cell((c) => (c.aicc.ok ? `${sig(c.aicc.probabilitySimpler * 100, 3)}%` : 'Not available')),
     ],
     ['AICc prefers', ...cell((c) => who(aiccPrefers(c)))],
-  ];
+  );
+  return { head: r.comparison !== null ? ['', 'Whole fit'] : [...head], rows };
+}
+
+/** The methods line’s sentence about the comparison, or nothing. */
+function comparisonMethod(r: NonlinearRegressionResult): string {
+  const sides = comparisonSides(r);
+  if (sides === null) return '';
+  const how = sides.nested
+    ? `the extra sum-of-squares F test (P is the upper tail of F; alpha ${sig(r.alpha)}) and by AICc`
+    : 'AICc (the F test needs nested models, and these two are not)';
+  return ` Compared with ${comparisonTitle(r)} by ${how} (K counts the variance as a parameter).`;
+}
+
+const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** What the comparison of a result is, in a phrase for the methods line and the grid’s title. */
+function comparisonTitle(r: NonlinearRegressionResult): string {
+  const sides = comparisonSides(r);
+  if (sides === null) return '';
+  return r.compare !== null
+    ? `the simpler model (${simplerModelPhrase(r.compare)})`
+    : `${sides.simpler} against ${sides.complex}`;
 }
 
 /**
@@ -1031,6 +1067,8 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
   const model = doseResponseModel(r.model);
   const potency = model.potency;
   const head = ['', ...r.series.map((s) => s.title)];
+  const sides = comparisonSides(r);
+  const grid = comparisonGrid(r, head);
   type Fit = Extract<NonlinearRegressionSeries['outcome'], { ran: true }>;
   const row = (label: string, f: (o: Fit) => string) => [
     label,
@@ -1071,8 +1109,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
           ? 'X is the log of the dose.'
           : 'X is a dose, fitted on a log scale (log₁₀); a zero or negative dose is left out.'}{' '}
         Asymptotic 95% CIs; no weighting; each replicate is its own point.
-        {r.compare &&
-          ` Compared with a simpler model (${simplerModelPhrase(r.compare)}) by the extra sum-of-squares F test (P is the upper tail of F; alpha 0.05) and by AICc (K counts the variance as a parameter).`}
+        {comparisonMethod(r)}
       </p>
       {anyRan && (
         <div className="results-grid">
@@ -1147,23 +1184,29 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
           />
         </div>
       )}
-      {r.compare && anyRan && (
+      {anyRan && grid !== null && sides !== null && (
         <>
           <div className="results-grid">
-            <Grid
-              label={`Comparison with the simpler model (${simplerModelPhrase(r.compare)})`}
-              head={head}
-              rows={comparisonRows(r)}
-            />
+            <Grid label={`Comparison: ${comparisonTitle(r)}`} head={grid.head} rows={grid.rows} />
           </div>
           <p className="legend">
-            Null hypothesis of the F test: the simpler model ({simplerModelPhrase(r.compare)}) is
-            correct, and the model that estimates those parameters fits better only by chance. A P
-            value below 0.05 rejects it; a larger one is no evidence that the extra parameters help,
-            which is not proof that they don’t. AICc needs no cut-off: the model with the lower AICc
-            is preferred, and the probability shown is the chance that it is the better of the two.
-            The simpler model always fits worse or equally well, so this asks whether the
-            improvement is worth the extra parameters.
+            {sides.nested ? (
+              <>
+                Null hypothesis of the F test: {sides.nullHypothesis}. A P value below{' '}
+                {sig(r.alpha)} (the alpha you chose) rejects it; a larger one is no evidence that
+                the extra parameters help, which is not proof that they don’t. The F test needs
+                nested models, one a special case of the other, and here {sides.simpler} is a
+                special case of {sides.complex}; it always fits worse or equally well, so this asks
+                whether the improvement is worth the extra parameters.{' '}
+              </>
+            ) : (
+              <>
+                These two models are not nested (neither is a special case of the other), so the F
+                test does not apply.{' '}
+              </>
+            )}
+            AICc needs no cut-off: the model with the lower AICc is preferred, and the probability
+            shown is the chance that it is the better of the two.
           </p>
         </>
       )}

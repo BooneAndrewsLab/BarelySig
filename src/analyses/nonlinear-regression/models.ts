@@ -17,6 +17,8 @@ export interface DoseResponseModel {
   readonly id: DoseResponseModelId;
   /** Prism's name for the model, as it appears in the Analyze dialog. */
   readonly label: string;
+  /** A short name for headings and results grids: "agonist, standard slope". */
+  readonly shortLabel: string;
   /** What the dose giving a half-way response is called. */
   readonly potency: 'EC50' | 'IC50';
   readonly inhibitor: boolean;
@@ -37,6 +39,7 @@ function model(
   return {
     id: id as DoseResponseModelId,
     label,
+    shortLabel: `${kind}, ${normalized ? 'normalized, ' : ''}${standard ? 'standard' : 'variable'} slope`,
     potency: inhibitor ? 'IC50' : 'EC50',
     inhibitor,
     bottom: normalized ? 0 : null,

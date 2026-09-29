@@ -44,3 +44,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 36 | [Nonlinear regression: comparing with a simpler model](36-nonlinear-model-comparison.md) | #98 |
 | 37 | [Nonlinear regression: the dose-response model family](37-dose-response-models.md) | #95 |
 | 38 | [Nonlinear regression: sharing parameters across data sets (global fit)](38-nonlinear-global-fit.md) | #97 |
+| 39 | [Nonlinear regression: comparing models and shared vs. separate parameters](39-nonlinear-compare-models.md) | #105 |

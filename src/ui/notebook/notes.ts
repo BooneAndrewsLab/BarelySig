@@ -478,6 +478,13 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
                   'The fit is compared with a simpler curve that holds some parameters at constants. The F test asks whether estimating them improves the fit by more than chance (P below 0.05 says yes); a large P is no evidence of an improvement, which is not proof of none. AICc weighs the fit against the number of parameters and gives the chance each model is the better one.',
                 ]
               : []),
+            ...(analysis.options.compareWith
+              ? [
+                  analysis.options.compareWith.kind === 'model'
+                    ? `The fit is compared with the same data fitted by a different model. The F test needs the two to be nested (one a special case of the other) and asks whether the more flexible one is better than chance would give at alpha ${String(analysis.options.compareAlpha)}; a large P is no evidence of an improvement, which is not proof of none. AICc works for any two models and gives the chance each is the better one.`
+                    : `The fit is compared with the same fit where the parameters you picked are estimated separately for each data set. The F test asks whether letting them differ improves the fit by more than chance at alpha ${String(analysis.options.compareAlpha)}; a large P is no evidence of a difference, which is not proof that there is none. AICc gives the chance each version is the better one.`,
+                ]
+              : []),
           ],
         },
       ];

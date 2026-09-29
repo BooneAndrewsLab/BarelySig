@@ -13,6 +13,7 @@ import type { GrowthCurveOutcome, GrowthCurveResult } from '@/analyses/growth-cu
 import type { LinearRegressionResult } from '@/analyses/linear-regression/types';
 import { doseResponseModel } from '@/analyses/nonlinear-regression/models';
 import type {
+  ComparisonOutcome,
   DoseResponseOutcome,
   ModelComparison,
   NonlinearRegressionResult,
@@ -711,9 +712,72 @@ function heldNames(c: SimplerModel): string {
   );
 }
 
-/** Which model the extra sum-of-squares F test favours, at the usual 0.05. */
-export function fTestPrefers(c: ModelComparison): 'fit' | 'simpler' | null {
-  return c.fTest.ok ? (c.fTest.p < 0.05 ? 'fit' : 'simpler') : null;
+/**
+ * The two sides of a model comparison in words (items 36 and 39): `complex`
+ * is the model with more parameters estimated (the F test's alternative),
+ * `simpler` the special case of it (its null hypothesis). For a pair that is
+ * not nested they are just the fit as configured and the other one.
+ */
+export interface ComparisonSides {
+  readonly complex: string;
+  readonly simpler: string;
+  /** The null hypothesis, in words. */
+  readonly nullHypothesis: string;
+  readonly nested: boolean;
+}
+
+const SHARED_LABELS = (potency: string) =>
+  [
+    ['bottom', 'Bottom'],
+    ['top', 'Top'],
+    ['hillSlope', 'HillSlope'],
+    ['logEc50', `Log${potency}`],
+  ] as const;
+
+/** The comparison a result asked for, in words; null when it asked for none. */
+export function comparisonSides(r: NonlinearRegressionResult): ComparisonSides | null {
+  if (r.compare !== null) {
+    const names = heldNames(r.compare);
+    const held = simplerModelPhrase(r.compare);
+    return {
+      complex: `the curve with ${names} estimated`,
+      simpler: `the simpler curve with ${held}`,
+      nullHypothesis: `the simpler model (${held}) is correct, and the model that estimates those parameters fits better only by chance`,
+      nested: true,
+    };
+  }
+  const alt = r.alternative;
+  const w = r.compareWith;
+  if (alt === null || w === null) return null;
+  const nested = alt.relation !== 'not-nested';
+  if (w.kind === 'model') {
+    const mine = `the ${doseResponseModel(r.model).shortLabel} model`;
+    const theirs = `the ${doseResponseModel(alt.model).shortLabel} model`;
+    const [complex, simpler] =
+      alt.relation === 'alternative-complex' ? [theirs, mine] : [mine, theirs];
+    return {
+      complex,
+      simpler,
+      nested,
+      nullHypothesis: nested
+        ? `${simpler} is correct, and ${complex} fits better only by chance`
+        : 'there is none: the two models are not nested',
+    };
+  }
+  const potency = doseResponseModel(r.model).potency;
+  const names = joinAnd(SHARED_LABELS(potency).flatMap(([k, n]) => (w.test[k] ? [n] : [])));
+  const many = SHARED_LABELS(potency).filter(([k]) => w.test[k]).length > 1;
+  return {
+    complex: `the fit with ${names} separate for each data set`,
+    simpler: `the fit with ${names} shared`,
+    nested,
+    nullHypothesis: `${names} ${many ? 'have' : 'has'} one value for all the data sets, and letting ${many ? 'them' : 'it'} differ improves the fit only by chance`,
+  };
+}
+
+/** Which model the extra sum-of-squares F test favours, at `alpha` (Prism’s default 0.05). */
+export function fTestPrefers(c: ModelComparison, alpha = 0.05): 'fit' | 'simpler' | null {
+  return c.fTest.ok ? (c.fTest.p < alpha ? 'fit' : 'simpler') : null;
 }
 
 /** Which model AICc favours: the one with the lower (better) AICc. */
@@ -722,21 +786,27 @@ export function aiccPrefers(c: ModelComparison): 'fit' | 'simpler' | null {
 }
 
 /**
- * One data set's model comparison in a sentence or two (item 36, #98): says
- * which test or criterion, what the null hypothesis is, and never calls a
- * non-significant F test proof that the simpler model is right.
+ * One comparison in a sentence or two (items 36 and 39): says which test or
+ * criterion, at what alpha, and never calls a non-significant F test proof
+ * that the simpler model is right (or that two things are the same).
  */
-export function comparisonReading(c: SimplerModel, m: ModelComparison): string {
-  const held = simplerModelPhrase(c);
-  const names = heldNames(c);
+export function comparisonReading(
+  sides: ComparisonSides,
+  m: ModelComparison,
+  alpha = 0.05,
+): string {
   const parts: string[] = [];
   if (m.fTest.ok) {
     const { f, dfNumerator, dfDenominator, p } = m.fTest;
     const df = `F(${String(dfNumerator)}, ${String(dfDenominator)}) = ${sig(f)}`;
     parts.push(
-      p < 0.05
-        ? `Extra sum-of-squares F test: the curve with ${names} estimated fits significantly better than the simpler curve with ${held} (${df}, ${pPhrase(p)}). The difference is larger than scatter alone would usually produce if the simpler curve were right.`
-        : `Extra sum-of-squares F test: no evidence that estimating ${names} improves the fit over the simpler curve with ${held} (${df}, ${pPhrase(p)}). That does not prove the simpler curve is right, only that these data can’t tell them apart.`,
+      p < alpha
+        ? `Extra sum-of-squares F test: ${sides.complex} fits significantly better than ${sides.simpler} (${df}, ${pPhrase(p)}, alpha ${sig(alpha)}). The improvement is larger than scatter alone would usually produce if ${sides.simpler} were right.`
+        : `Extra sum-of-squares F test: no evidence that ${sides.complex} fits better than ${sides.simpler} (${df}, ${pPhrase(p)}, alpha ${sig(alpha)}). That does not prove ${sides.simpler} is right, only that these data can’t tell them apart.`,
+    );
+  } else if (m.fTest.why === 'not-nested') {
+    parts.push(
+      'The F test does not apply: neither model is a special case of the other (it needs nested models). AICc does not need that.',
     );
   } else {
     parts.push('The F test could not be run (the fit passes exactly through the points).');
@@ -745,12 +815,19 @@ export function comparisonReading(c: SimplerModel, m: ModelComparison): string {
     const better = m.aicc.fit < m.aicc.simpler;
     const prob = better ? m.aicc.probabilityFit : m.aicc.probabilitySimpler;
     parts.push(
-      `AICc prefers the ${better ? 'curve with all parameters estimated' : `simpler curve (${held})`}: it has a ${sig(prob * 100, 3)}% chance of being the better of the two.`,
+      `AICc prefers ${better ? sides.complex : sides.simpler}: it has a ${sig(prob * 100, 3)}% chance of being the better of the two.`,
     );
   } else {
     parts.push('AICc is not available: it needs more points than parameters to correct for.');
   }
   return parts.join(' ');
+}
+
+/** Why a comparison could not be made, in words. */
+function comparisonFailure(c: Extract<ComparisonOutcome, { ran: false }>): string {
+  return c.why === 'worse'
+    ? 'the model that is a special case of the other came out fitting better, so one of the two fits missed its optimum'
+    : 'the other model did not converge';
 }
 
 /**
@@ -809,23 +886,27 @@ export function nonlinearRegressionReading(r: NonlinearRegressionResult): string
     dropped > 0
       ? ` ${String(dropped)} ${dropped === 1 ? 'point with a zero or negative dose was' : 'points with a zero or negative dose were'} left out: a log scale has no place for 0.`
       : '';
-  const compare = r.compare;
+  const sides = comparisonSides(r);
+  const say = (who: string, c: ComparisonOutcome) =>
+    sides === null
+      ? []
+      : [
+          ` ${who}${
+            c.ran
+              ? comparisonReading(sides, c, r.alpha)
+              : `the comparison could not be made: ${comparisonFailure(c)}.`
+          }`,
+        ];
   const comparisons =
-    compare === null
+    sides === null
       ? ''
-      : r.series
-          .flatMap((s) => {
+      : [
+          ...r.series.flatMap((s) => {
             const c = s.outcome.ran ? s.outcome.comparison : null;
-            if (c === null) return [];
-            const who = r.series.length > 1 ? `${s.title}: ` : '';
-            return [
-              c.ran
-                ? `${who}${comparisonReading(compare, c)}`
-                : `${who}the comparison with the simpler model could not be made: ${c.why === 'worse' ? 'the simpler model came out fitting better than the model it is a special case of, so one of the two fits missed its optimum' : 'the simpler model did not converge'}.`,
-            ];
-          })
-          .map((t) => ` ${t}`)
-          .join('');
+            return c === null ? [] : say(r.series.length > 1 ? `${s.title}: ` : '', c);
+          }),
+          ...(r.comparison === null ? [] : say('All data sets together: ', r.comparison)),
+        ].join('');
   return `${together}${joinAnd(clauses)}.${note}${comparisons}`;
 }
 

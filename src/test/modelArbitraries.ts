@@ -176,6 +176,27 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
           ),
         { nil: null },
       ),
+      compareWith: fc.option(
+        fc.oneof(
+          fc
+            .constantFrom(...DOSE_RESPONSE_MODEL_IDS)
+            .map((model) => ({ kind: 'model' as const, model })),
+          fc
+            .record({
+              bottom: fc.boolean(),
+              top: fc.boolean(),
+              hillSlope: fc.boolean(),
+              logEc50: fc.boolean(),
+            })
+            // At least one parameter is tested, as the file format requires.
+            .map((t) => ({
+              kind: 'sharing' as const,
+              test: { ...t, logEc50: t.logEc50 || !(t.bottom || t.top || t.hillSlope) },
+            })),
+        ),
+        { nil: null },
+      ),
+      compareAlpha: fc.constantFrom(0.05, 0.01, 0.1, 0.001),
     })
     .map((o): AnalysisSpec => ({
       kind: 'nonlinear-regression',

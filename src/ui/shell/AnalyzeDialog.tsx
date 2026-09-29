@@ -5,7 +5,11 @@
  */
 import { type ReactNode, useState } from 'react';
 
-import { comparisonProblem, optionsProblem } from '@/analyses/nonlinear-regression/constraints';
+import {
+  comparisonProblem,
+  comparisonWithProblem,
+  optionsProblem,
+} from '@/analyses/nonlinear-regression/constraints';
 import {
   DOSE_RESPONSE_MODELS,
   doseResponseModel,
@@ -813,6 +817,7 @@ function ComparisonFields(props: {
             const first = names.find(([k]) => effectiveConstraints(o)[k].kind === 'free');
             set({
               ...o,
+              compareWith: on ? null : o.compareWith,
               compare: on
                 ? {
                     bottom: null,
@@ -869,6 +874,120 @@ function ComparisonFields(props: {
         is better than the simpler one by more than chance would give (its P value assumes the
         simpler model is right); AICc weighs the better fit against the extra parameters and gives
         the chance that each model is the better one.
+      </p>
+      {problem && (
+        <p className="hint" role="alert">
+          {problem}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+/**
+ * Comparing the fit with a different model, or with sharing undone
+ * (item 39, #105): "is the variable slope worth it?", "is the EC50
+ * different between data sets?".
+ */
+function CompareWithFields(props: {
+  readonly o: NonlinearRegressionOptions;
+  readonly dataSets: number;
+  readonly set: (o: NonlinearRegressionOptions) => void;
+}) {
+  const { o, set } = props;
+  const w = o.compareWith;
+  const problem = comparisonWithProblem(o, props.dataSets);
+  const kind = w === null ? 'none' : w.kind;
+  const tests = [
+    ['bottom', 'Bottom'],
+    ['top', 'Top'],
+    ['hillSlope', 'HillSlope'],
+    ['logEc50', o.model.includes('inhibitor') ? 'LogIC50' : 'LogEC50'],
+  ] as const;
+  const other = DOSE_RESPONSE_MODELS.find((m) => m.id !== o.model) ?? DOSE_RESPONSE_MODELS[0];
+  return (
+    <fieldset>
+      <legend>Compare with another model</legend>
+      <label className="constraint-name">
+        <span>Compare the fit with</span>
+        <select
+          aria-label="Compare the fit with"
+          value={kind}
+          onChange={(e) => {
+            const v = e.currentTarget.value;
+            if (v === 'none') set({ ...o, compareWith: null });
+            else if (v === 'model' && other)
+              set({ ...o, compare: null, compareWith: { kind: 'model', model: other.id } });
+            else if (v === 'sharing')
+              set({
+                ...o,
+                compare: null,
+                compareWith: {
+                  kind: 'sharing',
+                  test: { bottom: false, top: false, hillSlope: false, logEc50: true },
+                },
+              });
+          }}
+        >
+          <option value="none">Nothing</option>
+          <option value="model">A different curve shape</option>
+          {props.dataSets >= 2 && (
+            <option value="sharing">The same model with parameters unshared</option>
+          )}
+        </select>
+      </label>
+      {w?.kind === 'model' && (
+        <label className="constraint-name">
+          <span>Other model</span>
+          <select
+            aria-label="Model to compare with"
+            value={w.model}
+            onChange={(e) => {
+              const m = DOSE_RESPONSE_MODELS.find((x) => x.id === e.currentTarget.value);
+              if (m) set({ ...o, compareWith: { kind: 'model', model: m.id } });
+            }}
+          >
+            {DOSE_RESPONSE_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {w?.kind === 'sharing' &&
+        tests.map(([k, label]) => (
+          <label className="option" key={k}>
+            <input
+              type="checkbox"
+              checked={w.test[k]}
+              onChange={(e) => {
+                set({
+                  ...o,
+                  compareWith: {
+                    kind: 'sharing',
+                    test: { ...w.test, [k]: e.currentTarget.checked },
+                  },
+                });
+              }}
+            />
+            Test whether {label} differs between data sets
+          </label>
+        ))}
+      {w !== null && (
+        <TypedNumber
+          label="Alpha (chance of a false alarm the F test accepts)"
+          value={o.compareAlpha}
+          onChange={(n) => {
+            set({ ...o, compareAlpha: n ?? Number.NaN });
+          }}
+        />
+      )}
+      <p className="hint">
+        {w?.kind === 'sharing'
+          ? 'Fits the data sets together twice: once with the ticked parameters shared (one value for all), once with each data set getting its own. A large P value means no evidence that they differ, which is not proof that they are the same. '
+          : 'Fits the same data with both curve shapes. The F test only works when one shape is a special case of the other (say, standard slope inside variable slope); for two shapes that are not, only AICc is reported. '}
+        AICc gives the chance that each model is the better one.
       </p>
       {problem && (
         <p className="hint" role="alert">
@@ -1983,6 +2102,13 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               />
               <ComparisonFields
                 o={options['nonlinear-regression']}
+                set={(o) => {
+                  set('nonlinear-regression', o);
+                }}
+              />
+              <CompareWithFields
+                o={options['nonlinear-regression']}
+                dataSets={picked.length}
                 set={(o) => {
                   set('nonlinear-regression', o);
                 }}

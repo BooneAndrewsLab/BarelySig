@@ -1090,3 +1090,311 @@ fixture("global-too-few",
     list(n = 2, dropped = 0, ran = FALSE, why = "few", minimum = 5))),
   options = list(x = "log", shared = gopts(TRUE, TRUE, TRUE, TRUE)),
   note = "Four points for the four parameters of one shared curve: nothing left to estimate scatter from, so the whole fit is refused (needs at least 5 points).")
+
+# --- Comparing models (#105, item 39) ---------------------------------------
+#
+# The fit against a different model, or against the same model with some
+# shared parameters made separate. Both fits come from the reference above
+# (run_fpl_one, run_global); the statistics are written from the textbook:
+#   F = ((SS_simpler - SS_complex) / (df_simpler - df_complex)) / (SS_complex / df_complex)
+#   AICc = n ln(SS/n) + 2K + 2K(K+1)/(n - K - 1), K = parameters + 1
+# with P from pf(lower.tail = FALSE), Akaike weights exp(-delta/2) / sum, and
+# the F test only for nested models. `role`: 1 = the other model is a special
+# case of the configured one, 2 = the configured one is a special case of the
+# other, 3 = neither (AICc only). The comparison's `fit` side is always the
+# more complex model (the configured one when not nested).
+compare_extra <- quote({
+  ref_compare <- function(cx, sm, n, nested = TRUE) {
+    aicc <- function(ss, df) {
+      k <- (n - df) + 1
+      n * log(ss / n) + 2 * k + 2 * k * (k + 1) / (n - k - 1)
+    }
+    df_num <- sm$df - cx$df
+    f_test <- if (!nested) {
+      list(ok = FALSE, why = "not_nested")
+    } else if (cx$ss <= 0) {
+      list(ok = FALSE, why = "exact_fit")
+    } else if (df_num < 1 || cx$df < 1) {
+      list(ok = FALSE, why = "no_extra")
+    } else {
+      f <- ((sm$ss - cx$ss) / df_num) / (cx$ss / cx$df)
+      list(ok = TRUE, f = f, df_num = df_num, df_den = cx$df,
+        p = pf(f, df_num, cx$df, lower.tail = FALSE))
+    }
+    k_cx <- (n - cx$df) + 1
+    k_sm <- (n - sm$df) + 1
+    a <- if (n - k_cx - 1 <= 0 || n - k_sm - 1 <= 0 || cx$ss <= 0) {
+      list(ok = FALSE)
+    } else {
+      a_cx <- aicc(cx$ss, cx$df)
+      a_sm <- aicc(sm$ss, sm$df)
+      w <- exp(-0.5 * (c(a_cx, a_sm) - min(a_cx, a_sm)))
+      list(ok = TRUE, fit = a_cx, simpler = a_sm, prob_fit = w[1] / sum(w), prob_simpler = w[2] / sum(w))
+    }
+    list(f_test = f_test, aicc = a)
+  }
+  # One data set: the configured model (`bounds`) against `other`.
+  run_fpl_models <- function(dose, y, log_x = TRUE, bounds = limits(), other = limits(), role = 1) {
+    fa <- run_fpl_one(dose, y, log_x, bounds)
+    fb <- run_fpl_one(dose, y, log_x, other)
+    cx <- if (role == 2) fb else fa
+    sm <- if (role == 2) fa else fb
+    st <- ref_compare(cx, sm, fa$n, role != 3)
+    fa$comparison <- list(
+      ran = TRUE,
+      simpler = list(
+        bottom = sm$bottom$value, top = sm$top$value, logec50 = sm$logec50$value, hill = sm$hill$value,
+        ec50 = sm$ec50, ss = sm$ss, df = sm$df
+      ),
+      f_test = st$f_test, aicc = st$aicc
+    )
+    fa
+  }
+  # Several data sets stacked: the whole fit against the other stacked fit.
+  run_global_models <- function(dose, y, g, shared, other_shared, log_x = TRUE,
+                                bounds = limits(), other = bounds, role = 1) {
+    fa <- run_global(dose, y, g, shared, log_x, bounds)
+    fb <- run_global(dose, y, g, other_shared, log_x, other)
+    cx <- if (role == 2) fb$global else fa$global
+    sm <- if (role == 2) fa$global else fb$global
+    st <- ref_compare(cx, sm, fa$global$n, role != 3)
+    fa$comparison <- list(ran = TRUE, simpler = list(ss = sm$ss, df = sm$df), f_test = st$f_test, aicc = st$aicc)
+    fa
+  }
+})
+compare_reference <- as.call(c(as.name("{"), as.list(reference)[-1], as.list(compare_extra)[-1]))
+global_compare_reference <- as.call(c(as.name("{"), as.list(global_reference)[-1], as.list(compare_extra)[-1]))
+
+# R's own nls() fits of the two models, started at the reference optima: anova()
+# gives the F test and AIC() the AICc (its constant cancels between models, so
+# only differences are compared; nls stops a hair short of the optimum, so the
+# tolerance is looser than the fixtures').
+models_agree <- function(dose, y, log_x, bounds, other, expected, role, fit_one) {
+  x <- if (log_x) dose else log10(dose[dose > 0])
+  yy <- if (log_x) y else y[dose > 0]
+  cmp <- expected$comparison
+  build <- function(lim) {
+    p <- fit_one(dose, y, log_x, lim)
+    p <- c(p$bottom$value, p$top$value, p$logec50$value, p$hill$value)
+    fixed <- lim$lower == lim$upper
+    terms <- ifelse(fixed, format(lim$lower, digits = 17), c("b", "t", "l", "h"))
+    fml <- as.formula(paste0("yy ~ (", terms[1], ") + ((", terms[2], ") - (", terms[1], ")) / (1 + 10^(((", terms[3], ") - x) * (", terms[4], ")))"))
+    nls(fml, start = as.list(setNames(p, c("b", "t", "l", "h"))[!fixed]),
+      control = nls.control(maxiter = 50, tol = 1e-7, scaleOffset = 1, warnOnly = TRUE))
+  }
+  m_a <- build(bounds)
+  m_b <- build(other)
+  cx <- if (role == 2) m_b else m_a
+  sm <- if (role == 2) m_a else m_b
+  close <- function(a, b, tol = 1e-4) abs(a - b) <= tol * max(abs(b), 1e-300)
+  stopifnot(close(deviance(sm), cmp$simpler$ss), close(df.residual(sm), cmp$simpler$df, 1e-12))
+  if (cmp$f_test$ok) {
+    a <- anova(sm, cx)
+    stopifnot(close(a$F[2], cmp$f_test$f), close(a$`Pr(>F)`[2], cmp$f_test$p, 1e-3), a$Df[2] == cmp$f_test$df_num)
+  }
+  if (cmp$aicc$ok) {
+    n <- length(yy)
+    corrected <- function(m) {
+      k <- attr(logLik(m), "df")
+      AIC(m) + 2 * k * (k + 1) / (n - k - 1)
+    }
+    delta <- corrected(sm) - corrected(cx)
+    stopifnot(abs(delta - (cmp$aicc$simpler - cmp$aicc$fit)) < 1e-4 * max(1, abs(delta)))
+  }
+  TRUE
+}
+
+# drc fits both stacked models (curveid, pmodels): anova() of the two is drc's
+# extra sum-of-squares F test and its logLik gives the AICc. `shared` and
+# `other_shared` as in run_global_models; `bounds`/`other` as limits().
+global_models_agree <- function(dose, y, g, expected, shared, other_shared, log_x, bounds, other, role) {
+  ok <- !is.na(y) & !is.na(dose)
+  if (!log_x) ok <- ok & dose > 0
+  x <- (if (log_x) dose else log10(dose))[ok]
+  yy <- y[ok]
+  gf <- factor(g[ok])
+  drc_fit <- function(sh, lim) {
+    fixed <- lim$lower == lim$upper
+    fixed_b <- c(if (fixed[4]) -lim$lower[4] * log(10) else NA, if (fixed[1]) lim$lower[1] else NA,
+      if (fixed[2]) lim$lower[2] else NA, NA)
+    order_drc <- c(4, 1, 2, 3)
+    pm <- lapply(which(is.na(fixed_b)), function(u) if (sh[order_drc[u]]) rep(1, length(gf)) else gf)
+    pmdf <- as.data.frame(setNames(pm, paste0("p", seq_along(pm))))
+    dat <- data.frame(yy = yy, x = x, gf = gf)
+    do.call(drm, list(yy ~ x, curveid = quote(gf), data = dat, fct = L.4(fixed = fixed_b),
+      pmodels = pmdf, control = drmc(relTol = 1e-12, maxIt = 10000)))
+  }
+  d_a <- drc_fit(shared, bounds)
+  d_b <- drc_fit(other_shared, other)
+  cx <- if (role == 2) d_b else d_a
+  sm <- if (role == 2) d_a else d_b
+  cmp <- expected$comparison
+  close <- function(a, b, tol = 1e-4) abs(a - b) <= tol * max(abs(b), 1e-300)
+  if (!close(sum(residuals(sm)^2), cmp$simpler$ss, 1e-5)) stop("drc simpler ss ", sum(residuals(sm)^2), " vs ", cmp$simpler$ss, " complex drc ", sum(residuals(cx)^2), " ours ", expected$global$ss)
+  stopifnot(df.residual(sm) == cmp$simpler$df)
+  if (cmp$f_test$ok) {
+    a <- anova(sm, cx, details = FALSE)
+    # drc's P is 1 - pf(), which runs out of digits for a tiny one.
+    stopifnot(close(a[2, 4], cmp$f_test$f, 1e-3),
+      if (cmp$f_test$p > 1e-8) close(a[2, 5], cmp$f_test$p, 1e-2) else a[2, 5] < 1e-8)
+  }
+  if (cmp$aicc$ok) {
+    n <- length(yy)
+    corrected <- function(m) {
+      k <- attr(logLik(m), "df")
+      AIC(m) + 2 * k * (k + 1) / (n - k - 1)
+    }
+    delta <- corrected(sm) - corrected(cx)
+    stopifnot(abs(delta - (cmp$aicc$simpler - cmp$aicc$fit)) < 1e-4 * max(1, abs(delta)))
+  }
+  TRUE
+}
+
+model_opts <- function(model = NULL, other, x = "log", ...) c(list(x = x), if (!is.null(model)) list(model = model), list(compareWith = list(kind = "model", model = other)), list(...))
+sharing_opts <- function(shared, test, ...) list(x = "log", shared = shared, compareWith = list(kind = "sharing", test = test), ...)
+
+fixture("compare-model-slope-rejected",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-1.880, 0.602, 2.411, 5.893, 2.449, 3.309, 3.667, 0.513, 11.820, 9.730, 46.622, 48.868, 88.867, 91.349, 97.357, 96.858, 93.392, 95.670, 96.381, 96.195, 95.419, 97.667)
+  ),
+  expr = run_fpl_models(dose, y, other = limits(hill = 1), role = 1), setup = compare_reference,
+  check = models_agree(dose, y, TRUE, limits(), limits(hill = 1), expected, 1, run_fpl_one),
+  options = model_opts(other = "log-agonist-standard-slope"),
+  note = "Data from a curve with HillSlope 2: the variable-slope model against the same curve with the slope held at 1 (a special case). The F test rejects the standard slope and AICc prefers the variable one.")
+
+fixture("compare-model-slope-accepted",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl_models(dose, y, other = limits(hill = 1), role = 1), setup = compare_reference,
+  check = models_agree(dose, y, TRUE, limits(), limits(hill = 1), expected, 1, run_fpl_one),
+  options = model_opts(other = "log-agonist-standard-slope"),
+  note = "Data from a curve with HillSlope 1: the two models fit almost equally well (the nested fits nearly coincide), so the F test shows no evidence for the extra parameter and AICc prefers the standard slope.")
+
+fixture("compare-model-configured-simpler",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-1.880, 0.602, 2.411, 5.893, 2.449, 3.309, 3.667, 0.513, 11.820, 9.730, 46.622, 48.868, 88.867, 91.349, 97.357, 96.858, 93.392, 95.670, 96.381, 96.195, 95.419, 97.667)
+  ),
+  expr = run_fpl_models(dose, y, bounds = limits(hill = 1), other = limits(), role = 2), setup = compare_reference,
+  check = models_agree(dose, y, TRUE, limits(hill = 1), limits(), expected, 2, run_fpl_one),
+  options = model_opts(model = "log-agonist-standard-slope", other = "log-agonist-variable-slope"),
+  note = "The same data with the standard slope configured and the variable slope as the other model: the roles swap (the configured fit is the special case) and the comparison is the same.")
+
+fixture("compare-model-normalized",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl_models(dose, y, bounds = limits(bottom = 0, top = 100), other = limits(), role = 2), setup = compare_reference,
+  check = models_agree(dose, y, TRUE, limits(bottom = 0, top = 100), limits(), expected, 2, run_fpl_one),
+  options = model_opts(model = "log-agonist-normalized-variable-slope", other = "log-agonist-variable-slope"),
+  note = "Normalized (Bottom 0 and Top 100 held) against the fully free curve, on data generated from Bottom 0: two extra parameters, numerator df = 2.")
+
+fixture("compare-model-not-nested",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    y = c(-1.880, 0.602, 2.411, 5.893, 2.449, 3.309, 3.667, 0.513, 11.820, 9.730, 46.622, 48.868, 88.867, 91.349, 97.357, 96.858, 93.392, 95.670, 96.381, 96.195, 95.419, 97.667)
+  ),
+  expr = run_fpl_models(dose, y, bounds = limits(hill = 1), other = limits(bottom = 0, top = 100), role = 3), setup = compare_reference,
+  check = models_agree(dose, y, TRUE, limits(hill = 1), limits(bottom = 0, top = 100), expected, 3, run_fpl_one),
+  options = model_opts(model = "log-agonist-standard-slope", other = "log-agonist-normalized-variable-slope"),
+  note = "Standard slope (Bottom, Top, LogEC50 free) against normalized variable slope (only LogEC50 and HillSlope free): neither is a special case of the other, so there is no F test; only AICc compares them.")
+
+fixture("compare-model-concentrations",
+  input = list(
+    dose = c(1e-09, 1e-09, 3.16228e-09, 3.16228e-09, 1e-08, 1e-08, 3.16228e-08, 3.16228e-08, 1e-07, 1e-07, 3.16228e-07, 3.16228e-07, 1e-06, 1e-06, 3.16228e-06, 3.16228e-06, 1e-05, 1e-05, 3.16228e-05, 3.16228e-05, 0.0001, 0.0001),
+    y = c(-3.192, 4.756, 0.364, 1.825, -1.709, 3.873, 8.614, 8.103, 22.044, 24.062, 58.175, 51.802, 75.18, 73.249, 91.773, 85.67, 99.881, 97.073, 98.7, 99.879, 99.513, 93.658)
+  ),
+  expr = run_fpl_models(dose, y, log_x = FALSE, other = limits(hill = 1), role = 1), setup = compare_reference,
+  check = models_agree(dose, y, FALSE, limits(), limits(hill = 1), expected, 1, run_fpl_one),
+  options = model_opts(other = "log-agonist-standard-slope", x = "concentration"),
+  note = "Doses rather than logs: both fits and their comparison run on the fitted log doses.")
+
+fixture("compare-model-few-points",
+  input = list(dose = c(-8, -7, -6, -5, -4), y = c(3.1, 9.8, 51.2, 90.6, 97.4)),
+  expr = run_fpl_models(dose, y, other = limits(hill = 1), role = 1), setup = compare_reference,
+  check = models_agree(dose, y, TRUE, limits(), limits(hill = 1), expected, 1, run_fpl_one),
+  options = model_opts(other = "log-agonist-standard-slope"),
+  note = "Five points: the variable-slope fit has one residual degree of freedom. The F test is available (df 1 and 1), AICc is not (needs n > K + 1).")
+
+fixture("global-compare-two-sets-models",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(4.799, 9.922, 18.835, 46.470, 82.761, 91.531, 96.998, 98.411, 101.658, 93.905, 98.327, 1.619, 3.790, 8.942, 9.313, 21.885, 36.639, 65.609, 74.136, 93.300, 92.122, 99.616)
+  ),
+  expr = list(series = list(
+    run_fpl_models(dose[g == 1], y[g == 1], other = limits(hill = 1)),
+    run_fpl_models(dose[g == 2], y[g == 2], other = limits(hill = 1)))),
+  setup = compare_reference,
+  options = model_opts(other = "log-agonist-standard-slope", shared = gopts()),
+  note = "Two data sets, nothing shared, variable against standard slope: each data set gets its own comparison.")
+
+fixture("global-compare-ec50-different",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(0.672, 13.563, 6.998, 7.357, 15.694, 15.210, 32.484, 30.435, 54.036, 50.276, 71.797, 73.730, 86.657, 81.493, 89.367, 91.129, 95.832, 92.929, 98.906, 97.325, 99.071, 98.256, 2.730, 6.385, 6.754, 0.005, 3.577, 6.059, 3.714, 5.202, 6.562, 10.938, 26.612, 26.176, 70.121, 71.514, 94.605, 94.462, 95.280, 95.301, 101.952, 95.855, 103.139, 97.802)
+  ),
+  expr = run_global_models(dose, y, g, c(FALSE, FALSE, TRUE, FALSE), c(FALSE, FALSE, FALSE, FALSE), role = 2), setup = global_compare_reference,
+  check = global_models_agree(dose, y, g, expected, c(FALSE, FALSE, TRUE, FALSE), c(FALSE, FALSE, FALSE, FALSE), TRUE, limits(), limits(), 2), check_packages = "drc",
+  options = sharing_opts(gopts(logEc50 = TRUE), gopts(logEc50 = TRUE)),
+  note = "Two curves that really differ in potency, fitted with one shared LogEC50 against each getting its own: the F test rejects the shared EC50 and AICc prefers separate values.")
+
+fixture("global-compare-ec50-same",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(-2.504, -0.319, 1.029, 0.242, 7.419, 2.405, 9.435, 10.354, 22.359, 22.117, 46.582, 46.904, 62.547, 63.364, 82.496, 79.871, 82.312, 90.533, 90.598, 88.994, 92.556, 86.342, 4.285, 5.119, 7.973, 9.674, 6.385, 13.672, 9.253, 13.697, 27.363, 18.958, 52.932, 51.435, 89.241, 80.601, 96.698, 101.758, 100.442, 98.460, 93.787, 97.369, 99.045, 99.733)
+  ),
+  expr = run_global_models(dose, y, g, c(FALSE, FALSE, TRUE, FALSE), c(FALSE, FALSE, FALSE, FALSE), role = 2), setup = global_compare_reference,
+  check = global_models_agree(dose, y, g, expected, c(FALSE, FALSE, TRUE, FALSE), c(FALSE, FALSE, FALSE, FALSE), TRUE, limits(), limits(), 2), check_packages = "drc",
+  options = sharing_opts(gopts(logEc50 = TRUE), gopts(logEc50 = TRUE)),
+  note = "Two curves generated with the same EC50: sharing it costs almost no fit, so a large P (no evidence of a difference) and AICc preferring the shared model.")
+
+fixture("global-compare-two-parameters",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3),
+    y = c(-0.875, 0.111, 9.073, 6.263, 27.660, 55.393, 71.104, 79.255, 85.851, 94.801, 100.993, 4.546, 1.634, 4.244, 9.986, 26.442, 49.368, 74.843, 92.572, 99.420, 98.118, 108.829, -1.001, 9.190, 8.979, 18.879, 23.080, 45.928, 77.426, 88.544, 94.911, 105.030, 103.445)
+  ),
+  expr = run_global_models(dose, y, g, c(TRUE, TRUE, TRUE, TRUE), c(TRUE, TRUE, FALSE, FALSE), role = 2), setup = global_compare_reference,
+  check = global_models_agree(dose, y, g, expected, c(TRUE, TRUE, TRUE, TRUE), c(TRUE, TRUE, FALSE, FALSE), TRUE, limits(), limits(), 2), check_packages = "drc",
+  options = sharing_opts(gopts(TRUE, TRUE, TRUE, TRUE), gopts(hillSlope = TRUE, logEc50 = TRUE)),
+  note = "Three data sets, everything shared, against LogEC50 and HillSlope both unshared: numerator df = 2 x (3 - 1) = 4.")
+
+fixture("global-compare-missing-unequal",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -3.5, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -8, -7.5, -7, -6.5, -6, -5.5, -5),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3),
+    y = c(6.216, 7.350, NA, 49.586, 78.683, 90.767, 86.253, 101.803, 95.286, 100.180, 100.104, 104.472, 5.398, 8.893, 21.975, 35.286, 71.221, NA, 96.841, 94.920, 97.840, 3.414, 9.283, 12.638, NA, 51.908, 82.937, 93.061)
+  ),
+  expr = run_global_models(dose, y, g, c(TRUE, FALSE, FALSE, TRUE), c(TRUE, FALSE, FALSE, FALSE), role = 2), setup = global_compare_reference,
+  check = global_models_agree(dose, y, g, expected, c(TRUE, FALSE, FALSE, TRUE), c(TRUE, FALSE, FALSE, FALSE), TRUE, limits(), limits(), 2), check_packages = "drc",
+  options = sharing_opts(gopts(bottom = TRUE, hillSlope = TRUE), gopts(hillSlope = TRUE)),
+  note = "Three data sets of unequal size with an empty Y cell each (25 points): is the shared HillSlope justified?")
+
+fixture("global-compare-small-set",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -8, -7, -6, -4.5),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2),
+    y = c(4.538, 2.446, 12.071, 29.692, 68.385, 89.347, 97.126, 99.889, 97.384, 96.137, 102.674, 9.151, 8.197, 48.407, 96.654)
+  ),
+  expr = run_global_models(dose, y, g, c(TRUE, TRUE, FALSE, TRUE), c(FALSE, TRUE, FALSE, TRUE), role = 2), setup = global_compare_reference,
+  check = global_models_agree(dose, y, g, expected, c(TRUE, TRUE, FALSE, TRUE), c(FALSE, TRUE, FALSE, TRUE), TRUE, limits(), limits(), 2), check_packages = "drc",
+  options = sharing_opts(gopts(TRUE, TRUE, hillSlope = TRUE), gopts(bottom = TRUE)),
+  note = "A second data set of four points: is the shared Bottom justified? Six parameters against five over 15 points, a small n where AICc's correction matters.")
+
+fixture("global-compare-model-and-sharing",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(101.586, 97.384, 99.095, 99.876, 91.428, 92.551, 79.059, 79.118, 53.651, 59.411, 18.921, 25.415, 2.132, 3.031, -4.441, 2.939, 2.476, 3.657, 0.020, -13.086, 96.540, 94.733, 104.244, 102.240, 103.644, 94.552, 99.461, 96.191, 88.666, 86.322, 57.270, 57.643, 12.418, 19.194, 9.082, 11.686, -4.830, 3.895, 7.496, 3.529)
+  ),
+  expr = run_global_models(dose, y, g, c(FALSE, FALSE, FALSE, TRUE), c(FALSE, FALSE, FALSE, FALSE), bounds = limits(bottom = 0, top = 100), other = limits(bottom = 0, top = 100, hill = -1), role = 1), setup = global_compare_reference,
+  check = global_models_agree(dose, y, g, expected, c(FALSE, FALSE, FALSE, TRUE), c(FALSE, FALSE, FALSE, FALSE), TRUE, limits(bottom = 0, top = 100), limits(bottom = 0, top = 100, hill = -1), 1), check_packages = "drc",
+  options = model_opts(model = "log-inhibitor-normalized-variable-slope", other = "log-inhibitor-normalized-standard-slope", shared = gopts(hillSlope = TRUE)),
+  note = "Two stacked inhibition curves with a shared variable slope against the same with the slope held at -1 (a different model): the stacked fits are compared as a whole.")
