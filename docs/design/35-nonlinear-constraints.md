@@ -1,4 +1,4 @@
-# 34 — Nonlinear regression: constraining parameters
+# 35 — Nonlinear regression: constraining parameters
 
 Issue #96, the follow-up to note 32. Prism's usual advice for sparse
 dose-response data is to hold what you know: Bottom = 0 for
