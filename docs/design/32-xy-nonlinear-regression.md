@@ -254,7 +254,7 @@ of any fixture's data, it becomes one more fixture `check`.
   standard-slope (Hill = 1, three-parameter) models, normalized-response
   variants, [agonist] vs. response on a linear X, and the wider curve
   library (exponentials, Michaelis–Menten, …).
-- **Constraints** (#96): fixing or bounding a parameter (Bottom = 0,
+- **Constraints** (#96, done: note 35): fixing or bounding a parameter (Bottom = 0,
   Top = 100, HillSlope = 1), Prism's usual advice when data are sparse.
 - **Shared parameters across data sets** (#97, global fitting).
 - **Model comparison** (#98): extra sum-of-squares F test and AICc,

@@ -30,6 +30,7 @@ import {
   type CorrelationOptions,
   type GrowthCurveOptions,
   type NonlinearRegressionOptions,
+  type ParameterConstraint,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
   type KruskalWallisOptions,
@@ -140,6 +141,35 @@ function analysisJson(a: Analysis): Json {
   return { id: a.id, title: a.title, kind: a.kind, options: optionsJson(a), input };
 }
 
+function constraintJson(c: ParameterConstraint): Json {
+  switch (c.kind) {
+    case 'free':
+      return { kind: 'free' };
+    case 'fixed':
+      return { kind: 'fixed', value: c.value };
+    case 'bounded':
+      return { kind: 'bounded', lower: c.lower, upper: c.upper };
+  }
+}
+
+/** A nonlinear-regression parameter constraint; absent (an older file) means free. */
+function constraint(v: Json | undefined, p: Path): ParameterConstraint {
+  if (v === undefined) return { kind: 'free' };
+  const o = obj(v, p);
+  const kind = oneOf(o['kind'], p.key('kind'), ['free', 'fixed', 'bounded'] as const);
+  if (kind === 'free') return { kind };
+  if (kind === 'fixed') return { kind, value: num(o['value'], p.key('value')) };
+  const limit = (k: string): number | null =>
+    o[k] === null || o[k] === undefined ? null : num(o[k], p.key(k));
+  const lower = limit('lower');
+  const upper = limit('upper');
+  if (lower === null && upper === null) p.fail('should have a lower or an upper limit');
+  if (lower !== null && upper !== null && lower >= upper) {
+    p.fail('should have a lower limit below its upper limit');
+  }
+  return { kind, lower, upper };
+}
+
 /** Each kind's options, field by field in a fixed order (never spread: key order would leak in). */
 function optionsJson(a: AnalysisSpec): Json {
   switch (a.kind) {
@@ -155,7 +185,13 @@ function optionsJson(a: AnalysisSpec): Json {
     case 'correlation':
       return { method: a.options.method };
     case 'nonlinear-regression':
-      return { model: a.options.model, x: a.options.x };
+      return {
+        model: a.options.model,
+        x: a.options.x,
+        bottom: constraintJson(a.options.bottom),
+        top: constraintJson(a.options.top),
+        hillSlope: constraintJson(a.options.hillSlope),
+      };
     case 'growth-curve':
       return { model: a.options.model };
     case 'graph-summary':
@@ -501,6 +537,10 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
       const options: NonlinearRegressionOptions = {
         model: oneOf(opts['model'], q.key('model'), ['log-agonist-variable-slope'] as const),
         x: oneOf(opts['x'], q.key('x'), ['log', 'concentration'] as const),
+        // Files from before #96 have no constraints: every parameter is estimated.
+        bottom: constraint(opts['bottom'], q.key('bottom')),
+        top: constraint(opts['top'], q.key('top')),
+        hillSlope: constraint(opts['hillSlope'], q.key('hillSlope')),
       };
       return { kind, options };
     }

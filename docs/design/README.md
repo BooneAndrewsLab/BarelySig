@@ -40,3 +40,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 32 | [Nonlinear regression: the four-parameter dose-response curve](32-xy-nonlinear-regression.md) | #37 |
 | 33 | [Growth curve analysis: the reparameterized Gompertz model, and phase detection](33-growth-curve-analysis.md) | #94 |
 | 34 | [XY graph styles: connected lines and replicate traces](34-xy-graph-styles.md) | #93 |
+| 35 | [Nonlinear regression: constraining parameters](35-nonlinear-constraints.md) | #96 |

@@ -5,8 +5,14 @@
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { Engine } from '@/engine/engine';
+import type { Plain } from '@/engine/convert';
 import { newId } from '@/model/ids';
-import { type Analysis, createProject, DEFAULT_OPTIONS } from '@/model/project';
+import {
+  type Analysis,
+  createProject,
+  DEFAULT_OPTIONS,
+  type ParameterConstraint,
+} from '@/model/project';
 import { createXyTable, type XyTable } from '@/model/table';
 import { type Fixture, loadFixtures, mismatches } from '@/test/fixtures';
 import { startNodeWebR } from '@/test/webrNode';
@@ -31,7 +37,24 @@ function requestFor(f: Fixture): NonlinearRegressionRequest {
     series: [{ id: 's1', title: 'Series 1' }],
     points: [points],
     logX: f.options?.['x'] !== 'concentration',
+    constraints: {
+      bottom: constraintOf(f.options?.['bottom']),
+      top: constraintOf(f.options?.['top']),
+      hillSlope: constraintOf(f.options?.['hillSlope']),
+    },
   };
+}
+
+/** A fixture's constraint option, as the oracle wrote it (an absent limit is `{}` in its JSON). */
+function constraintOf(o: Plain | undefined): ParameterConstraint {
+  if (o === undefined || o === null || typeof o !== 'object' || Array.isArray(o)) {
+    return { kind: 'free' };
+  }
+  const num = (v: Plain | undefined): number | null => (typeof v === 'number' ? v : null);
+  if (o['kind'] === 'fixed') return { kind: 'fixed', value: num(o['value']) ?? Number.NaN };
+  if (o['kind'] === 'bounded')
+    return { kind: 'bounded', lower: num(o['lower']), upper: num(o['upper']) };
+  return { kind: 'free' };
 }
 
 describe('dose-response fit, against the R oracle', () => {
@@ -70,6 +93,33 @@ describe('dose-response fit, against the R oracle', () => {
         ?.outcome;
       expect(outcome?.ran).toBe(false);
       if (outcome && !outcome.ran) expect(outcome.why).toBe(why);
+    }
+  }, 120_000);
+
+  it('reports held parameters without SE or CI, and a limit the fit ran into as at-bound', async () => {
+    for (const [id, statuses, df] of [
+      ['bottom-zero', ['fixed', 'fitted', 'fitted', 'fitted'], 30],
+      ['three-held', ['fixed', 'fixed', 'fitted', 'fixed'], 32],
+      ['bound-active-bottom', ['at-bound', 'fitted', 'fitted', 'fitted'], 30],
+      ['bounds-inactive', ['fitted', 'fitted', 'fitted', 'fitted'], 29],
+    ] as const) {
+      const f = fixtures.find((x) => x.id.endsWith(id));
+      if (!f) throw new Error(`fixture ${id} missing`);
+      const request = requestFor(f);
+      const out = await engine.run(nonlinearRegression.job(request));
+      const o = nonlinearRegression.parse(out.value, request, out.warnings).series[0]?.outcome;
+      if (!o?.ran) throw new Error(`${id} did not run`);
+      const ps = [o.bottom, o.top, o.hillSlope, o.logEc50];
+      expect([o.bottom, o.top, o.logEc50, o.hillSlope].map((p) => p.status)).toEqual(statuses);
+      expect(o.df).toBe(df);
+      for (const p of ps) {
+        if (p.status === 'fitted') expect(p.se).not.toBeNull();
+        else {
+          expect(p.se).toBeNull();
+          expect(p.lower).toBeNull();
+          expect(p.upper).toBeNull();
+        }
+      }
     }
   }, 120_000);
 
@@ -150,5 +200,51 @@ describe('prepare', () => {
     const conc = nonlinearRegression.prepare(analysisFor(filled, 'concentration'), project2);
     expect(log.ok && log.request.logX).toBe(true);
     expect(conc.ok && !conc.request.logX).toBe(true);
+  });
+
+  it('passes constraints through, and refuses ones that make no sense', () => {
+    const { project, table } = setup();
+    const x = table.dataSets[0];
+    const y = table.dataSets[1];
+    if (!x || !y) throw new Error('table has no data sets');
+    const filled: XyTable = {
+      ...table,
+      dataSets: [
+        { ...x, subcolumns: [[0, 1e-9, 1e-8]] },
+        { ...y, subcolumns: [[2, 4, 6]] },
+      ],
+    };
+    const project2 = { ...project, tables: new Map([[filled.id, filled]]) };
+    const withOptions = (o: Partial<Fit['options']>): Fit => {
+      const a = analysisFor(filled);
+      return { ...a, options: { ...a.options, ...o } };
+    };
+    const held = nonlinearRegression.prepare(
+      withOptions({ bottom: { kind: 'fixed', value: 0 } }),
+      project2,
+    );
+    expect(held.ok && held.request.constraints.bottom).toEqual({ kind: 'fixed', value: 0 });
+    expect(
+      nonlinearRegression.prepare(withOptions({ hillSlope: { kind: 'fixed', value: 0 } }), project2)
+        .ok,
+    ).toBe(false);
+    expect(
+      nonlinearRegression.prepare(
+        withOptions({ top: { kind: 'bounded', lower: 5, upper: 5 } }),
+        project2,
+      ).ok,
+    ).toBe(false);
+    expect(
+      nonlinearRegression.prepare(
+        withOptions({ top: { kind: 'bounded', lower: null, upper: null } }),
+        project2,
+      ).ok,
+    ).toBe(false);
+    expect(
+      nonlinearRegression.prepare(
+        withOptions({ bottom: { kind: 'fixed', value: Number.NaN } }),
+        project2,
+      ).ok,
+    ).toBe(false);
   });
 });

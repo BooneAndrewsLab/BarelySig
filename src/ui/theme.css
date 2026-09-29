@@ -452,6 +452,35 @@ button.outline {
   padding: 3px 0;
 }
 
+/* Fixing or bounding a dose-response parameter (note 34). */
+.constraint-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 3px 0;
+}
+
+.constraint-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.constraint-name > span {
+  min-width: 5.5em;
+}
+
+.constraint-number {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.constraint-number input {
+  width: 6em;
+}
+
 /* One comparison of a post-hoc test, under its analysis (note 06). */
 .option.nested {
   margin-left: 24px;

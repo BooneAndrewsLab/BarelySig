@@ -81,7 +81,9 @@ around LogEC50, the kind Prism 6 and most programs report; Prism 7+ can
 also give profile-likelihood CIs, which BarelySig doesn't yet.
 
 When the fit can't be trusted, the results say so instead of giving a
-number: fewer than 5 points or 4 different doses, a Y that never varies,
+number: too few points or doses for the parameters being estimated (5
+points and 4 doses when all four are; each parameter you hold lowers that
+by one), a Y that never varies,
 or a fit that doesn't converge — usually because the doses don't reach
 both plateaus, so there's no top (or bottom) to estimate. A value marked
 **~** (and a CI "very wide") is one the data barely pin down, Prism's
@@ -89,6 +91,33 @@ both plateaus, so there's no top (or bottom) to estimate. A value marked
 
 To draw the curve, make an XY graph and choose this analysis under
 **Fitted line**, with an optional confidence or prediction band.
+
+#### Holding a parameter, or keeping it within limits
+
+When your data don't reach a plateau, or you already know a value, you
+can tell the fit what to do with **Bottom**, **Top** and **HillSlope**
+in the Analyze dialog. For each one choose:
+
+- **Estimate it** (the default), let the data decide;
+- **Hold it at a constant**, for example Bottom = 0 for baseline-subtracted
+  data, Top = 100 for percent-of-control data, or HillSlope = 1 for simple
+  one-site binding;
+- **Estimate within limits**, give a lower limit, an upper limit or both.
+
+A held parameter isn't estimated, so it has no SE or CI and the results
+mark it "(fixed)". If the best fit wants to go past a limit, the fit stops
+at the limit, holds the parameter there and marks it "(at limit)", also
+without SE or CI: that's a sign the limit, not the data, decided the
+value. Holding parameters makes the rest better determined, and a
+curve whose plateau has no points can become fittable. The degrees of
+freedom and CIs count only the parameters still being estimated. Only
+apply a constraint when you have a reason outside the data; a held value
+that's wrong bends the whole curve. A HillSlope of exactly 0 can't be
+held (it's a flat line, and EC50 has no meaning).
+
+Without constraints the fit may swap Bottom and Top so that Bottom is the
+lower plateau; with constraints it never does, since that would silently
+break the values you set (Bottom is whatever you constrained it to be).
 
 ### Growth curve
 
@@ -149,8 +178,8 @@ Click a connected line to change its width; its colour follows the data set.
 
 "Help me choose" doesn't yet suggest these analyses — pick them directly
 from the **Analyze…** dialog. The dose-response fit has one model so far:
-no fixed or shared parameters, no comparing curves ("do these EC50s
+no shared parameters, no comparing curves ("do these EC50s
 differ?"), no other curve shapes, weighting or interpolating unknowns
-from a standard curve yet. The growth curve fit likewise has one model
+from a standard curve yet (sharing a parameter across data sets is not there either). The growth curve fit likewise has one model
 (Gompertz); a logistic alternative, phase boundaries drawn on the graph,
 and fitting several data sets together aren't there yet either.

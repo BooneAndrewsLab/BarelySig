@@ -938,6 +938,29 @@ function LinearRegressionView({ r }: { readonly r: LinearRegressionResult }) {
   );
 }
 
+const CONSTRAINT_NAMES = [
+  ['bottom', 'Bottom'],
+  ['top', 'Top'],
+  ['hillSlope', 'HillSlope'],
+] as const;
+
+/** What was held or limited before the fit, in the methods line; empty when nothing was. */
+function constraintSentence(c: NonlinearRegressionResult['constraints']): string {
+  const parts = CONSTRAINT_NAMES.flatMap(([key, name]) => {
+    const p = c[key];
+    if (p.kind === 'fixed') return [`${name} held at ${sig(p.value)}`];
+    if (p.kind === 'bounded') {
+      const lo = p.lower === null ? null : `at least ${sig(p.lower)}`;
+      const hi = p.upper === null ? null : `at most ${sig(p.upper)}`;
+      return [`${name} kept ${[lo, hi].filter((v) => v !== null).join(' and ')}`];
+    }
+    return [];
+  });
+  return parts.length === 0
+    ? ''
+    : `${parts.join('; ')}. A parameter held, or pushed onto a limit, is not estimated: it has no SE or CI, and the degrees of freedom count only the parameters that were. `;
+}
+
 /**
  * The dose-response fit of an XY table's Y data sets (item 32, #37): one
  * column per Y data set, Prism's "Best-fit values / 95% CI / Goodness of
@@ -951,8 +974,20 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
     label,
     ...r.series.map((s) => (s.outcome.ran ? f(s.outcome) : '—')),
   ];
-  const value = (p: FitParameter) => `${p.ambiguous ? '~' : ''}${sig(p.value)}`;
-  const ci = (p: FitParameter) => (p.ambiguous ? 'very wide' : interval(p.lower, p.upper));
+  // A held parameter (fixed by the user, or run into a limit) has no SE or CI: nothing was estimated.
+  const value = (p: FitParameter) =>
+    p.status === 'fixed'
+      ? `${sig(p.value)} (fixed)`
+      : p.status === 'at-bound'
+        ? `${sig(p.value)} (at limit)`
+        : `${p.ambiguous ? '~' : ''}${sig(p.value)}`;
+  const se = (p: FitParameter) => (p.se === null ? '—' : `${p.ambiguous ? '~' : ''}${sig(p.se)}`);
+  const ci = (p: FitParameter) =>
+    p.lower === null || p.upper === null
+      ? '—'
+      : p.ambiguous
+        ? 'very wide'
+        : interval(p.lower, p.upper);
   const anyRan = r.series.some((s) => s.outcome.ran);
   const runs = (o: Fit): string => {
     const t = o.runs;
@@ -965,6 +1000,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
       <p className="method">
         Nonlinear regression (least squares): log(agonist) vs. response, variable slope (four
         parameters), Y = Bottom + (Top − Bottom) / (1 + 10^((LogEC50 − X) × HillSlope)).{' '}
+        {constraintSentence(r.constraints)}
         {r.logX
           ? 'X is the log of the dose.'
           : 'X is a dose, fitted on a log scale (log₁₀); a zero or negative dose is left out.'}{' '}
@@ -988,10 +1024,10 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             label="Standard errors"
             head={head}
             rows={[
-              row('Bottom', (o) => `${o.bottom.ambiguous ? '~' : ''}${sig(o.bottom.se)}`),
-              row('Top', (o) => `${o.top.ambiguous ? '~' : ''}${sig(o.top.se)}`),
-              row('LogEC50', (o) => `${o.logEc50.ambiguous ? '~' : ''}${sig(o.logEc50.se)}`),
-              row('HillSlope', (o) => `${o.hillSlope.ambiguous ? '~' : ''}${sig(o.hillSlope.se)}`),
+              row('Bottom', (o) => se(o.bottom)),
+              row('Top', (o) => se(o.top)),
+              row('LogEC50', (o) => se(o.logEc50)),
+              row('HillSlope', (o) => se(o.hillSlope)),
             ]}
           />
           <Grid

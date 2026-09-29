@@ -11,8 +11,10 @@ import { regressionBand, runsOutcome } from '../linear-regression';
 import runsCode from '../linear-regression/analysis.R?raw';
 import type { Residual } from '../linear-regression/types';
 import type { AnalysisModule, Prepared } from '../module';
+import type { ParameterConstraint } from '@/model/project';
 import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
+import { optionsProblem } from './constraints';
 import type {
   DoseResponseOutcome,
   FitParameter,
@@ -28,14 +30,49 @@ const numbers = (v: Plain | undefined): number[] => list(v).map((x) => num(x) ??
 
 function parameter(v: Plain | undefined, what: string): FitParameter {
   const o = object(v ?? null, what);
+  const status = o['status'] === 'fixed' || o['status'] === 'at_bound' ? o['status'] : 'fitted';
+  if (status !== 'fitted') {
+    return {
+      value: need(o['value'], what),
+      status: status === 'fixed' ? 'fixed' : 'at-bound',
+      se: null,
+      lower: null,
+      upper: null,
+      dependency: null,
+      ambiguous: false,
+    };
+  }
   return {
     value: need(o['value'], what),
+    status,
     se: need(o['se'], `${what} SE`),
     lower: need(o['lower'], `${what} CI lower`),
     upper: need(o['upper'], `${what} CI upper`),
     dependency: need(o['dependency'], `${what} dependency`),
     ambiguous: o['ambiguous'] === true,
   };
+}
+
+/** What the R fit takes for one constraint: its limits, the way `nls(algorithm = "port")` wants them. */
+function limits(c: ParameterConstraint): {
+  lo: number;
+  hi: number;
+  hasLo: boolean;
+  hasHi: boolean;
+} {
+  switch (c.kind) {
+    case 'free':
+      return { lo: 0, hi: 0, hasLo: false, hasHi: false };
+    case 'fixed':
+      return { lo: c.value, hi: c.value, hasLo: true, hasHi: true };
+    case 'bounded':
+      return {
+        lo: c.lower ?? 0,
+        hi: c.upper ?? 0,
+        hasLo: c.lower !== null,
+        hasHi: c.upper !== null,
+      };
+  }
 }
 
 const WHY = {
@@ -95,7 +132,7 @@ export const nonlinearRegression: AnalysisModule<
   NonlinearRegressionResult
 > = {
   kind: 'nonlinear-regression',
-  version: 1,
+  version: 2,
   code,
 
   prepare(analysis, project): Prepared<NonlinearRegressionRequest> {
@@ -110,6 +147,9 @@ export const nonlinearRegression: AnalysisModule<
     if (analysis.input.dataSets.length === 0) {
       return { ok: false, reason: 'Choose a Y data set to fit a curve to.' };
     }
+    const { bottom, top, hillSlope } = analysis.options;
+    const problem = optionsProblem(analysis.options);
+    if (problem) return { ok: false, reason: problem };
     const series = xySeries(table, analysis.input.dataSets);
     const points: { readonly x: number; readonly y: number }[][] = [];
     for (const s of series) {
@@ -127,6 +167,7 @@ export const nonlinearRegression: AnalysisModule<
         series: series.map((s) => ({ id: s.id, title: s.title })),
         points,
         logX: analysis.options.x === 'log',
+        constraints: { bottom, top, hillSlope },
       },
     };
   },
@@ -135,9 +176,24 @@ export const nonlinearRegression: AnalysisModule<
     const x = request.points.flatMap((s) => s.map((p) => p.x));
     const y = request.points.flatMap((s) => s.map((p) => p.y));
     const g = request.points.flatMap((s, i) => s.map(() => i + 1));
+    const c = [
+      limits(request.constraints.bottom),
+      limits(request.constraints.top),
+      limits(request.constraints.hillSlope),
+    ];
     return {
-      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x)`,
-      inputs: { x, y, g, k: request.points.length, log_x: request.logX },
+      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi)`,
+      inputs: {
+        x,
+        y,
+        g,
+        k: request.points.length,
+        log_x: request.logX,
+        lo: c.map((p) => p.lo),
+        hi: c.map((p) => p.hi),
+        has_lo: c.map((p) => (p.hasLo ? 1 : 0)),
+        has_hi: c.map((p) => (p.hasHi ? 1 : 0)),
+      },
       packages: [],
     };
   },
@@ -146,6 +202,7 @@ export const nonlinearRegression: AnalysisModule<
     const r = object(value, 'nonlinear regression');
     return {
       logX: request.logX,
+      constraints: request.constraints,
       series: list(r['series']).map((v, i) => {
         const named = request.series[i];
         if (!named) throw new Error('nonlinear regression: more series than asked for');

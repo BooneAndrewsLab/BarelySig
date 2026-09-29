@@ -8,6 +8,7 @@ import {
   type AnalysisSpec,
   type Comparisons,
   type NestedComparisons,
+  type ParameterConstraint,
   type Project,
   REPEATED_TWO_WAY_FAMILIES,
   TWO_WAY_FAMILIES,
@@ -65,6 +66,22 @@ const idx = fc.nat(50);
 const small = fc.integer({ min: 0, max: 5 });
 const title = fc.string({ maxLength: 6 });
 const tails = fc.constantFrom('two' as const, 'one' as const);
+
+const limit = fc.double({ min: -1000, max: 1000, noNaN: true, noDefaultInfinity: true });
+/** Free, fixed and bounded (one side or both, lower below upper): every shape a dose-response constraint takes. */
+const parameterConstraint: fc.Arbitrary<ParameterConstraint> = fc.oneof(
+  fc.constant<ParameterConstraint>({ kind: 'free' }),
+  limit.map((value): ParameterConstraint => ({ kind: 'fixed', value })),
+  limit.map((lower): ParameterConstraint => ({ kind: 'bounded', lower, upper: null })),
+  limit.map((upper): ParameterConstraint => ({ kind: 'bounded', lower: null, upper })),
+  fc
+    .tuple(limit, fc.double({ min: 0.5, max: 100, noNaN: true, noDefaultInfinity: true }))
+    .map(([lower, width]): ParameterConstraint => ({
+      kind: 'bounded',
+      lower,
+      upper: lower + width,
+    })),
+);
 
 const comparisons: fc.Arbitrary<Comparisons> = fc.oneof(
   fc.constant<Comparisons>({ kind: 'none' }),
@@ -124,10 +141,15 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     options: DEFAULT_OPTIONS['linear-regression'],
   }),
   fc
-    .record({ x: fc.constantFrom('log' as const, 'concentration' as const) })
+    .record({
+      x: fc.constantFrom('log' as const, 'concentration' as const),
+      bottom: parameterConstraint,
+      top: parameterConstraint,
+      hillSlope: parameterConstraint,
+    })
     .map((o): AnalysisSpec => ({
       kind: 'nonlinear-regression',
-      options: { model: 'log-agonist-variable-slope', x: o.x },
+      options: { model: 'log-agonist-variable-slope', ...o },
     })),
   fc.constant<AnalysisSpec>({
     kind: 'growth-curve',

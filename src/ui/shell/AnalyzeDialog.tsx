@@ -5,6 +5,7 @@
  */
 import { type ReactNode, useState } from 'react';
 
+import { optionsProblem } from '@/analyses/nonlinear-regression/constraints';
 import { type Id, newId } from '@/model/ids';
 import {
   type Analysis,
@@ -24,6 +25,7 @@ import {
   type NestedTTestOptions,
   type NonlinearRegressionOptions,
   type OneWayOptions,
+  type ParameterConstraint,
   type RankTestOptions,
   REPEATED_TWO_WAY_FAMILIES,
   type RepeatedTwoWayFamily,
@@ -516,6 +518,161 @@ function DoseResponseFields(props: {
       >
         Doses or concentrations (e.g. 1e-9); a zero dose is left out, since it has no log
       </Radio>
+    </fieldset>
+  );
+}
+
+/** A number typed into a limit or a constant; empty is `null`, text that isn't a number is `NaN`. */
+function parseTyped(text: string): number | null {
+  const t = text.trim().replace(',', '.').replace('−', '-');
+  return t === '' ? null : Number(t);
+}
+
+function TypedNumber(props: {
+  readonly label: string;
+  readonly value: number | null;
+  readonly onChange: (v: number | null) => void;
+}) {
+  const [text, setText] = useState(
+    props.value === null || Number.isNaN(props.value) ? '' : String(props.value),
+  );
+  return (
+    <label className="constraint-number">
+      <span>{props.label}</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        aria-label={props.label}
+        value={text}
+        onChange={(e) => {
+          setText(e.currentTarget.value);
+          props.onChange(parseTyped(e.currentTarget.value));
+        }}
+      />
+    </label>
+  );
+}
+
+const CONSTRAINT_STARTS: Readonly<Record<'bottom' | 'top' | 'hillSlope', ParameterConstraint>> = {
+  bottom: { kind: 'bounded', lower: 0, upper: null },
+  top: { kind: 'bounded', lower: null, upper: 100 },
+  hillSlope: { kind: 'bounded', lower: 0, upper: null },
+};
+const FIXED_STARTS = { bottom: 0, top: 100, hillSlope: 1 } as const;
+
+/** One curve parameter: estimate it, hold it at a constant, or keep it within limits (item 35, #96). */
+function ConstraintField(props: {
+  readonly name: 'bottom' | 'top' | 'hillSlope';
+  readonly label: string;
+  readonly c: ParameterConstraint;
+  readonly set: (c: ParameterConstraint) => void;
+}) {
+  const { name, label, c, set } = props;
+  const mode = (kind: ParameterConstraint['kind']) => {
+    if (kind === c.kind) return;
+    set(
+      kind === 'free'
+        ? { kind }
+        : kind === 'fixed'
+          ? { kind, value: FIXED_STARTS[name] }
+          : CONSTRAINT_STARTS[name],
+    );
+  };
+  return (
+    <div className="constraint-row">
+      <label className="constraint-name">
+        <span>{label}</span>
+        <select
+          aria-label={`${label}: how to treat it`}
+          value={c.kind}
+          onChange={(e) => {
+            mode(e.currentTarget.value as ParameterConstraint['kind']);
+          }}
+        >
+          <option value="free">Estimate from the data</option>
+          <option value="fixed">Hold at a constant</option>
+          <option value="bounded">Estimate, within limits</option>
+        </select>
+      </label>
+      {c.kind === 'fixed' && (
+        <TypedNumber
+          key="fixed"
+          label={`${label} equals`}
+          value={c.value}
+          onChange={(v) => {
+            set({ kind: 'fixed', value: v ?? Number.NaN });
+          }}
+        />
+      )}
+      {c.kind === 'bounded' && (
+        <>
+          <TypedNumber
+            key="lower"
+            label={`${label} at least`}
+            value={c.lower}
+            onChange={(v) => {
+              set({ ...c, lower: v });
+            }}
+          />
+          <TypedNumber
+            key="upper"
+            label={`${label} at most`}
+            value={c.upper}
+            onChange={(v) => {
+              set({ ...c, upper: v });
+            }}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Fixing or bounding Bottom, Top and HillSlope: the usual cure when the data miss a plateau. */
+function ConstraintFields(props: {
+  readonly o: NonlinearRegressionOptions;
+  readonly set: (o: NonlinearRegressionOptions) => void;
+}) {
+  const { o, set } = props;
+  const problem = optionsProblem(o);
+  return (
+    <fieldset>
+      <legend>Curve parameters</legend>
+      <ConstraintField
+        name="bottom"
+        label="Bottom"
+        c={o.bottom}
+        set={(bottom) => {
+          set({ ...o, bottom });
+        }}
+      />
+      <ConstraintField
+        name="top"
+        label="Top"
+        c={o.top}
+        set={(top) => {
+          set({ ...o, top });
+        }}
+      />
+      <ConstraintField
+        name="hillSlope"
+        label="HillSlope"
+        c={o.hillSlope}
+        set={(hillSlope) => {
+          set({ ...o, hillSlope });
+        }}
+      />
+      <p className="hint">
+        If your data don’t reach a plateau, hold it at the value you know (Bottom = 0 after
+        subtracting a baseline, Top = 100 for percent-of-control data, HillSlope = 1 for simple
+        binding). Each held parameter is one less to estimate, so the fit needs fewer points and its
+        intervals get tighter. A limit that the best fit runs into is treated as a held value.
+      </p>
+      {problem && (
+        <p className="hint" role="alert">
+          {problem}
+        </p>
+      )}
     </fieldset>
   );
 }
@@ -1602,12 +1759,20 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             />
           )}
           {kind === 'nonlinear-regression' && (
-            <DoseResponseFields
-              o={options['nonlinear-regression']}
-              set={(o) => {
-                set('nonlinear-regression', o);
-              }}
-            />
+            <>
+              <DoseResponseFields
+                o={options['nonlinear-regression']}
+                set={(o) => {
+                  set('nonlinear-regression', o);
+                }}
+              />
+              <ConstraintFields
+                o={options['nonlinear-regression']}
+                set={(o) => {
+                  set('nonlinear-regression', o);
+                }}
+              />
+            </>
           )}
 
           {offersNormality && (
@@ -1636,7 +1801,14 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
             <button type="button" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="primary" disabled={picked.length === 0}>
+            <button
+              type="submit"
+              className="primary"
+              disabled={
+                picked.length === 0 ||
+                (kind === 'nonlinear-regression' && optionsProblem(options[kind]) !== null)
+              }
+            >
               {analysis ? 'Update' : 'Analyze'}
             </button>
           </div>

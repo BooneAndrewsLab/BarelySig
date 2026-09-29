@@ -672,13 +672,13 @@ export function linearRegressionReading(r: LinearRegressionResult): string {
 export function doseResponseWhy(o: Extract<DoseResponseOutcome, { ran: false }>): string {
   switch (o.why) {
     case 'few':
-      return `it has too few points to fit a four-parameter curve (needs at least ${String(o.minimum ?? 5)})`;
+      return `it has too few points to fit this curve (needs at least ${String(o.minimum ?? 5)})`;
     case 'few-x':
-      return `it has fewer than ${String(o.minimum ?? 4)} different X values, too few doses to tell four parameters apart`;
+      return `it has fewer than ${String(o.minimum ?? 4)} different X values, too few doses to tell the parameters apart`;
     case 'constant-y':
       return 'Y never varies, so there is no curve to fit';
     case 'no-fit':
-      return 'the fit didn’t converge — usually because the doses don’t reach both plateaus of the curve; a wider dose range, or fixing a plateau, helps';
+      return 'the fit didn’t converge — usually because the doses don’t reach both plateaus of the curve; a wider dose range, or holding a plateau at a known value, helps';
   }
 }
 
@@ -695,6 +695,13 @@ export function nonlinearRegressionReading(r: NonlinearRegressionResult): string
       ? 'CI very wide'
       : `95% CI ${interval(o.ec50Lower, o.ec50Upper)}`;
     let text = `${s.title}’s EC50 = ${tilde}${sig(o.ec50)} (${ci}), Hill slope ${sig(o.hillSlope.value)}, R² = ${sig(o.r2)}`;
+    const limited = [
+      o.bottom.status === 'at-bound' ? 'Bottom' : null,
+      o.top.status === 'at-bound' ? 'Top' : null,
+      o.hillSlope.status === 'at-bound' ? 'HillSlope' : null,
+    ].filter((name) => name !== null);
+    if (limited.length > 0)
+      text += ` (${joinAnd(limited)} ran into the limit you set and was held there)`;
     const vague = [o.bottom, o.top, o.logEc50, o.hillSlope].some((p) => p.ambiguous);
     if (vague)
       text +=

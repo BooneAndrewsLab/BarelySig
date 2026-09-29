@@ -1,0 +1,29 @@
+{
+  "input": {
+    "dose": [-8, -8, -8, -6, -6, -6],
+    "y": [2, 4, 3, 96, 99, 97]
+  },
+  "expected": {
+    "n": 6,
+    "dropped": 0,
+    "ran": false,
+    "why": "few_x",
+    "minimum": 3
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 6, dropped = 0, ran = FALSE, why = \"few_x\", minimum = 3)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Six points at two doses with three parameters to estimate: too few doses to tell them apart.",
+  "options": {
+    "x": "log",
+    "hillSlope": {
+      "kind": "fixed",
+      "value": 1
+    }
+  }
+}

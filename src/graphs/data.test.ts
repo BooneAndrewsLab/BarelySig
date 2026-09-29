@@ -6,6 +6,7 @@ import { applyEdit } from '@/model/edits';
 import { type Id, asId } from '@/model/ids';
 import type { Json } from '@/model/json';
 import {
+  DEFAULT_OPTIONS,
   GRAPH_DEFAULTS,
   GROUPED_DEFAULT,
   NESTED_DEFAULT,
@@ -278,7 +279,7 @@ describe('an XY graph fitted from a dose-response curve (item 32, #37)', () => {
         id: asId('a_fit'),
         title: 'Dose-response',
         kind: 'nonlinear-regression',
-        options: { model: 'log-agonist-variable-slope', x: 'log' },
+        options: DEFAULT_OPTIONS['nonlinear-regression'],
         input: { kind: 'table', table: t.id, dataSets: [a.id, b.id] },
       },
     });
@@ -343,7 +344,7 @@ describe('an XY graph fitted from a dose-response curve (item 32, #37)', () => {
     expect(fitted?.band?.[1]).toEqual({ x: -7, y0: 45, y1: 55 });
     expect(few?.id).toBe(b.id);
     expect(few?.fit).toBeUndefined();
-    expect(few?.note).toMatch(/too few points to fit a four-parameter curve/);
+    expect(few?.note).toMatch(/too few points to fit this curve/);
   });
 });
 

@@ -1,0 +1,33 @@
+{
+  "input": {
+    "dose": [-8, -7],
+    "y": [2, 60]
+  },
+  "expected": {
+    "n": 2,
+    "dropped": 0,
+    "ran": false,
+    "why": "few",
+    "minimum": 3
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 2, dropped = 0, ran = FALSE, why = \"few\", minimum = 3)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Two points for the two parameters left: nothing left to estimate scatter from, so the minimum is the number estimated plus one.",
+  "options": {
+    "x": "log",
+    "bottom": {
+      "kind": "fixed",
+      "value": 0
+    },
+    "top": {
+      "kind": "fixed",
+      "value": 100
+    }
+  }
+}

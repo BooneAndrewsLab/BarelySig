@@ -449,6 +449,13 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
               ? 'X is read as a dose and fitted on a log scale; a zero dose has no log, so it is left out of the fit.'
               : 'X is read as the log of the dose (−9 for 1 nM); choose “concentrations” in the settings if you typed doses.',
             'The CIs are asymptotic (symmetric around LogEC50). A “~” marks a value the data barely pin down, usually because a plateau has no points on it.',
+            ...(['bottom', 'top', 'hillSlope'].some(
+              (k) => analysis.options[k as 'bottom' | 'top' | 'hillSlope'].kind !== 'free',
+            )
+              ? [
+                  'Some parameters are held at a constant or kept within limits. A held parameter is not estimated, so it has no SE or CI; a limit the fit runs into counts as held.',
+                ]
+              : []),
           ],
         },
       ];

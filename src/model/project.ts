@@ -114,7 +114,22 @@ export type LinearRegressionOptions = Readonly<Record<string, never>>;
 export interface NonlinearRegressionOptions {
   readonly model: 'log-agonist-variable-slope';
   readonly x: 'log' | 'concentration';
+  /** What to do with each curve parameter (item 35, #96): estimate it, hold it at a constant, or keep it inside limits. */
+  readonly bottom: ParameterConstraint;
+  readonly top: ParameterConstraint;
+  readonly hillSlope: ParameterConstraint;
 }
+
+/**
+ * A curve parameter's constraint (item 35, #96): `free` is estimated from
+ * the data, `fixed` is held at a constant (Prism's "constant equal to"),
+ * `bounded` is estimated but kept above `lower` and/or below `upper`
+ * (null = no limit on that side; at least one is set).
+ */
+export type ParameterConstraint =
+  | { readonly kind: 'free' }
+  | { readonly kind: 'fixed'; readonly value: number }
+  | { readonly kind: 'bounded'; readonly lower: number | null; readonly upper: number | null };
 
 /**
  * A growth curve fit (item 33, #94): Zwietering's reparameterized
@@ -350,7 +365,13 @@ export const DEFAULT_OPTIONS: {
   'contingency-fisher': {},
   correlation: { method: 'pearson' },
   'linear-regression': {},
-  'nonlinear-regression': { model: 'log-agonist-variable-slope', x: 'log' },
+  'nonlinear-regression': {
+    model: 'log-agonist-variable-slope',
+    x: 'log',
+    bottom: { kind: 'free' },
+    top: { kind: 'free' },
+    hillSlope: { kind: 'free' },
+  },
   'growth-curve': { model: 'gompertz' },
   'graph-summary': { whiskers: null, kde: null },
 };
