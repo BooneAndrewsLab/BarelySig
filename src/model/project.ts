@@ -139,7 +139,21 @@ export interface NonlinearRegressionOptions {
   readonly hillSlope: ParameterConstraint;
   /** Compare the fit with a simpler model (item 36, #98); null = just fit. */
   readonly compare: SimplerModel | null;
+  /** Parameters that take one value for every chosen data set (item 38, #97); all false = independent fits. */
+  readonly shared: SharedParameters;
 }
+
+/**
+ * Which curve parameters are shared across the Y data sets of a global fit
+ * (item 38, #97): estimated once from all the data sets together instead of
+ * once per data set. A parameter that is held at a constant has nothing to share.
+ */
+export type SharedParameters = Readonly<{
+  bottom: boolean;
+  top: boolean;
+  hillSlope: boolean;
+  logEc50: boolean;
+}>;
 
 /**
  * The simpler model a dose-response fit is compared with (item 36, #98):
@@ -405,6 +419,7 @@ export const DEFAULT_OPTIONS: {
     top: { kind: 'free' },
     hillSlope: { kind: 'free' },
     compare: null,
+    shared: { bottom: false, top: false, hillSlope: false, logEc50: false },
   },
   'growth-curve': { model: 'gompertz' },
   'graph-summary': { whiskers: null, kde: null },

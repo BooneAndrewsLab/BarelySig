@@ -723,3 +723,370 @@ fixture("inhibitor-normalized-standard-slope-one-point",
   expr = list(n = 1, dropped = 0, ran = FALSE, why = "few", minimum = 2),
   options = list(model = "log-inhibitor-normalized-standard-slope", x = "log"),
   note = "One point for the one parameter left (LogIC50): no residual degrees of freedom, so the minimum is 2.")
+
+# --- Global fits (#97, item 38) ---------------------------------------------
+#
+# Parameters shared across data sets: one stacked least-squares problem.
+# The reference is written from the definition: the unknown vector holds a
+# shared parameter once and an unshared one per data set; the residuals of
+# all points are minimised by a Levenberg-Marquardt with a five-point
+# numerical Jacobian (the app uses the analytic one), from the independent
+# fit of each data set and from the pooled fit (`ref_optimum`, above). df =
+# points - unknowns; one s^2 = SS / df serves every SE, CI and band, as in
+# Prism's global fits. `check` then fits the same data with
+# drc::drm(curveid =, pmodels =) and requires the same optimum.
+global_extra <- quote({
+  # shared: which of (Bottom, Top, LogEC50, HillSlope) are one value for all
+  # data sets. g: each row's data set. Rows with a missing dose or response
+  # are dropped first (the app never sees them).
+  run_global <- function(dose, y, g, shared, log_x = TRUE, bounds = limits()) {
+    lower <- bounds$lower
+    upper <- bounds$upper
+    fixed <- lower == upper
+    ids <- sort(unique(g))
+    k <- length(ids)
+    ok <- !is.na(y) & !is.na(dose)
+    dropped <- vapply(ids, function(i) if (log_x) 0 else sum(ok & g == i & dose <= 0), 0)
+    if (!log_x) ok <- ok & dose > 0
+    x <- (if (log_x) dose else log10(dose))[ok]
+    yy <- y[ok]
+    gg <- match(g[ok], ids)
+    n_i <- tabulate(gg, k)
+    back <- if (log_x) function(v) v else function(v) 10^v
+    # slot[i, j]: which unknown is parameter j of data set i (0 = held).
+    slot <- matrix(0L, k, 4)
+    m <- 0L
+    for (j in 1:4) {
+      if (fixed[j]) next
+      if (shared[j]) {
+        m <- m + 1L
+        slot[, j] <- m
+      } else {
+        for (i in 1:k) {
+          m <- m + 1L
+          slot[i, j] <- m
+        }
+      }
+    }
+    n <- length(x)
+    per_row <- function(th, j) ifelse(slot[gg, j] > 0, th[pmax(slot[gg, j], 1L)], lower[j])
+    predict <- function(th, xs = x) {
+      b <- per_row(th, 1); t <- per_row(th, 2); l <- per_row(th, 3); h <- per_row(th, 4)
+      b + (t - b) / (1 + 10^((l - xs) * h))
+    }
+    rss <- function(th) sum((yy - predict(th))^2)
+    jac <- function(th) {
+      sapply(seq_len(m), function(u) {
+        h <- 1e-4
+        at <- function(s) {
+          q <- th
+          q[u] <- th[u] + s * h
+          predict(q)
+        }
+        (at(-2) - 8 * at(-1) + 8 * at(1) - at(2)) / (12 * h)
+      })
+    }
+    lm <- function(th) {
+      lambda <- 1e-3
+      for (it in 1:2000) {
+        J <- jac(th)
+        A <- crossprod(J)
+        step <- tryCatch(
+          unname(drop(solve(A + lambda * diag(diag(A), m), crossprod(J, yy - predict(th))))),
+          error = function(e) NULL
+        )
+        if (is.null(step) || any(!is.finite(step))) {
+          lambda <- lambda * 10
+          if (lambda > 1e12) break
+          next
+        }
+        cand <- th + step
+        if (rss(cand) <= rss(th)) {
+          moved <- max(abs(cand - th) / pmax(abs(cand), 1e-8))
+          th <- cand
+          lambda <- lambda / 10
+          if (moved < 1e-14) break
+        } else {
+          lambda <- lambda * 10
+        }
+        if (lambda > 1e12) break
+      }
+      for (it in 1:5) th <- th + unname(drop(qr.coef(qr(jac(th)), yy - predict(th))))
+      th
+    }
+    # A start from a table of parameters, one row per data set.
+    start_from <- function(rows) {
+      th <- numeric(m)
+      for (j in 1:4) {
+        if (fixed[j]) next
+        if (shared[j]) th[slot[1, j]] <- mean(rows[, j]) else th[slot[, j]] <- rows[, j]
+      }
+      th
+    }
+    pooled <- ref_optimum(x, yy, lower = lower, upper = upper)
+    own <- t(vapply(1:k, function(i) {
+      if (n_i[i] < 6) return(pooled)
+      tryCatch(ref_optimum(x[gg == i], yy[gg == i], lower = lower, upper = upper), error = function(e) pooled)
+    }, numeric(4)))
+    best <- NULL
+    for (s in list(start_from(matrix(pooled, k, 4, byrow = TRUE)), start_from(own))) {
+      th <- tryCatch(lm(s), error = function(e) NULL)
+      if (!is.null(th) && (is.null(best) || rss(th) < rss(best))) best <- th
+    }
+    th <- best
+    J <- jac(th)
+    A <- crossprod(J)
+    Ainv <- solve(A)
+    df <- n - m
+    resid <- yy - predict(th)
+    ss_all <- sum(resid^2)
+    s2 <- ss_all / df
+    se <- sqrt(s2 * diag(Ainv))
+    dependency <- pmax(0, 1 - 1 / (diag(A) * diag(Ainv))) # a lone parameter: 0, not rounding noise
+    t <- qt(0.975, df)
+    series <- lapply(1:k, function(i) {
+      rows <- which(gg == i)
+      p <- vapply(1:4, function(j) if (slot[i, j] > 0) th[slot[i, j]] else lower[j], 0)
+      par <- function(j) {
+        u <- slot[i, j]
+        if (u == 0) return(ref_held(p[j], "fixed"))
+        ref_param(p[j], se[u], t, dependency[u])
+      }
+      xi <- x[rows]
+      ord <- order(xi)
+      ri <- resid[rows]
+      grid <- seq(min(xi), max(xi), length.out = 100)
+      on <- which(slot[i, ] > 0)
+      # Gradient of the curve at the grid, by five-point differences, against this data set's unknowns.
+      G <- sapply(on, function(j) {
+        h <- 1e-4
+        at <- function(s) {
+          q <- p
+          q[j] <- p[j] + s * h
+          ref_curve(grid, q)
+        }
+        (at(-2) - 8 * at(-1) + 8 * at(1) - at(2)) / (12 * h)
+      })
+      Ai <- Ainv[slot[i, on], slot[i, on], drop = FALSE]
+      var_fit <- vapply(seq_along(grid), function(r) drop(G[r, ] %*% Ai %*% G[r, ]), 0) * s2
+      fit_grid <- ref_curve(grid, p)
+      signs <- sign(ri[ord])
+      list(
+        n = n_i[i], dropped = dropped[i], ran = TRUE,
+        bottom = par(1), top = par(2), logec50 = par(3), hill = par(4),
+        ec50 = 10^p[3], ec50_lower = 10^(p[3] - t * se[slot[i, 3]]), ec50_upper = 10^(p[3] + t * se[slot[i, 3]]),
+        df = df, ss = sum(ri^2), syx = sqrt(s2), r2 = 1 - sum(ri^2) / sum((yy[rows] - mean(yy[rows]))^2),
+        x = back(xi[ord]), y = yy[rows][ord], fitted = (yy[rows] - ri)[ord], residual = ri[ord],
+        runs = ref_runs(signs[signs != 0]),
+        band = list(
+          x = back(grid), fit = fit_grid,
+          confidence_lower = fit_grid - t * sqrt(var_fit),
+          confidence_upper = fit_grid + t * sqrt(var_fit),
+          prediction_lower = fit_grid - t * sqrt(var_fit + s2),
+          prediction_upper = fit_grid + t * sqrt(var_fit + s2)
+        )
+      )
+    })
+    list(series = series, global = list(n = n, parameters = m, df = df, ss = ss_all, syx = sqrt(s2)))
+  }
+})
+global_reference <- as.call(c(as.name("{"), as.list(reference)[-1], as.list(global_extra)[-1]))
+
+# drc fits the same stacked problem: curveid = the data set, and pmodels
+# says per parameter whether it is one value (1) or one per data set.
+# drc's parameters are b (= -HillSlope * ln 10), c (Bottom), d (Top), e
+# (LogEC50); a held parameter is removed with fixed =. The optimum must
+# agree to 1e-2 and its sum of squares to 1e-6 relative -- the same minimum,
+# not just a local one.
+global_drc_agrees <- function(dose, y, g, expected, shared, log_x, bounds) {
+  lower <- bounds$lower
+  upper <- bounds$upper
+  fixed <- lower == upper
+  ok <- !is.na(y) & !is.na(dose)
+  if (!log_x) ok <- ok & dose > 0
+  x <- (if (log_x) dose else log10(dose))[ok]
+  yy <- y[ok]
+  gf <- factor(g[ok])
+  k <- nlevels(gf)
+  fixed_b <- c(if (fixed[4]) -lower[4] * log(10) else NA, if (fixed[1]) lower[1] else NA,
+    if (fixed[2]) lower[2] else NA, NA)
+  order_drc <- c(4, 1, 2, 3) # drc's b, c, d, e = our HillSlope, Bottom, Top, LogEC50
+  pm <- lapply(which(is.na(fixed_b)), function(u) if (shared[order_drc[u]]) rep(1, length(gf)) else gf)
+  pmdf <- as.data.frame(setNames(pm, paste0("p", seq_along(pm))))
+  dat <- data.frame(yy = yy, x = x, gf = gf)
+  d <- do.call(drm, list(yy ~ x, curveid = quote(gf), data = dat, fct = L.4(fixed = fixed_b),
+    pmodels = pmdf, control = drmc(relTol = 1e-12, maxIt = 10000)))
+  cf <- coef(d)
+  letters_free <- c("b", "c", "d", "e")[is.na(fixed_b)]
+  drc_p <- matrix(NA_real_, k, 4)
+  for (i in 1:k) {
+    b <- fixed_b
+    for (u in seq_along(letters_free)) {
+      nm <- paste0(letters_free[u], ":", levels(gf)[i])
+      b[match(letters_free[u], c("b", "c", "d", "e"))] <- if (nm %in% names(cf)) cf[[nm]] else cf[[paste0(letters_free[u], ":(Intercept)")]]
+    }
+    drc_p[i, ] <- c(b[2], b[3], b[4], -b[1] / log(10))
+  }
+  ours <- t(vapply(expected$series, function(s) c(s$bottom$value, s$top$value, s$logec50$value, s$hill$value), numeric(4)))
+  if (max(abs(drc_p - ours) / pmax(abs(ours), 1e-8)) > 1e-2) {
+    stop("drc is far off: ", paste(signif(drc_p, 6), collapse = ", "), " vs ours ", paste(signif(ours, 6), collapse = ", "))
+  }
+  # drc's own sum of squares and df are the stacked fit's: the same
+  # minimum, not just a nearby one (drc stops a hair short of it).
+  stopifnot(
+    abs(sum(residuals(d)^2) - expected$global$ss) <= 1e-6 * expected$global$ss,
+    df.residual(d) == expected$global$df
+  )
+  # A shared parameter has one value in every data set.
+  for (j in which(shared & !fixed)) stopifnot(length(unique(round(ours[, j], 12))) == 1)
+  TRUE
+}
+
+# With nothing actually shared the stacked fit is the separate fits: the
+# same parameters and sum of squares for every data set (their SEs differ,
+# since one s^2 pools all the data sets). `bounds` as in the case.
+global_equals_separate <- function(dose, y, g, expected, bounds, ref_fit) {
+  ok <- !is.na(y)
+  for (i in sort(unique(g))) {
+    one <- ref_fit(dose[ok & g == i], y[ok & g == i], bounds = bounds)
+    s <- expected$series[[i]]
+    for (nm in c("bottom", "top", "logec50", "hill")) {
+      stopifnot(abs(s[[nm]]$value - one[[nm]]$value) <= 1e-6 * max(abs(one[[nm]]$value), 1e-8))
+    }
+    stopifnot(abs(s$ss - one$ss) <= 1e-6 * one$ss)
+  }
+  TRUE
+}
+
+gopts <- function(bottom = FALSE, top = FALSE, hillSlope = FALSE, logEc50 = FALSE) {
+  list(bottom = bottom, top = top, hillSlope = hillSlope, logEc50 = logEc50)
+}
+
+fixture("global-hill-shared",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3),
+    y = c(-0.089, 16.336, 27.261, 56.968, 77.059, 92.793, 98.189, 96.265, 100.415, 98.148, 102.067, 1.957, 4.991, 11.510, 16.031, 39.788, 69.185, 84.565, 88.809, 94.677, 91.961, 95.367, -1.923, 1.862, 2.706, 6.683, 5.403, 25.828, 59.489, 89.425, 96.085, 100.171, 103.972)
+  ),
+  expr = run_global(dose, y, g, shared = c(FALSE, FALSE, FALSE, TRUE)), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(FALSE, FALSE, FALSE, TRUE), TRUE, limits()), check_packages = "drc",
+  options = list(x = "log", shared = gopts(hillSlope = TRUE)),
+  note = "Three curves that differ in potency and plateaus, one HillSlope for all: 3 x 3 + 1 = 10 parameters over 33 points (df 23). The shared slope shows the same value, SE and CI in every data set.")
+
+fixture("global-plateaus-shared",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(0.672, 13.563, 6.998, 7.357, 15.694, 15.210, 32.484, 30.435, 54.036, 50.276, 71.797, 73.730, 86.657, 81.493, 89.367, 91.129, 95.832, 92.929, 98.906, 97.325, 99.071, 98.256, 2.730, 6.385, 6.754, 0.005, 3.577, 6.059, 3.714, 5.202, 6.562, 10.938, 26.612, 26.176, 70.121, 71.514, 94.605, 94.462, 95.280, 95.301, 101.952, 95.855, 103.139, 97.802)
+  ),
+  expr = run_global(dose, y, g, shared = c(TRUE, TRUE, FALSE, FALSE)), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(TRUE, TRUE, FALSE, FALSE), TRUE, limits()), check_packages = "drc",
+  options = list(x = "log", shared = gopts(bottom = TRUE, top = TRUE)),
+  note = "Two duplicate curves with the same plateaus but different potency and slope: Bottom and Top shared, LogEC50 and HillSlope separate (6 parameters over 44 points).")
+
+fixture("global-ec50-shared",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -4, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(-2.504, -0.319, 1.029, 0.242, 7.419, 2.405, 9.435, 10.354, 22.359, 22.117, 46.582, 46.904, 62.547, 63.364, 82.496, 79.871, 82.312, 90.533, 90.598, 88.994, 92.556, 86.342, 4.285, 5.119, 7.973, 9.674, 6.385, 13.672, 9.253, 13.697, 27.363, 18.958, 52.932, 51.435, 89.241, 80.601, 96.698, 101.758, 100.442, 98.460, 93.787, 97.369, 99.045, 99.733)
+  ),
+  expr = run_global(dose, y, g, shared = c(FALSE, FALSE, TRUE, FALSE)), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(FALSE, FALSE, TRUE, FALSE), TRUE, limits()), check_packages = "drc",
+  options = list(x = "log", shared = gopts(logEc50 = TRUE)),
+  note = "Two curves that share their EC50 but differ in plateaus and slope: only LogEC50 is one value (7 parameters over 44 points), and the EC50 CI is the same in both.")
+
+fixture("global-all-shared",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3),
+    y = c(-0.875, 0.111, 9.073, 6.263, 27.660, 55.393, 71.104, 79.255, 85.851, 94.801, 100.993, 4.546, 1.634, 4.244, 9.986, 26.442, 49.368, 74.843, 92.572, 99.420, 98.118, 108.829, -1.001, 9.190, 8.979, 18.879, 23.080, 45.928, 77.426, 88.544, 94.911, 105.030, 103.445)
+  ),
+  expr = run_global(dose, y, g, shared = c(TRUE, TRUE, TRUE, TRUE)), setup = global_reference,
+  check = {
+    global_drc_agrees(dose, y, g, expected, c(TRUE, TRUE, TRUE, TRUE), TRUE, limits())
+    # One curve through all three data sets is the pooled fit: the same
+    # parameters and sum of squares as fitting the stacked points as one set.
+    pooled <- run_fpl_one(dose, y)
+    stopifnot(abs(expected$global$ss - pooled$ss) <= 1e-6 * pooled$ss, expected$global$df == pooled$df,
+      abs(expected$series[[1]]$logec50$value - pooled$logec50$value) <= 1e-6 * abs(pooled$logec50$value))
+    TRUE
+  }, check_packages = "drc",
+  options = list(x = "log", shared = gopts(TRUE, TRUE, TRUE, TRUE)),
+  note = "Everything shared: one curve through the three data sets, four parameters over 33 points (df 29). Equal to fitting all the points as a single data set.")
+
+fixture("global-off-two-sets",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(4.799, 9.922, 18.835, 46.470, 82.761, 91.531, 96.998, 98.411, 101.658, 93.905, 98.327, 1.619, 3.790, 8.942, 9.313, 21.885, 36.639, 65.609, 74.136, 93.300, 92.122, 99.616)
+  ),
+  expr = list(series = list(run_fpl(dose[g == 1], y[g == 1]), run_fpl(dose[g == 2], y[g == 2]))),
+  setup = reference,
+  options = list(x = "log", shared = gopts()),
+  note = "Two data sets with nothing shared: the ordinary separate fits, each with its own s^2, its own df and its own curve (the multi-data-set path is the independent single fit).")
+
+fixture("global-none-shared-engine",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3),
+    y = c(1.315, 11.972, 25.722, 46.615, 76.472, 97.910, 94.664, 94.645, 101.217, 8.216, 5.614, 5.083, 4.536, 16.631, 48.966, 77.348, 94.545, 96.077, -3.953, -8.188, -1.511, 4.459, 2.789, 19.089, 36.623, 70.888, 79.712)
+  ),
+  expr = run_global(dose, y, g, shared = c(TRUE, TRUE, FALSE, TRUE), bounds = limits(bottom = 0, top = 100, hill = 1)), setup = global_reference,
+  check = {
+    global_drc_agrees(dose, y, g, expected, c(TRUE, TRUE, FALSE, TRUE), TRUE, limits(bottom = 0, top = 100, hill = 1))
+    global_equals_separate(dose, y, g, expected, limits(bottom = 0, top = 100, hill = 1), run_fpl_one)
+  }, check_packages = "drc",
+  options = list(x = "log", bottom = list(kind = "fixed", value = 0), top = list(kind = "fixed", value = 100), hillSlope = list(kind = "fixed", value = 1), shared = gopts(TRUE, TRUE, TRUE, FALSE)),
+  note = "Bottom, Top and HillSlope are held, so ticking them as shared changes nothing: the stacked fit has only the three LogEC50s free and equals the three separate fits (same parameters and sum of squares; the SEs use one s^2 for all the points, so they differ from the separate fits').")
+
+fixture("global-missing-unequal",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -3.5, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -8, -7.5, -7, -6.5, -6, -5.5, -5),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3),
+    y = c(6.216, 7.350, NA, 49.586, 78.683, 90.767, 86.253, 101.803, 95.286, 100.180, 100.104, 104.472, 5.398, 8.893, 21.975, 35.286, 71.221, NA, 96.841, 94.920, 97.840, 3.414, 9.283, 12.638, NA, 51.908, 82.937, 93.061)
+  ),
+  expr = run_global(dose, y, g, shared = c(TRUE, FALSE, FALSE, TRUE)), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(TRUE, FALSE, FALSE, TRUE), TRUE, limits()), check_packages = "drc",
+  options = list(x = "log", shared = gopts(bottom = TRUE, hillSlope = TRUE)),
+  note = "Three data sets of 12, 9 and 7 dose levels with an empty Y cell in each (11, 8 and 6 points left): each empty cell drops that point only, and the shared Bottom and HillSlope use every remaining point (25 points, 7 parameters).")
+
+fixture("global-small-set",
+  input = list(
+    dose = c(-9, -8.5, -8, -7.5, -7, -6.5, -6, -5.5, -5, -4.5, -4, -8, -7, -6, -4.5),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2),
+    y = c(4.538, 2.446, 12.071, 29.692, 68.385, 89.347, 97.126, 99.889, 97.384, 96.137, 102.674, 9.151, 8.197, 48.407, 96.654)
+  ),
+  expr = run_global(dose, y, g, shared = c(TRUE, TRUE, FALSE, TRUE)), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(TRUE, TRUE, FALSE, TRUE), TRUE, limits()), check_packages = "drc",
+  options = list(x = "log", shared = gopts(TRUE, TRUE, TRUE, FALSE)),
+  note = "A second data set of only four points, which no four-parameter curve could fit alone: with Bottom, Top and HillSlope shared, it needs only its own LogEC50 (5 parameters over 15 points).")
+
+fixture("global-concentration",
+  input = list(
+    dose = c(0, 1e-09, 3e-09, 1e-08, 3e-08, 1e-07, 3e-07, 1e-06, 3e-06, 1e-05, 0, 1e-09, 3e-09, 1e-08, 3e-08, 1e-07, 3e-07, 1e-06, 3e-06, 1e-05),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(0.110, 0.062, 0.195, 0.417, 0.769, 1.439, 1.719, 1.877, 2.047, 2.024, 0.130, 0.102, 0.091, 0.133, 0.290, 0.682, 1.172, 1.680, 1.771, 1.960)
+  ),
+  expr = run_global(dose, y, g, shared = c(TRUE, TRUE, FALSE, TRUE), log_x = FALSE), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(TRUE, TRUE, FALSE, TRUE), FALSE, limits()), check_packages = "drc",
+  options = list(x = "concentration", shared = gopts(TRUE, TRUE, TRUE, FALSE)),
+  note = "Molar concentrations with a zero-dose control in each data set: the zeros are left out (and counted) per data set, the fit is on log10(dose), and EC50s keep their magnitude.")
+
+fixture("global-inhibitor-normalized",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6, -5.5, -5.5, -5, -5, -4.5, -4.5),
+    g = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2),
+    y = c(101.586, 97.384, 99.095, 99.876, 91.428, 92.551, 79.059, 79.118, 53.651, 59.411, 18.921, 25.415, 2.132, 3.031, -4.441, 2.939, 2.476, 3.657, 0.020, -13.086, 96.540, 94.733, 104.244, 102.240, 103.644, 94.552, 99.461, 96.191, 88.666, 86.322, 57.270, 57.643, 12.418, 19.194, 9.082, 11.686, -4.830, 3.895, 7.496, 3.529)
+  ),
+  expr = run_global(dose, y, g, shared = c(FALSE, FALSE, FALSE, TRUE), bounds = limits(bottom = 0, top = 100)), setup = global_reference,
+  check = global_drc_agrees(dose, y, g, expected, c(FALSE, FALSE, FALSE, TRUE), TRUE, limits(bottom = 0, top = 100)), check_packages = "drc",
+  options = list(model = "log-inhibitor-normalized-variable-slope", x = "log", shared = gopts(hillSlope = TRUE)),
+  note = "Two inhibition curves as percent of control (Bottom 0 and Top 100 held by the model), one negative HillSlope shared, a LogIC50 each: 3 parameters over 40 points.")
+
+fixture("global-too-few",
+  input = list(dose = c(-8, -6, -7, -5), g = c(1, 1, 2, 2), y = c(10, 90, 20, 80)),
+  expr = list(series = list(
+    list(n = 2, dropped = 0, ran = FALSE, why = "few", minimum = 5),
+    list(n = 2, dropped = 0, ran = FALSE, why = "few", minimum = 5))),
+  options = list(x = "log", shared = gopts(TRUE, TRUE, TRUE, TRUE)),
+  note = "Four points for the four parameters of one shared curve: nothing left to estimate scatter from, so the whole fit is refused (needs at least 5 points).")

@@ -14,10 +14,11 @@ import type { AnalysisModule, Prepared } from '../module';
 import type { ParameterConstraint } from '@/model/project';
 import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
-import { optionsProblem } from './constraints';
+import { effectiveShared, optionsProblem } from './constraints';
 import { effectiveConstraints } from './models';
 import type {
   ComparisonOutcome,
+  GlobalFit,
   DoseResponseOutcome,
   FitParameter,
   NonlinearRegressionRequest,
@@ -118,6 +119,18 @@ function comparison(v: Plain | undefined): ComparisonOutcome | null {
   };
 }
 
+function globalFit(v: Plain | undefined): GlobalFit | null {
+  if (v === undefined || v === null) return null;
+  const g = object(v, 'global fit');
+  return {
+    n: need(g['n'], 'global n'),
+    parameters: need(g['parameters'], 'global parameters'),
+    df: need(g['df'], 'global df'),
+    ss: need(g['ss'], 'global sum of squares'),
+    syx: need(g['syx'], 'global Sy.x'),
+  };
+}
+
 const WHY = {
   few: 'few',
   few_x: 'few-x',
@@ -176,7 +189,7 @@ export const nonlinearRegression: AnalysisModule<
   NonlinearRegressionResult
 > = {
   kind: 'nonlinear-regression',
-  version: 4,
+  version: 5,
   code,
 
   prepare(analysis, project): Prepared<NonlinearRegressionRequest> {
@@ -192,7 +205,7 @@ export const nonlinearRegression: AnalysisModule<
       return { ok: false, reason: 'Choose a Y data set to fit a curve to.' };
     }
     const { bottom, top, hillSlope } = effectiveConstraints(analysis.options);
-    const problem = optionsProblem(analysis.options);
+    const problem = optionsProblem(analysis.options, analysis.input.dataSets.length);
     if (problem) return { ok: false, reason: problem };
     const series = xySeries(table, analysis.input.dataSets);
     const points: { readonly x: number; readonly y: number }[][] = [];
@@ -214,6 +227,7 @@ export const nonlinearRegression: AnalysisModule<
         logX: analysis.options.x === 'log',
         constraints: { bottom, top, hillSlope },
         compare: analysis.options.compare,
+        shared: effectiveShared(analysis.options.shared, series.length),
       },
     };
   },
@@ -228,8 +242,9 @@ export const nonlinearRegression: AnalysisModule<
       limits(request.constraints.hillSlope),
     ];
     const cmp = request.compare;
+    const sh = request.shared;
     return {
-      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has)`,
+      code: `${code}\nbs_nonlinear_regression(x, y, g, k, log_x, lo, hi, has_lo, has_hi, cmp_val, cmp_has, shared)`,
       inputs: {
         x,
         y,
@@ -241,6 +256,7 @@ export const nonlinearRegression: AnalysisModule<
         has_lo: c.map((p) => (p.hasLo ? 1 : 0)),
         has_hi: c.map((p) => (p.hasHi ? 1 : 0)),
         cmp_val: [cmp?.bottom ?? 0, cmp?.top ?? 0, cmp?.hillSlope ?? 0],
+        shared: [sh.bottom, sh.top, sh.logEc50, sh.hillSlope].map((v) => (v ? 1 : 0)),
         cmp_has: [cmp?.bottom, cmp?.top, cmp?.hillSlope].map((v) =>
           v === null || v === undefined ? 0 : 1,
         ),
@@ -256,6 +272,8 @@ export const nonlinearRegression: AnalysisModule<
       logX: request.logX,
       constraints: request.constraints,
       compare: request.compare,
+      shared: request.shared,
+      global: globalFit(r['global']),
       series: list(r['series']).map((v, i) => {
         const named = request.series[i];
         if (!named) throw new Error('nonlinear regression: more series than asked for');

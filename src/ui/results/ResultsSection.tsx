@@ -53,7 +53,7 @@ import type {
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
 import type { Id } from '@/model/ids';
-import type { Analysis, Project } from '@/model/project';
+import type { Analysis, Project, SharedParameters } from '@/model/project';
 import type { Dropped } from '@/model/selectors';
 
 import { Section as PageSection } from '../notebook/Section';
@@ -966,6 +966,21 @@ function constraintSentence(c: NonlinearRegressionResult['constraints']): string
     : `${parts.join('; ')}. A parameter held, or pushed onto a limit, is not estimated: it has no SE or CI, and the degrees of freedom count only the parameters that were. `;
 }
 
+const SHARED_NAMES = [
+  ['bottom', 'Bottom'],
+  ['top', 'Top'],
+  ['hillSlope', 'HillSlope'],
+  ['logEc50', 'LogEC50'],
+] as const;
+
+/** Which parameters were shared, in the methods line (item 38, #97). */
+function sharedSentence(r: NonlinearRegressionResult): string {
+  const names = SHARED_NAMES.filter(([k]) => r.shared[k]).map(([k, n]) =>
+    k === 'logEc50' ? `Log${doseResponseModel(r.model).potency}` : n,
+  );
+  return `${names.join(', ')} shared: fitted to all the data sets together, so each has one value (the same in every column) estimated from all their points; the other parameters are each data set’s own. Standard errors and CIs come from that one combined fit, with its pooled residual variance and degrees of freedom. `;
+}
+
 /** The comparison grid's rows, one column per data set (item 36, #98). */
 function comparisonRows(r: NonlinearRegressionResult): string[][] {
   const compare = r.compare;
@@ -1022,12 +1037,14 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
     ...r.series.map((s) => (s.outcome.ran ? f(s.outcome) : '—')),
   ];
   // A held parameter (fixed by the user, or run into a limit) has no SE or CI: nothing was estimated.
-  const value = (p: FitParameter) =>
-    p.status === 'fixed'
+  const shared = r.global !== null ? r.shared : null;
+  const value = (p: FitParameter, key?: keyof SharedParameters) =>
+    (p.status === 'fixed'
       ? `${sig(p.value)} (fixed)`
       : p.status === 'at-bound'
         ? `${sig(p.value)} (at limit)`
-        : `${p.ambiguous ? '~' : ''}${sig(p.value)}`;
+        : `${p.ambiguous ? '~' : ''}${sig(p.value)}`) +
+    (key !== undefined && shared?.[key] === true && p.status === 'fitted' ? ' (shared)' : '');
   const se = (p: FitParameter) => (p.se === null ? '—' : `${p.ambiguous ? '~' : ''}${sig(p.se)}`);
   const ci = (p: FitParameter) =>
     p.lower === null || p.upper === null
@@ -1049,6 +1066,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
         10^((Log{potency} − X) × HillSlope)).{' '}
         {model.inhibitor && 'A falling curve has a negative HillSlope. '}
         {constraintSentence(r.constraints)}
+        {r.global !== null && sharedSentence(r)}
         {r.logX
           ? 'X is the log of the dose.'
           : 'X is a dose, fitted on a log scale (log₁₀); a zero or negative dose is left out.'}{' '}
@@ -1062,10 +1080,10 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             label="Best-fit values"
             head={head}
             rows={[
-              row('Bottom', (o) => value(o.bottom)),
-              row('Top', (o) => value(o.top)),
-              row(`Log${potency}`, (o) => value(o.logEc50)),
-              row('HillSlope', (o) => value(o.hillSlope)),
+              row('Bottom', (o) => value(o.bottom, 'bottom')),
+              row('Top', (o) => value(o.top, 'top')),
+              row(`Log${potency}`, (o) => value(o.logEc50, 'logEc50')),
+              row('HillSlope', (o) => value(o.hillSlope, 'hillSlope')),
               row(potency, (o) => `${o.logEc50.ambiguous ? '~' : ''}${sig(o.ec50)}`),
               row('Span (Top − Bottom)', (o) => sig(o.top.value - o.bottom.value)),
             ]}
@@ -1110,6 +1128,21 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
                     : `${String(s.outcome.n)} (${s.outcome.why === 'no-fit' ? 'didn’t converge' : 'too few'})`,
                 ),
               ],
+            ]}
+          />
+        </div>
+      )}
+      {r.global !== null && (
+        <div className="results-grid">
+          <Grid
+            label="Whole fit (all data sets together)"
+            head={['', 'All data sets']}
+            rows={[
+              ['Parameters estimated', sig(r.global.parameters, 0)],
+              ['Number of points analyzed', sig(r.global.n, 0)],
+              ['Degrees of freedom', sig(r.global.df, 0)],
+              ['Sum of squares', sig(r.global.ss)],
+              ['Sy.x', sig(r.global.syx)],
             ]}
           />
         </div>

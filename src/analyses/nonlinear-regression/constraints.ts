@@ -4,7 +4,11 @@
  * estimate. Shared by the fit's `prepare` and the Analyze dialog, so the
  * dialog can say so before anything runs.
  */
-import type { NonlinearRegressionOptions, ParameterConstraint } from '@/model/project';
+import type {
+  NonlinearRegressionOptions,
+  ParameterConstraint,
+  SharedParameters,
+} from '@/model/project';
 
 import { effectiveConstraints } from './models';
 
@@ -75,15 +79,54 @@ export function comparisonProblem(
   return null;
 }
 
-/** The first problem with the options’ constraints or comparison, or null. */
+export const anyShared = (s: SharedParameters): boolean =>
+  s.bottom || s.top || s.hillSlope || s.logEc50;
+
+/**
+ * What the fit shares between `dataSets` data sets: what was ticked when
+ * there are two or more, nothing for one (item 38, #97).
+ */
+export function effectiveShared(s: SharedParameters, dataSets: number): SharedParameters {
+  return dataSets >= 2 ? s : { bottom: false, top: false, hillSlope: false, logEc50: false };
+}
+
+/**
+ * What makes sharing parameters unusable with the rest of the options, in
+ * words; null when it is fine. Limits and the comparison with a simpler
+ * model are not combined with sharing (note 38).
+ */
+export function sharingProblem(
+  o: Pick<
+    NonlinearRegressionOptions,
+    'model' | 'bottom' | 'top' | 'hillSlope' | 'compare' | 'shared'
+  >,
+  dataSets: number,
+): string | null {
+  if (!anyShared(effectiveShared(o.shared, dataSets))) return null;
+  const fit = effectiveConstraints(o);
+  if (Object.values(fit).some((c) => c.kind === 'bounded')) {
+    return 'Limits on a parameter can’t be combined with sharing parameters between data sets yet. Hold the parameter at a value, or leave it free, or turn sharing off.';
+  }
+  if (o.compare !== null) {
+    return 'The comparison with a simpler model can’t be combined with sharing parameters between data sets. Turn one of them off.';
+  }
+  return null;
+}
+
+/** The first problem with the options’ constraints, sharing or comparison, or null. */
 export function optionsProblem(
-  o: Pick<NonlinearRegressionOptions, 'model' | 'bottom' | 'top' | 'hillSlope' | 'compare'>,
+  o: Pick<
+    NonlinearRegressionOptions,
+    'model' | 'bottom' | 'top' | 'hillSlope' | 'compare' | 'shared'
+  >,
+  dataSets = 2,
 ): string | null {
   const fit = effectiveConstraints(o);
   return (
     constraintProblem(fit.bottom, 'Bottom', false) ??
     constraintProblem(fit.top, 'Top', false) ??
     constraintProblem(fit.hillSlope, 'HillSlope', true) ??
+    sharingProblem(o, dataSets) ??
     comparisonProblem(o)
   );
 }

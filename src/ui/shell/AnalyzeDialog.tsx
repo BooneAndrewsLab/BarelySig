@@ -684,13 +684,63 @@ function ConstraintField(props: {
   );
 }
 
-/** Fixing or bounding Bottom, Top and HillSlope: the usual cure when the data miss a plateau. */
-function ConstraintFields(props: {
+/**
+ * One value of a parameter for every data set (global fit, item 38, #97).
+ * Offered only with two or more data sets picked.
+ */
+function SharingFields(props: {
   readonly o: NonlinearRegressionOptions;
   readonly set: (o: NonlinearRegressionOptions) => void;
 }) {
   const { o, set } = props;
-  const problem = optionsProblem(o);
+  const fit = effectiveConstraints(o);
+  const rows = [
+    ['bottom', 'Bottom', 'The lowest plateau'],
+    ['top', 'Top', 'The highest plateau'],
+    ['hillSlope', 'HillSlope', 'How steep the curve is'],
+    [
+      'logEc50',
+      o.model.includes('inhibitor') ? 'LogIC50' : 'LogEC50',
+      'Where the curve is halfway',
+    ],
+  ] as const;
+  return (
+    <fieldset>
+      <legend>Share parameters between data sets</legend>
+      {rows.map(([k, label, what]) => {
+        const held = k !== 'logEc50' && fit[k].kind !== 'free';
+        return (
+          <label className="option" key={k}>
+            <input
+              type="checkbox"
+              disabled={held}
+              checked={!held && o.shared[k]}
+              onChange={(e) => {
+                set({ ...o, shared: { ...o.shared, [k]: e.currentTarget.checked } });
+              }}
+            />
+            Same {label} for every data set ({what}
+            {held ? '; already held above' : ''})
+          </label>
+        );
+      })}
+      <p className="hint">
+        Fits all the data sets together in one go, so a ticked parameter gets a single value that
+        uses every data set’s points (useful when a data set is too short or noisy to pin it down
+        alone). Unticked parameters still get their own value in each data set.
+      </p>
+    </fieldset>
+  );
+}
+
+/** Fixing or bounding Bottom, Top and HillSlope: the usual cure when the data miss a plateau. */
+function ConstraintFields(props: {
+  readonly o: NonlinearRegressionOptions;
+  readonly dataSets: number;
+  readonly set: (o: NonlinearRegressionOptions) => void;
+}) {
+  const { o, set } = props;
+  const problem = optionsProblem(o, props.dataSets);
   const rows = [
     ['bottom', 'Bottom'],
     ['top', 'Top'],
@@ -1916,8 +1966,17 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
                   set('nonlinear-regression', o);
                 }}
               />
+              {picked.length >= 2 && (
+                <SharingFields
+                  o={options['nonlinear-regression']}
+                  set={(o) => {
+                    set('nonlinear-regression', o);
+                  }}
+                />
+              )}
               <ConstraintFields
                 o={options['nonlinear-regression']}
+                dataSets={picked.length}
                 set={(o) => {
                   set('nonlinear-regression', o);
                 }}
@@ -1962,7 +2021,8 @@ export function AnalyzeDialog({ table, analysis, onClose }: Props) {
               className="primary"
               disabled={
                 picked.length === 0 ||
-                (kind === 'nonlinear-regression' && optionsProblem(options[kind]) !== null)
+                (kind === 'nonlinear-regression' &&
+                  optionsProblem(options[kind], picked.length) !== null)
               }
             >
               {analysis ? 'Update' : 'Analyze'}

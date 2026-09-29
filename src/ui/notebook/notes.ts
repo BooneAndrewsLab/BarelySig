@@ -8,6 +8,7 @@
 import type { Analysis, Comparisons, ErrorBar, Graph, Project, Whiskers } from '@/model/project';
 import type { Table } from '@/model/table';
 
+import { anyShared, effectiveShared } from '@/analyses/nonlinear-regression/constraints';
 import { doseResponseModel, effectiveConstraints } from '@/analyses/nonlinear-regression/models';
 import { testName } from '../analysisKinds';
 import { COMPARISON_TEST } from '../results/reading';
@@ -460,6 +461,16 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
             ...(Object.values(effective).some((c) => c.kind !== 'free')
               ? [
                   'Some parameters are held at a constant (by the model or by you) or kept within limits. A held parameter is not estimated, so it has no SE or CI; a limit the fit runs into counts as held.',
+                ]
+              : []),
+            ...(anyShared(
+              effectiveShared(
+                analysis.options.shared,
+                analysis.input.kind === 'table' ? analysis.input.dataSets.length : 0,
+              ),
+            )
+              ? [
+                  'The data sets are fitted together: a parameter you shared has one value for all of them, estimated from every data set’s points, while the rest stay each data set’s own. The fit’s degrees of freedom and variance are pooled over all the points, so each data set’s SEs and CIs come from that one combined fit.',
                 ]
               : []),
             ...(analysis.options.compare

@@ -68,7 +68,10 @@ const small = fc.integer({ min: 0, max: 5 });
 const title = fc.string({ maxLength: 6 });
 const tails = fc.constantFrom('two' as const, 'one' as const);
 
-const limit = fc.double({ min: -1000, max: 1000, noNaN: true, noDefaultInfinity: true });
+// JSON has no negative zero, so a file can't hold one: -0 + 0 is 0.
+const limit = fc
+  .double({ min: -1000, max: 1000, noNaN: true, noDefaultInfinity: true })
+  .map((v) => v + 0);
 /** Free, fixed and bounded (one side or both, lower below upper): every shape a dose-response constraint takes. */
 const parameterConstraint: fc.Arbitrary<ParameterConstraint> = fc.oneof(
   fc.constant<ParameterConstraint>({ kind: 'free' }),
@@ -148,6 +151,15 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
       bottom: parameterConstraint,
       top: parameterConstraint,
       hillSlope: parameterConstraint,
+      shared: fc
+        .record({
+          bottom: fc.boolean(),
+          top: fc.boolean(),
+          hillSlope: fc.boolean(),
+          logEc50: fc.boolean(),
+        })
+        // A plain object, as the parser builds (fc.record's have no prototype).
+        .map((r) => ({ ...r })),
       compare: fc.option(
         // At least one parameter is held, as the file format requires.
         fc
@@ -167,7 +179,8 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     })
     .map((o): AnalysisSpec => ({
       kind: 'nonlinear-regression',
-      options: o,
+      // A plain object, as the parser builds (a generated record may have no prototype).
+      options: { ...o },
     })),
   fc.constant<AnalysisSpec>({
     kind: 'growth-curve',

@@ -759,6 +759,28 @@ export function comparisonReading(c: SimplerModel, m: ModelComparison): string {
  */
 export function nonlinearRegressionReading(r: NonlinearRegressionResult): string {
   const potency = doseResponseModel(r.model).potency;
+  const shareds = (
+    [
+      ['bottom', 'Bottom'],
+      ['top', 'Top'],
+      ['hillSlope', 'HillSlope'],
+      ['logEc50', `Log${potency}`],
+    ] as const
+  ).flatMap(([k, name]) => (r.shared[k] ? [name] : []));
+  if (shareds.length > 0 && r.global === null) {
+    const first = r.series.map((s) => s.outcome).find((o) => !o.ran);
+    const why =
+      first === undefined
+        ? 'the fit failed'
+        : first.why === 'few'
+          ? `together the data sets have too few points for this curve (needs at least ${String(first.minimum ?? 5)})`
+          : doseResponseWhy(first);
+    return `The data sets couldn’t be fit together with ${joinAnd(shareds)} shared: ${why}.`;
+  }
+  const together =
+    shareds.length > 0
+      ? `Fitted together, with ${joinAnd(shareds)} shared (one value for all the data sets). `
+      : '';
   const clauses = r.series.map((s) => {
     const o = s.outcome;
     if (!o.ran) return `${s.title} couldn’t be fit: ${doseResponseWhy(o)}`;
@@ -804,7 +826,7 @@ export function nonlinearRegressionReading(r: NonlinearRegressionResult): string
           })
           .map((t) => ` ${t}`)
           .join('');
-  return `${joinAnd(clauses)}.${note}${comparisons}`;
+  return `${together}${joinAnd(clauses)}.${note}${comparisons}`;
 }
 
 /** Why a growth curve couldn't be fit, in words (item 33, #94); shared with the graph. */

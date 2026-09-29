@@ -30,6 +30,7 @@ import {
   type CorrelationOptions,
   type GrowthCurveOptions,
   type NonlinearRegressionOptions,
+  type SharedParameters,
   type SimplerModel,
   type ParameterConstraint,
   DOSE_RESPONSE_MODEL_IDS,
@@ -185,6 +186,26 @@ function simplerModel(v: Json | undefined, p: Path): SimplerModel | null {
   return m;
 }
 
+/** The parameters a global fit shares (#97); absent = none. */
+function sharedParameters(v: Json | undefined, p: Path): SharedParameters {
+  if (v === undefined || v === null) {
+    return { bottom: false, top: false, hillSlope: false, logEc50: false };
+  }
+  const o = obj(v, p);
+  const flag = (k: string): boolean => {
+    const x = o[k];
+    if (x === undefined || x === null) return false;
+    if (typeof x !== 'boolean') return p.key(k).fail('should be true or false');
+    return x;
+  };
+  return {
+    bottom: flag('bottom'),
+    top: flag('top'),
+    hillSlope: flag('hillSlope'),
+    logEc50: flag('logEc50'),
+  };
+}
+
 /** Each kind's options, field by field in a fixed order (never spread: key order would leak in). */
 function optionsJson(a: AnalysisSpec): Json {
   switch (a.kind) {
@@ -210,6 +231,12 @@ function optionsJson(a: AnalysisSpec): Json {
           bottom: a.options.compare.bottom,
           top: a.options.compare.top,
           hillSlope: a.options.compare.hillSlope,
+        },
+        shared: {
+          bottom: a.options.shared.bottom,
+          top: a.options.shared.top,
+          hillSlope: a.options.shared.hillSlope,
+          logEc50: a.options.shared.logEc50,
         },
       };
     case 'growth-curve':
@@ -563,6 +590,8 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
         hillSlope: constraint(opts['hillSlope'], q.key('hillSlope')),
         // Files from before #98 compare nothing.
         compare: simplerModel(opts['compare'], q.key('compare')),
+        // Files from before #97 share nothing.
+        shared: sharedParameters(opts['shared'], q.key('shared')),
       };
       return { kind, options };
     }

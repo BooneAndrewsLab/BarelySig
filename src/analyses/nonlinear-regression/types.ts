@@ -4,7 +4,12 @@
  * logistic, one fit per series. Request and result.
  */
 import type { RegressionBand, Residual, RunsOutcome } from '../linear-regression/types';
-import type { DoseResponseModelId, ParameterConstraint, SimplerModel } from '@/model/project';
+import type {
+  DoseResponseModelId,
+  ParameterConstraint,
+  SharedParameters,
+  SimplerModel,
+} from '@/model/project';
 import type { Named } from '../ttest/types';
 
 export interface NonlinearRegressionRequest {
@@ -27,6 +32,11 @@ export interface NonlinearRegressionRequest {
   };
   /** The simpler model to compare each fit with (item 36, #98), or null. */
   readonly compare: SimplerModel | null;
+  /**
+   * Parameters shared by every data set (item 38, #97), one stacked fit; all
+   * false for independent fits (also whenever there is only one data set).
+   */
+  readonly shared: SharedParameters;
 }
 
 /**
@@ -126,6 +136,22 @@ export type DoseResponseOutcome =
       readonly minimum: number | null;
     };
 
+/**
+ * The whole of a global fit (item 38, #97), which no single data set owns:
+ * what an extra sum-of-squares comparison of two global fits needs (#105).
+ * A data set's own `ss` and `n` are in its outcome.
+ */
+export interface GlobalFit {
+  /** Points fitted across all the data sets. */
+  readonly n: number;
+  /** Parameters estimated: a shared one counts once, an unshared one once per data set. */
+  readonly parameters: number;
+  /** n − parameters. */
+  readonly df: number;
+  readonly ss: number;
+  readonly syx: number;
+}
+
 export interface NonlinearRegressionSeries extends Named {
   readonly outcome: DoseResponseOutcome;
 }
@@ -135,6 +161,9 @@ export interface NonlinearRegressionResult {
   readonly logX: boolean;
   readonly constraints: NonlinearRegressionRequest['constraints'];
   readonly compare: SimplerModel | null;
+  readonly shared: SharedParameters;
+  /** The stacked fit's totals when parameters were shared and the fit ran; else null. */
+  readonly global: GlobalFit | null;
   readonly series: readonly NonlinearRegressionSeries[];
   readonly warnings: readonly string[];
 }

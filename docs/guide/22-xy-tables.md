@@ -171,6 +171,31 @@ can only hold a parameter your fit estimates: to ask about Bottom, leave
 Bottom on "Estimate it" in the fit itself. Comparing a shared parameter
 across data sets, or different curve shapes, will come with those features.
 
+#### Sharing parameters between data sets
+
+When you pick two or more Y data sets, the Analyze dialog offers **Share
+parameters between data sets**: tick Bottom, Top, HillSlope or LogEC50 (LogIC50
+for an inhibitor) to give every data set the _same_ value of it. All the data
+sets are then fitted together in one go, so a shared parameter is estimated from
+every data set's points. This is the usual cure for a data set too short or
+noisy to pin a parameter down on its own (say, a short curve that never reaches
+its top, sharing Top and HillSlope with a full one), and it is the right model
+when you know a parameter should be the same, such as curves from the same assay
+with the same plateaus. Parameters you leave unticked stay each data set's own.
+
+In the results a shared parameter reads "(shared)" and shows the same value, SE
+and CI in every column. A **Whole fit** table gives the totals: parameters
+estimated (a shared one counts once), points, degrees of freedom, sum of
+squares and Sy.x for all the data sets together. Degrees of freedom and Sy.x
+are the whole fit's, not each data set's own, and every SE and CI comes from that
+combined fit; each data set's R² and sum of squares are its own. With nothing
+ticked the fit is just each data set on its own, as before.
+
+Limits (see above) and the comparison with a simpler model can't be combined
+with sharing yet: hold the parameter at a value instead, or turn sharing off.
+Sharing works on all the data sets you picked, or none of them; sharing among
+some of them only isn't offered.
+
 ### Growth curve
 
 Fits a bacterial or yeast growth curve — OD600, CFU or similar vs. time —
@@ -230,8 +255,8 @@ Click a connected line to change its width; its colour follows the data set.
 
 "Help me choose" doesn't yet suggest these analyses — pick them directly
 from the **Analyze…** dialog. The dose-response fit has the
-logistic models above only: no shared parameters, no comparing curves ("do these EC50s
+logistic models above only: no comparing curves ("do these EC50s
 differ?"), no other curve shapes, weighting or interpolating unknowns
-from a standard curve yet (sharing a parameter across data sets is not there either). Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
+from a standard curve yet. Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
 (Gompertz); a logistic alternative, phase boundaries drawn on the graph,
 and fitting several data sets together aren't there yet either.

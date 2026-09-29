@@ -279,6 +279,240 @@ bs_fpl_compare <- function(main, alt, n) {
   )
 }
 
+# --- Global fit (#97) -------------------------------------------------------
+# Shared parameters across the data sets: one stacked least-squares problem.
+# The unknowns are each shared parameter once and each unshared one per data
+# set; a parameter held at a constant (lower == upper) is not an unknown.
+
+# Row i of the result maps data set i's (Bottom, Top, LogEC50, HillSlope) to
+# unknown numbers; 0 = held.
+bs_global_map <- function(k, shared, fixed) {
+  map <- matrix(0L, k, 4)
+  m <- 0L
+  for (j in 1:4) {
+    if (fixed[j]) next
+    if (shared[j]) {
+      m <- m + 1L
+      map[, j] <- m
+    } else {
+      map[, j] <- m + seq_len(k)
+      m <- m + k
+    }
+  }
+  list(map = map, m = m)
+}
+
+# The k x 4 matrix of every data set's parameters from the unknowns.
+bs_global_params <- function(theta, map, held) {
+  P <- matrix(held, nrow(map), 4, byrow = TRUE)
+  P[map > 0] <- theta[map[map > 0]]
+  P
+}
+
+# d Y / d (Bottom, Top, LogEC50, HillSlope) per point, with per-point parameters.
+bs_global_jacobian4 <- function(x, Q) {
+  f <- 1 / (1 + 10^((Q[, 3] - x) * Q[, 4]))
+  d <- (Q[, 2] - Q[, 1]) * f * (1 - f) * log(10)
+  cbind(1 - f, f, -Q[, 4] * d, (x - Q[, 3]) * d)
+}
+
+bs_global_curve <- function(x, Q) Q[, 1] + (Q[, 2] - Q[, 1]) / (1 + 10^((Q[, 3] - x) * Q[, 4]))
+
+# Jacobian with respect to the unknowns: a shared unknown collects the
+# columns of every data set that uses it.
+bs_global_jacobian <- function(x, g, theta, map, held) {
+  P <- bs_global_params(theta, map, held)
+  J4 <- bs_global_jacobian4(x, P[g, , drop = FALSE])
+  J <- matrix(0, length(x), length(theta))
+  for (j in 1:4) {
+    u <- map[g, j]
+    on <- which(u > 0)
+    J[cbind(on, u[on])] <- J[cbind(on, u[on])] + J4[on, j]
+  }
+  J
+}
+
+# Levenberg-Marquardt from `theta`, then plain Gauss-Newton steps kept while
+# they lower the sum of squares; returns theta (NULL if the step is singular
+# or not finite at the start).
+bs_global_lm <- function(x, y, g, map, held, theta) {
+  ss_of <- function(th) {
+    r <- y - bs_global_curve(x, bs_global_params(th, map, held)[g, , drop = FALSE])
+    if (any(!is.finite(r))) Inf else sum(r^2)
+  }
+  ss <- ss_of(theta)
+  if (!is.finite(ss)) return(NULL)
+  lambda <- 1e-3
+  for (it in 1:500) {
+    J <- bs_global_jacobian(x, g, theta, map, held)
+    r <- y - bs_global_curve(x, bs_global_params(theta, map, held)[g, , drop = FALSE])
+    A <- crossprod(J)
+    step <- tryCatch(
+      solve(A + lambda * diag(pmax(diag(A), 1e-12), ncol(J)), crossprod(J, r)),
+      error = function(e) NULL
+    )
+    if (is.null(step) || any(!is.finite(step))) {
+      lambda <- lambda * 10
+      if (lambda > 1e12) break
+      next
+    }
+    cand <- theta + drop(step)
+    ss_c <- ss_of(cand)
+    if (ss_c <= ss) {
+      moved <- max(abs(cand - theta) / pmax(abs(cand), 1e-8))
+      theta <- cand
+      ss <- ss_c
+      lambda <- lambda / 10
+      if (moved < 1e-14) break
+    } else {
+      lambda <- lambda * 10
+      if (lambda > 1e12) break
+    }
+  }
+  for (it in 1:5) {
+    J <- bs_global_jacobian(x, g, theta, map, held)
+    r <- y - bs_global_curve(x, bs_global_params(theta, map, held)[g, , drop = FALSE])
+    step <- tryCatch(qr.coef(qr(J), r), error = function(e) NULL)
+    if (is.null(step) || any(!is.finite(step))) break
+    cand <- theta + unname(step)
+    if (!(ss_of(cand) <= ss_of(theta) * (1 + 1e-12))) break
+    theta <- cand
+  }
+  theta
+}
+
+# The whole global fit. x: log doses of the kept points, g: their data set
+# (1..k), xs/ys: per data set. `lower == upper` = held. `unlog`/`dropped`:
+# per data set, as bs_fpl_one takes them. Returns one entry per data set and
+# the whole fit's numbers.
+bs_global_fit <- function(xs, ys, unlogs, dropped, shared, lower, upper) {
+  k <- length(xs)
+  fixed <- lower == upper
+  held <- ifelse(fixed, lower, 0)
+  ns <- vapply(xs, length, 0L)
+  empty <- function(i, why, minimum = NULL) {
+    out <- list(n = ns[i], dropped = dropped[i], ran = FALSE, why = why)
+    if (!is.null(minimum)) out$minimum <- minimum
+    out
+  }
+  use <- which(ns > 0)
+  none <- function(why, minimum = NULL) {
+    list(series = lapply(seq_len(k), function(i) empty(i, if (ns[i] == 0) "few" else why, if (ns[i] == 0) 1 else minimum)), global = NULL)
+  }
+  if (length(use) < 2) return(none("few"))
+  x <- unlist(xs[use])
+  y <- unlist(ys[use])
+  g <- rep(seq_along(use), ns[use])
+  kk <- length(use)
+  layout <- bs_global_map(kk, shared, fixed)
+  map <- layout$map
+  m <- layout$m
+  n <- length(x)
+  if (n < m + 1) return(none("few", m + 1))
+  if (max(y) == min(y)) return(none("constant_y"))
+  # Starts: every data set's own fit (shared parameters averaged), and the pooled fit.
+  pooled <- bs_fpl_one(x, y, identity, 0, lower, upper)
+  singles <- lapply(seq_len(kk), function(i) bs_fpl_one(xs[[use[i]]], ys[[use[i]]], identity, 0, lower, upper))
+  pvec <- function(f) c(f$bottom$value, f$top$value, f$logec50$value, f$hill$value)
+  pooled_p <- if (isTRUE(pooled$ran)) pvec(pooled) else NULL
+  starts <- list()
+  from_p <- function(rows) {
+    th <- numeric(m)
+    for (j in 1:4) {
+      if (fixed[j]) next
+      if (shared[j]) th[map[1, j]] <- mean(rows[, j]) else th[map[, j]] <- rows[, j]
+    }
+    th
+  }
+  if (!is.null(pooled_p)) {
+    starts[[1]] <- from_p(matrix(pooled_p, kk, 4, byrow = TRUE))
+    rows <- t(vapply(singles, function(f) if (isTRUE(f$ran)) pvec(f) else pooled_p, numeric(4)))
+    starts[[2]] <- from_p(rows)
+  } else if (all(vapply(singles, function(f) isTRUE(f$ran), TRUE))) {
+    starts[[1]] <- from_p(t(vapply(singles, pvec, numeric(4))))
+  }
+  if (length(starts) == 0) return(none("no_fit"))
+  best <- NULL
+  best_ss <- Inf
+  for (s in starts) {
+    th <- bs_global_lm(x, y, g, map, held, s)
+    if (is.null(th)) next
+    ss <- sum((y - bs_global_curve(x, bs_global_params(th, map, held)[g, , drop = FALSE]))^2)
+    if (is.finite(ss) && ss < best_ss) {
+      best <- th
+      best_ss <- ss
+    }
+  }
+  if (is.null(best)) return(none("no_fit"))
+  theta <- best
+  P <- bs_global_params(theta, map, held)
+  # A plateau far beyond the data or a LogEC50 far outside the dose range is
+  # the optimiser running off to infinity: the data don't define the curve.
+  span <- diff(range(x))
+  if (any(abs(P[, 2] - P[, 1]) > 100 * diff(range(y))) ||
+      any(P[, 3] < min(x) - 10 * span | P[, 3] > max(x) + 10 * span)) {
+    return(none("no_fit"))
+  }
+  J <- bs_global_jacobian(x, g, theta, map, held)
+  A <- crossprod(J)
+  Ainv <- tryCatch(solve(A), error = function(e) NULL)
+  if (is.null(Ainv) || any(!is.finite(Ainv))) return(none("no_fit"))
+  df <- n - m
+  resid <- y - bs_global_curve(x, P[g, , drop = FALSE])
+  ss_all <- sum(resid^2)
+  s2 <- ss_all / df
+  se <- sqrt(s2 * diag(Ainv))
+  dependency <- pmax(0, 1 - 1 / (diag(A) * diag(Ainv)))
+  t <- qt(0.975, df)
+  series <- vector("list", k)
+  for (i in seq_len(k)) {
+    if (ns[i] == 0) {
+      series[[i]] <- empty(i, "few", 1)
+      next
+    }
+    u <- match(i, use)
+    rows <- which(g == u)
+    xi <- x[rows]
+    yi <- y[rows]
+    ri <- resid[rows]
+    ord <- order(xi)
+    ssi <- sum(ri^2)
+    param <- function(j) {
+      th <- map[u, j]
+      if (th == 0) return(bs_fpl_held(P[u, j], "fixed"))
+      bs_fpl_param(P[u, j], se[th], t, dependency[th])
+    }
+    logec50 <- param(3)
+    grid <- seq(min(xi), max(xi), length.out = 100)
+    G4 <- bs_global_jacobian4(grid, matrix(P[u, ], length(grid), 4, byrow = TRUE))
+    on <- which(map[u, ] > 0)
+    Gi <- G4[, on, drop = FALSE]
+    Ai <- Ainv[map[u, on], map[u, on], drop = FALSE]
+    cg <- rowSums((Gi %*% Ai) * Gi)
+    fit_grid <- bs_global_curve(grid, matrix(P[u, ], length(grid), 4, byrow = TRUE))
+    ri_ord <- ri[ord]
+    series[[i]] <- list(
+      n = ns[i], dropped = dropped[i], ran = TRUE,
+      bottom = param(1), top = param(2), logec50 = logec50, hill = param(4),
+      ec50 = 10^P[u, 3], ec50_lower = 10^logec50$lower, ec50_upper = 10^logec50$upper,
+      df = df, ss = ssi, syx = sqrt(s2), r2 = 1 - ssi / sum((yi - mean(yi))^2),
+      x = unlogs[[i]](xi[ord]), y = yi[ord], fitted = (yi - ri)[ord], residual = ri_ord,
+      runs = bs_runs_test(sign(ri_ord)[sign(ri_ord) != 0]),
+      band = list(
+        x = unlogs[[i]](grid), fit = fit_grid,
+        confidence_lower = fit_grid - t * sqrt(cg * s2),
+        confidence_upper = fit_grid + t * sqrt(cg * s2),
+        prediction_lower = fit_grid - t * sqrt((cg + 1) * s2),
+        prediction_upper = fit_grid + t * sqrt((cg + 1) * s2)
+      )
+    )
+  }
+  list(
+    series = series,
+    global = list(n = n, parameters = m, df = df, ss = ss_all, syx = sqrt(s2))
+  )
+}
+
 # x, y: every series' points, concatenated; g: each point's series (1..k).
 # log_x: X is already log10(dose) (Prism's model); otherwise X is a dose,
 # fit against its log10, and a dose <= 0 (no log) is left out and counted.
@@ -286,12 +520,28 @@ bs_fpl_compare <- function(main, alt, n) {
 # a fixed parameter has lo == hi (#96).
 # cmp_val, cmp_has: the simpler model of a comparison (#98): where it holds
 # (Bottom, Top, HillSlope), used where cmp_has; nothing if none is.
+# shared: which of (Bottom, Top, LogEC50, HillSlope) are one value for all
+# the data sets (#97); any at all makes it one stacked fit.
 bs_nonlinear_regression <- function(x, y, g, k, log_x, lo, hi, has_lo, has_hi,
-                                    cmp_val = c(0, 0, 0), cmp_has = c(0, 0, 0)) {
+                                    cmp_val = c(0, 0, 0), cmp_has = c(0, 0, 0),
+                                    shared = c(0, 0, 0, 0)) {
   lo <- ifelse(has_lo != 0, lo, -Inf)
   hi <- ifelse(has_hi != 0, hi, Inf)
   lower <- c(lo[1], lo[2], -Inf, lo[3])
   upper <- c(hi[1], hi[2], Inf, hi[3])
+  if (any(shared != 0)) {
+    parts <- lapply(seq_len(k), function(i) {
+      xi <- x[g == i]
+      yi <- y[g == i]
+      if (log_x) return(list(x = xi, y = yi, unlog = identity, dropped = 0))
+      keep <- xi > 0
+      list(x = log10(xi[keep]), y = yi[keep], unlog = function(v) 10^v, dropped = sum(!keep))
+    })
+    return(bs_global_fit(
+      lapply(parts, `[[`, "x"), lapply(parts, `[[`, "y"), lapply(parts, `[[`, "unlog"),
+      vapply(parts, `[[`, 0, "dropped"), shared != 0, lower, upper
+    ))
+  }
   alt_lower <- lower
   alt_upper <- upper
   held <- c(1, 2, 4)[cmp_has != 0]

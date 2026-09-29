@@ -13,6 +13,7 @@ import {
   DEFAULT_OPTIONS,
   DOSE_RESPONSE_MODEL_IDS,
   type ParameterConstraint,
+  type SharedParameters,
   type SimplerModel,
 } from '@/model/project';
 import { createXyTable, type XyTable } from '@/model/table';
@@ -31,18 +32,26 @@ afterAll(() => {
 function requestFor(f: Fixture): NonlinearRegressionRequest {
   const x = f.input['dose'] ?? [];
   const y = f.input['y'] ?? [];
-  const points = x.map((v, i) => {
-    const yv = y[i];
-    if (v === null || yv === null || yv === undefined) throw new Error('fixture cell is empty');
-    return { x: v, y: yv };
-  });
+  const g = f.input['g'];
   const modelId = f.options?.['model'];
   const model =
     DOSE_RESPONSE_MODEL_IDS.find((id) => id === modelId) ?? 'log-agonist-variable-slope';
+  // A global-fit fixture stacks its data sets in one column with a set number `g`; a cell that
+  // is empty stays out of the request, as the grid would leave it.
+  const sets = g === undefined ? [1] : [...new Set(g.map((v) => v ?? 0))].sort((p, q) => p - q);
+  const points = sets.map((set) =>
+    x.flatMap((v, i) => {
+      const yv = y[i];
+      if (g !== undefined && g[i] !== set) return [];
+      if (g !== undefined && (v === null || yv === null || yv === undefined)) return [];
+      if (v === null || yv === null || yv === undefined) throw new Error('fixture cell is empty');
+      return [{ x: v, y: yv }];
+    }),
+  );
   return {
     model,
-    series: [{ id: 's1', title: 'Series 1' }],
-    points: [points],
+    series: sets.map((set) => ({ id: `s${String(set)}`, title: `Series ${String(set)}` })),
+    points,
     logX: f.options?.['x'] !== 'concentration',
     // What `prepare` would send: the model's own holds over the fixture's constraints. A model
     // fixture states none of its own, so the oracle's hand-derived bounds check the presets.
@@ -53,6 +62,19 @@ function requestFor(f: Fixture): NonlinearRegressionRequest {
       hillSlope: constraintOf(f.options?.['hillSlope']),
     }),
     compare: compareOf(f.options?.['compare']),
+    shared: sharedOf(f.options?.['shared']),
+  };
+}
+
+/** A fixture's shared parameters (absent = none). */
+function sharedOf(o: Plain | undefined): SharedParameters {
+  const on = (k: string): boolean =>
+    o !== undefined && o !== null && typeof o === 'object' && !Array.isArray(o) && o[k] === true;
+  return {
+    bottom: on('bottom'),
+    top: on('top'),
+    hillSlope: on('hillSlope'),
+    logEc50: on('logEc50'),
   };
 }
 
@@ -93,6 +115,13 @@ describe('dose-response fit, against the R oracle', () => {
       const out = await engine.run(nonlinearRegression.job(request));
       // The job runs the batching wrapper (one series here); the fixture's
       // `expected` is that one series' own flat shape.
+      if (f.id.includes('global-')) {
+        // Several data sets: the fixture's `expected` is the whole result.
+        expect(mismatches(out.value, f.expected, f.tolerance)).toEqual([]);
+        const r = nonlinearRegression.parse(out.value, request, out.warnings);
+        expect(r.series).toHaveLength(request.points.length);
+        return;
+      }
       expect(mismatches(out.value, { series: [f.expected] }, f.tolerance)).toEqual([]);
       const r = nonlinearRegression.parse(out.value, request, out.warnings);
       expect(r.series).toHaveLength(1);
@@ -365,6 +394,52 @@ describe('prepare', () => {
         project2,
       ).ok,
     ).toBe(true);
+  });
+
+  it('shares parameters only across two or more data sets, and not with limits or a comparison', () => {
+    const { project, table } = setup();
+    const x = table.dataSets[0];
+    const y = table.dataSets[1];
+    if (!x || !y) throw new Error('table has no data sets');
+    const y2 = { ...y, id: newId('ds') };
+    const filled: XyTable = {
+      ...table,
+      dataSets: [
+        { ...x, subcolumns: [[0, 1e-9, 1e-8]] },
+        { ...y, subcolumns: [[2, 4, 6]] },
+        { ...y2, subcolumns: [[1, 5, 7]] },
+      ],
+    };
+    const project2 = { ...project, tables: new Map([[filled.id, filled]]) };
+    const shared = { bottom: true, top: false, hillSlope: true, logEc50: false };
+    const build = (ids: readonly string[], o: Partial<Fit['options']>): Fit => {
+      const a = analysisFor(filled);
+      return {
+        ...a,
+        options: { ...a.options, shared, ...o },
+        input: { kind: 'table', table: filled.id, dataSets: ids.map((id) => id as never) },
+      };
+    };
+    const both = [y.id, y2.id];
+    const two = nonlinearRegression.prepare(build(both, {}), project2);
+    expect(two.ok && two.request.shared).toEqual(shared);
+    const one = nonlinearRegression.prepare(build([y.id], {}), project2);
+    expect(one.ok && one.request.shared).toEqual({
+      bottom: false,
+      top: false,
+      hillSlope: false,
+      logEc50: false,
+    });
+    const limited = nonlinearRegression.prepare(
+      build(both, { top: { kind: 'bounded', lower: 0, upper: 100 } }),
+      project2,
+    );
+    expect(limited.ok).toBe(false);
+    const compared = nonlinearRegression.prepare(
+      build(both, { compare: { bottom: 0, top: null, hillSlope: null } }),
+      project2,
+    );
+    expect(compared.ok).toBe(false);
   });
 
   it('passes the simpler model through, and refuses one that is not nested in the fit', () => {
