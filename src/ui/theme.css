@@ -335,6 +335,16 @@ select {
   padding: 64px 0 40px;
 }
 
+.hero-logo {
+  margin: 0 0 20px;
+  line-height: 0;
+}
+
+.hero-logo .logo {
+  max-width: 100%;
+  height: auto;
+}
+
 .hero-tag {
   margin: 0 0 14px;
   color: var(--ink-2);

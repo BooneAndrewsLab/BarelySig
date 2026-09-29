@@ -46,7 +46,6 @@ export function Home({ onNewTable, onExample, onOpenFile, current, children }: P
   return (
     <div className="landing">
       <header className="landing-bar">
-        <Logo height={24} />
         <div className="bar-actions">
           <button
             type="button"
@@ -60,10 +59,13 @@ export function Home({ onNewTable, onExample, onOpenFile, current, children }: P
       </header>
       <div className="home">
         <section className="hero">
+          <h1 className="hero-logo">
+            <Logo height={112} />
+          </h1>
           <p className="hero-tag">
             No license required. Asterisks included<span className="hero-star">*</span>
           </p>
-          <h1 className="hero-title">Statistics and graphs for the bench.</h1>
+          <h2 className="hero-title">Statistics and graphs for the bench.</h2>
           <p className="hero-lead">
             Enter your data, click an analysis, get a publishable graph with its P values. Free,
             open source, and it runs entirely in your browser.
