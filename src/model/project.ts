@@ -544,6 +544,12 @@ export interface XyPlot {
   /** Band around the fit; meaningless (ignored) unless fit is true. */
   readonly band: 'confidence' | 'prediction' | 'none';
   /**
+   * Mark each interpolated unknown (item 40, #112): a dashed drop-line from its Y across to the
+   * curve and down to the X axis, and a marker on the curve. Only a dose-response fit with
+   * "interpolate unknowns" on has any; ignored unless fit is true.
+   */
+  readonly unknowns: boolean;
+  /**
    * A band of mean ± this around the `traces` style's mean line (item 42, #104); ignored for the
    * other styles.
    */
@@ -577,6 +583,7 @@ export const XY_DEFAULT: XyPlot = {
   points: true,
   fit: false,
   band: 'none',
+  unknowns: false,
   error: 'none',
 };
 

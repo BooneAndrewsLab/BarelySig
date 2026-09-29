@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { hitRegions, pick } from './hit';
+import { describePlot } from './layout';
 import { MODERN } from './theme';
 import { layoutXy, type XyGraphInput, type XySeriesInput } from './xy';
 
@@ -11,6 +12,7 @@ const input: XyGraphInput = {
     points: false,
     fit: false,
     band: 'none',
+    unknowns: false,
     error: 'none',
   },
   size: { width: 70, height: 60 },
@@ -141,5 +143,54 @@ describe('the traces style’s error band (item 42)', () => {
     };
     const line = (g: XyGraphInput) => layoutXy(g).marks.find((m) => m.role === 'connect-line');
     expect(line(tall)).not.toEqual(line(withBand('sd')));
+  });
+});
+
+describe('interpolated unknowns on the fitted curve (item 40, #112)', () => {
+  const withUnknowns = (unknowns: XySeriesInput['unknowns']): XyGraphInput => ({
+    ...input,
+    plot: { ...input.plot, style: 'scatter', fit: true, unknowns: true },
+    series: [
+      {
+        ...BASE_SERIES,
+        connect: undefined,
+        traces: undefined,
+        fit: [
+          { x: 0, y: 0 },
+          { x: 2, y: 4 },
+        ],
+        unknowns,
+      },
+    ],
+  });
+
+  it('draws a marker and two dashed drop-lines per unknown, none without unknowns', () => {
+    const scene = layoutXy(withUnknowns([{ x: 1, y: 2, lower: 0.5, upper: null }]));
+    expect(scene.marks.filter((m) => m.role === 'unknown-marker')).toHaveLength(1);
+    const drops = scene.marks.filter((m) => m.role === 'unknown-drop');
+    expect(drops).toHaveLength(2);
+    for (const d of drops) expect(d.kind === 'line' && d.line.dash).toBeTruthy();
+    const none = layoutXy(withUnknowns(undefined));
+    expect(none.marks.some((m) => m.role.startsWith('unknown'))).toBe(false);
+  });
+
+  it('runs the drop-lines from the marker to the axes', () => {
+    const scene = layoutXy(withUnknowns([{ x: 1, y: 2, lower: null, upper: null }]));
+    const marker = scene.marks.find((m) => m.role === 'unknown-marker');
+    const axisY = scene.marks.find((m) => m.role === 'axis-y');
+    const axisX = scene.marks.find((m) => m.role === 'axis-x');
+    const [h, v] = scene.marks.filter((m) => m.role === 'unknown-drop');
+    if (marker?.kind !== 'circle' || axisY?.kind !== 'line' || axisX?.kind !== 'line')
+      throw new Error('shape');
+    if (h?.kind !== 'line' || v?.kind !== 'line') throw new Error('shape');
+    expect(h.x1).toBeCloseTo(axisY.x1);
+    expect(h.x2).toBeCloseTo(marker.cx);
+    expect(h.y1).toBeCloseTo(marker.cy);
+    expect(v.y2).toBeCloseTo(axisX.y1);
+    expect(v.x1).toBeCloseTo(marker.cx);
+  });
+
+  it('explains the marks in the graph notes', () => {
+    expect(describePlot(withUnknowns([]).plot)).toMatch(/unknowns read off the curve/);
   });
 });

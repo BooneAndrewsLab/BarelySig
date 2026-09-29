@@ -26,6 +26,14 @@ export interface XyBandPoint {
   readonly y1: number;
 }
 
+/** An interpolated unknown to mark (item 40, #112): Y read off the curve at X. */
+export interface XyUnknownMark {
+  readonly x: number;
+  readonly y: number;
+  readonly lower: number | null;
+  readonly upper: number | null;
+}
+
 export interface XySeriesInput {
   readonly id: string;
   readonly title: string;
@@ -51,6 +59,8 @@ export interface XySeriesInput {
   readonly fit?: readonly XyPoint[] | undefined;
   /** The band around the fit, one (x, y0, y1) per fit x; unset = not drawn. */
   readonly band?: readonly XyBandPoint[] | undefined;
+  /** The interpolated unknowns to mark on the curve; unset = none. */
+  readonly unknowns?: readonly XyUnknownMark[] | undefined;
   /** Why this series has no fit/band even though the plot asks for one. */
   readonly note?: string | undefined;
 }
@@ -338,6 +348,46 @@ export function layoutXy(input: XyGraphInput): Scene {
       d: `M${pts.join('L')}`,
       line: { stroke: s.color, width: theme.lines.fit },
     });
+  }
+  // Interpolated unknowns: dashed drop-lines to both axes, and a marker on the curve.
+  for (const s of series) {
+    const drop = { stroke: s.color, width: theme.lines.fit * 0.6, dash: '2 1.5' };
+    for (const u of s.unknowns ?? []) {
+      const cx = xOf(u.x);
+      const cy = yOf(u.y);
+      if (cx === null || cy === null) continue;
+      marks.push({
+        kind: 'line',
+        role: 'unknown-drop',
+        ref: s.id,
+        x1: left,
+        y1: cy,
+        x2: cx,
+        y2: cy,
+        line: drop,
+      });
+      marks.push({
+        kind: 'line',
+        role: 'unknown-drop',
+        ref: s.id,
+        x1: cx,
+        y1: cy,
+        x2: cx,
+        y2: baseY,
+        line: drop,
+      });
+      marks.push({
+        kind: 'circle',
+        role: 'unknown-marker',
+        ref: s.id,
+        cx,
+        cy,
+        r: theme.pointSize / 2,
+        fill: '#ffffff',
+        opacity: 1,
+        line: { stroke: s.color, width: theme.lines.pointEdge * 1.5 },
+      });
+    }
   }
   if (input.plot.points) {
     for (const s of series) {

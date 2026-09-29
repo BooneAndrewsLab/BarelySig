@@ -376,11 +376,20 @@ lighter one, underneath.
 
 Click a connected line to change its width; its colour follows the data set.
 
+## Marking interpolated unknowns on the graph
+
+With a dose-response fit that has **Interpolate unknowns** on, tick **Mark
+interpolated unknowns** in the graph's settings (under the fitted line). Each
+unknown gets an open circle on the curve at its Y, with a dashed line running
+across to the Y axis and another down to the X axis, so the X it was read at
+can be read off the axis. An unknown above the top or below the bottom of the
+curve has no X, so it is left off (the results table says so). The marks take
+the colour of their data set, and the note under the graph explains them.
+
 ## What's not here yet
 
 "Help me choose" doesn't yet suggest these analyses — pick them directly
 from the **Analyze…** dialog. The dose-response fit has the
-logistic models above only. Interpolated unknowns are listed in the results but not
-marked on the graph yet, and 1/Y weights can't be combined with a comparison. Profile-likelihood CIs are not available for shared parameters, 1/Y or 1/Y² weights, or parameters kept within limits, and the growth curve keeps asymptotic CIs. Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
+logistic models above only. 1/Y weights can't be combined with a comparison. Profile-likelihood CIs are not available for shared parameters, 1/Y or 1/Y² weights, or parameters kept within limits, and the growth curve keeps asymptotic CIs. Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
 (Gompertz); a logistic alternative, phase boundaries drawn on the graph,
 and fitting several data sets together aren't there yet either.

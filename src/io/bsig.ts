@@ -388,6 +388,7 @@ function plotJson(plot: GraphPlot): Json {
         points: plot.points,
         fit: plot.fit,
         band: plot.band,
+        unknowns: plot.unknowns,
         error: plot.error,
       };
   }
@@ -916,6 +917,8 @@ function plot(v: Json | undefined, p: Path): GraphPlot {
         points: bool(o['points'], p.key('points')),
         fit: bool(o['fit'], p.key('fit')),
         band: oneOf(o['band'], p.key('band'), ['confidence', 'prediction', 'none'] as const),
+        // Files from before #112 mark nothing.
+        unknowns: o['unknowns'] === undefined ? false : bool(o['unknowns'], p.key('unknowns')),
         error:
           o['error'] === undefined
             ? 'none'

@@ -34,7 +34,7 @@ import type { BracketInput, GroupInput } from './layout';
 import { paletteColor } from './palette';
 import type { RenderInput } from './renderInput';
 import { graphTheme } from './themes';
-import type { XyGraphInput, XySeriesInput } from './xy';
+import type { XyGraphInput, XySeriesInput, XyUnknownMark } from './xy';
 
 /** The id of a graph's summary statistics, run like an analysis (note 05). */
 export const summaryId = (graph: Id): Id => asId(`${graph}/summary`);
@@ -345,7 +345,11 @@ function regressionWhy(outcome: Extract<RegressionOutcome, { ran: false }>): str
 
 /** One series' fit behind a graph's fitted line: its curve and bands, or why there is none. */
 type SeriesFit =
-  | { readonly ran: true; readonly band: RegressionBand }
+  | {
+      readonly ran: true;
+      readonly band: RegressionBand;
+      readonly unknowns?: readonly XyUnknownMark[];
+    }
   | { readonly ran: false; readonly why: string };
 
 /**
@@ -374,7 +378,11 @@ function fitsOf(
     return (series) => {
       const o = v.series.find((s) => s.id === series)?.outcome;
       if (!o) return undefined;
-      return o.ran ? { ran: true, band: o.band } : { ran: false, why: `${doseResponseWhy(o)}.` };
+      if (!o.ran) return { ran: false, why: `${doseResponseWhy(o)}.` };
+      const unknowns = o.unknowns.flatMap((u): XyUnknownMark[] =>
+        u.status === 'ok' ? [{ x: u.x, y: u.y, lower: u.lower, upper: u.upper }] : [],
+      );
+      return { ran: true, band: o.band, unknowns };
     };
   }
   if (kind === 'growth-curve') {
@@ -470,7 +478,8 @@ function xyGraphInput(
             y0: (plot.band === 'confidence' ? b.confidenceLower[j] : b.predictionLower[j]) ?? 0,
             y1: (plot.band === 'confidence' ? b.confidenceUpper[j] : b.predictionUpper[j]) ?? 0,
           }));
-    return { id: x.ds.id, title: x.ds.title, color, points, ...drawn, fit, band };
+    const unknowns = plot.unknowns && outcome.unknowns?.length ? outcome.unknowns : undefined;
+    return { id: x.ds.id, title: x.ds.title, color, points, ...drawn, fit, band, unknowns };
   });
   return {
     plot,

@@ -93,6 +93,17 @@ scatter in the unknown's own replicates (Prism does the same and says so;
 its "SE of interpolated X" is not reported here); an unknown outside the
 plateaus is reported as such, where Prism prints an empty cell.
 
+## Marking unknowns on the graph (#112)
+
+`XyPlot.unknowns: boolean` (default false; `.bsig` files without it read as
+false), shown as "Mark interpolated unknowns" when a fit is drawn. For each
+series the `ok` interpolations become marks: an open circle at (X, Y₀) on the
+curve and two dashed drop-lines, one to the Y axis and one to the X axis, in
+the series colour (as Prism's interpolation markers). Unknowns with no X
+(`beyond-*`, `undefined`) are not drawn, and neither are ones outside the axis
+range. The CI is not drawn: it is in the results table. The marks never move
+the axis range. A graph note says what they are.
+
 ## Validation
 
 `oracle.R`: `ref_optimum` takes `w`; `run_fpl_one`/`run_global` are weighted,
@@ -111,4 +122,3 @@ outside. Zero-variance and single-replicate 1/SD² are unit tests of
 ## Follow-ups
 
 - Y weights with a comparison, the Prism way.
-- Mark interpolated unknowns on the graph.

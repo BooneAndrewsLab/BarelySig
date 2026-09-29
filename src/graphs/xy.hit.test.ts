@@ -14,6 +14,7 @@ const input: XyGraphInput = {
     points: true,
     fit: true,
     band: 'none',
+    unknowns: false,
     error: 'none',
   },
   size: { width: 70, height: 60 },

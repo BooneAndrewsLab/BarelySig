@@ -238,6 +238,22 @@ export function GraphSettings({ project, graph }: Props) {
                 </select>
               </label>
             )}
+            {plot.fit && (
+              <label className="option">
+                <input
+                  type="checkbox"
+                  checked={plot.unknowns}
+                  onChange={(e) => {
+                    setPlot({ ...plot, unknowns: e.currentTarget.checked });
+                  }}
+                />
+                Mark interpolated unknowns
+                <span className="hint">
+                  Dashed lines from each unknown&rsquo;s Y across to the curve and down to the X
+                  axis. Needs a dose-response fit with &ldquo;interpolate unknowns&rdquo; on.
+                </span>
+              </label>
+            )}
           </>
         )}
         {plot.kind !== 'grouped-bars' &&

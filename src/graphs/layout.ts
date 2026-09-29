@@ -207,6 +207,8 @@ export function describePlot(graphPlot: GraphPlot): string {
           `a ${graphPlot.band === 'confidence' ? '95% confidence' : '95% prediction'} band`,
         );
     }
+    if (graphPlot.fit && graphPlot.unknowns)
+      parts.push('open circles with dashed drop-lines: unknowns read off the curve');
     if (graphPlot.style === 'traces' && graphPlot.error !== 'none') {
       parts.push(
         graphPlot.error === 'ci95'

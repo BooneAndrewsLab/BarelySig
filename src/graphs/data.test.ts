@@ -317,6 +317,10 @@ describe('an XY graph fitted from a dose-response curve (item 32, #37)', () => {
               predictionLower: band.prediction_lower,
               predictionUpper: band.prediction_upper,
             },
+            unknowns: [
+              { rowNumber: 8, y: 50, status: 'ok', x: -7, lower: -7.4, upper: null },
+              { rowNumber: 9, y: 120, status: 'beyond-top' },
+            ],
           },
         },
         {
@@ -345,6 +349,18 @@ describe('an XY graph fitted from a dose-response curve (item 32, #37)', () => {
     expect(few?.id).toBe(b.id);
     expect(few?.fit).toBeUndefined();
     expect(few?.note).toMatch(/too few points to fit this curve/);
+  });
+
+  it('marks the interpolated unknowns only when asked, and skips those with no X', () => {
+    const { p, graph, entry, a } = xySetup();
+    const at = (g: Graph) => {
+      const r = graphInput(p, g, (id) => (id === asId('a_fit') ? entry : undefined));
+      if (!r.ok || r.input.kind !== 'xy') throw new Error('expected an XY render input');
+      return r.input.input.series.find((s) => s.id === a.id);
+    };
+    expect(at(graph)?.unknowns).toBeUndefined();
+    const on = { ...graph, plot: { ...XY_DEFAULT, fit: true, unknowns: true } };
+    expect(at(on)?.unknowns).toEqual([{ x: -7, y: 50, lower: -7.4, upper: null }]);
   });
 });
 
