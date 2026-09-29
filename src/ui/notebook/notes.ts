@@ -21,6 +21,9 @@ export interface Note {
 
 const EMPTY_CELLS = 'An empty cell stays empty: it is not a zero.';
 
+const CAUTIOUS_NESTED =
+  'When the replicates within a group barely differ from each other, this test is more cautious than it needs to be: it can miss a real difference, but it doesn’t raise false alarms.';
+
 /** The note beside section 1, from how the table's values are entered. */
 export function dataNotes(table: Table): Note[] {
   const kicker = 'About these data';
@@ -183,6 +186,7 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
               : [
                   'Fits a model where each biological replicate contributes its own mean, then asks whether the two groups differ more than the replicates within each group would explain by chance.',
                   'A replicate run more times counts for more, but not simply by averaging it in equally: replicates with fewer values still count, just less.',
+                  CAUTIOUS_NESTED,
                 ]),
             ...(o.tails === 'one' ? [ONE_TAILED] : []),
             NS,
@@ -228,6 +232,7 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           title,
           text: [
             'Asks whether the group means are all the same, weighing each biological replicate by how many values it has. It doesn’t say which groups differ; the comparisons below do.',
+            CAUTIOUS_NESTED,
             ...(comps ? [comps] : []),
             NS,
           ],

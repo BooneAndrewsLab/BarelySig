@@ -98,6 +98,20 @@ replicate with a usable value in some groups but not every group is
 left out of all of them, the same rule as the matched nested t test's,
 and the results name it.
 
+## A caution: replicates that barely differ
+
+The unmatched nested t test and the nested one-way ANOVA fit a mixed
+model (the same one Prism uses). When the replicates in a group differ
+from each other by very little next to how much the values within a
+replicate vary, the model estimates the between-replicate variation at
+or near zero and the test becomes **conservative**: in simulations with
+no true difference, it called P < 0.05 in under 1% of experiments
+instead of the expected 5%. So it never raises false alarms, but it can
+miss a real difference in exactly the tidy experiments where the
+replicates agree. If the replicate means on the SuperPlot look clearly
+separated between groups while the test says "ns", say so when you
+report it, and look at the replicate means themselves.
+
 ## Descriptive statistics
 
 Choose **Descriptive statistics** to summarise groups without comparing
