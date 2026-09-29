@@ -22,6 +22,7 @@ import {
   groupedCells,
   nestedGroups,
   xySeries,
+  xyTraces,
 } from '@/model/selectors';
 import type { DataSet, Table } from '@/model/table';
 
@@ -392,6 +393,19 @@ function xTitleOf(table: Table, graph: Graph): string {
   return table.dataSets[0]?.title ?? 'X';
 }
 
+/** The mean Y at each distinct X, in X order: the line the `lines` and `traces` styles join. */
+function meanByX(points: readonly { x: number; y: number }[]): { x: number; y: number }[] {
+  const sums = new Map<number, { sum: number; n: number }>();
+  for (const p of points) {
+    const s = sums.get(p.x);
+    if (s) {
+      s.sum += p.y;
+      s.n += 1;
+    } else sums.set(p.x, { sum: p.y, n: 1 });
+  }
+  return [...sums.entries()].sort((a, b) => a[0] - b[0]).map(([x, s]) => ({ x, y: s.sum / s.n }));
+}
+
 /** An XY graph's points, and its fitted line and band when the plot asks for them (item 31, #87). */
 function xyGraphInput(
   table: Table,
@@ -408,6 +422,13 @@ function xyGraphInput(
     table,
     sets.map((x) => x.ds.id),
   );
+  const traces =
+    plot.style === 'traces'
+      ? xyTraces(
+          table,
+          sets.map((x) => x.ds.id),
+        )
+      : undefined;
   const analysisId = graph.analyses[0];
   const fits = plot.fit && analysisId !== undefined ? fitsOf(analysisId, fitKind, result) : null;
   const series: XySeriesInput[] = sets.map((x) => {
@@ -416,14 +437,22 @@ function xyGraphInput(
       y: p.y,
     }));
     const color = x.ds.color ?? paletteColor(x.index);
+    const drawn =
+      plot.style === 'scatter'
+        ? {}
+        : {
+            connect: meanByX(points),
+            ...(traces ? { traces: traces.get(x.ds.id) } : {}),
+          };
     const outcome = fits?.(x.ds.id);
-    if (!plot.fit || !outcome) return { id: x.ds.id, title: x.ds.title, color, points };
+    if (!plot.fit || !outcome) return { id: x.ds.id, title: x.ds.title, color, points, ...drawn };
     if (!outcome.ran) {
       return {
         id: x.ds.id,
         title: x.ds.title,
         color,
         points,
+        ...drawn,
         note: `${x.ds.title}: no fitted line — ${outcome.why}`,
       };
     }
@@ -437,7 +466,7 @@ function xyGraphInput(
             y0: (plot.band === 'confidence' ? b.confidenceLower[j] : b.predictionLower[j]) ?? 0,
             y1: (plot.band === 'confidence' ? b.confidenceUpper[j] : b.predictionUpper[j]) ?? 0,
           }));
-    return { id: x.ds.id, title: x.ds.title, color, points, fit, band };
+    return { id: x.ds.id, title: x.ds.title, color, points, ...drawn, fit, band };
   });
   return {
     plot,

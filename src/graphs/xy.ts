@@ -13,7 +13,7 @@ import type { XyPlot } from '@/model/project';
 import { type AxisOptions, valueAxis } from './axis';
 import { type Mark, PT_PER_MM, type Scene } from './scene';
 import { ascent, lineHeight, textWidth } from './text/measure';
-import { darken, type GraphTheme } from './theme';
+import { darken, type GraphTheme, lighten } from './theme';
 
 export interface XyPoint {
   readonly x: number;
@@ -31,6 +31,10 @@ export interface XySeriesInput {
   readonly title: string;
   readonly color: string;
   readonly points: readonly XyPoint[];
+  /** The mean Y at each X joined in X order (the `lines` and `traces` styles); unset = not drawn. */
+  readonly connect?: readonly XyPoint[] | undefined;
+  /** One polyline per replicate subcolumn (the `traces` style); unset = none. */
+  readonly traces?: readonly (readonly XyPoint[])[] | undefined;
   /** The fitted line, a sorted polyline across the series' X range; unset = not drawn. */
   readonly fit?: readonly XyPoint[] | undefined;
   /** The band around the fit, one (x, y0, y1) per fit x; unset = not drawn. */
@@ -97,6 +101,7 @@ export function layoutXy(input: XyGraphInput): Scene {
         values.push(v);
       }
       for (const p of s.fit ?? []) values.push(pick(p.x, p.y));
+      for (const p of s.connect ?? []) values.push(pick(p.x, p.y));
       for (const b of s.band ?? []) {
         values.push(pick(b.x, b.y0));
         values.push(pick(b.x, b.y1));
@@ -200,6 +205,40 @@ export function layoutXy(input: XyGraphInput): Scene {
       line: { stroke: 'none', width: 0 },
       fill: s.color,
       opacity: theme.bandOpacity,
+    });
+  }
+  const polyline = (pts: readonly XyPoint[]): string | null => {
+    const out = pts
+      .map((p) => {
+        const x = xOf(p.x);
+        const y = yOf(p.y);
+        return x === null || y === null ? null : `${f2(x)} ${f2(y)}`;
+      })
+      .filter((p): p is string => p !== null);
+    return out.length < 2 ? null : `M${out.join('L')}`;
+  };
+  for (const s of series) {
+    for (const trace of s.traces ?? []) {
+      const d = polyline(trace);
+      if (d === null) continue;
+      marks.push({
+        kind: 'path',
+        role: 'trace-line',
+        ref: s.id,
+        d,
+        line: { stroke: lighten(s.color, 0.45), width: theme.lines.fit * 0.6 },
+      });
+    }
+  }
+  for (const s of series) {
+    const d = s.connect ? polyline(s.connect) : null;
+    if (d === null) continue;
+    marks.push({
+      kind: 'path',
+      role: 'connect-line',
+      ref: s.id,
+      d,
+      line: { stroke: s.color, width: theme.lines.fit },
     });
   }
   for (const s of series) {

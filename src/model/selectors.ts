@@ -348,6 +348,34 @@ export function xySeries(
   });
 }
 
+/**
+ * One replicate subcolumn's points per Y data set, in row order (item 34, #93): a trace is a
+ * single subject followed across X. Empty for summary data, which has no replicates to follow.
+ */
+export function xyTraces(table: XyTable, dataSets: readonly Id[]): Map<Id, XyPoint[][]> {
+  const x = table.dataSets[0];
+  if (!x) throw new DataError(`Table "${table.title}" has no X column.`);
+  const out = new Map<Id, XyPoint[][]>();
+  const { format } = table;
+  for (const id of dataSets) {
+    const ds = requireDataSet(table, id);
+    const traces: XyPoint[][] = [];
+    if (format.kind !== 'summary') {
+      for (let s = 0; s < format.count; s += 1) {
+        const pts: XyPoint[] = [];
+        table.rows.forEach((row, r) => {
+          const xv = usable(table, x, 0, r);
+          const v = usable(table, ds, s, r);
+          if (xv !== null && v !== null) pts.push({ row: row.id, x: xv, y: v });
+        });
+        traces.push(pts);
+      }
+    }
+    out.set(id, traces);
+  }
+  return out;
+}
+
 export interface GroupedSubject {
   /** Index into the *between* levels (rows, or data sets when `repeatedFactor` is `'row'`). */
   readonly level: number;

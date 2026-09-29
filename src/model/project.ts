@@ -410,9 +410,17 @@ export interface GroupedPlot {
   readonly points: boolean;
 }
 
+export type XyStyle = 'scatter' | 'lines' | 'traces';
+export const XY_STYLES: readonly XyStyle[] = ['scatter', 'lines', 'traces'];
+
 /** What a graph of an XY table plots (item 31, #87). */
 export interface XyPlot {
   readonly kind: 'xy-scatter';
+  /**
+   * How each data set is drawn (item 34, #93): `scatter` the points alone, `lines` the mean
+   * Y at each X joined in X order, `traces` one thin line per replicate subcolumn plus the mean line.
+   */
+  readonly style: XyStyle;
   /** Show each series' (x, y) points. */
   readonly points: boolean;
   /** Draw the fitted line from this graph's linear-regression analysis (graph.analyses[0]), if it has one. */
@@ -444,6 +452,7 @@ export const GROUPED_DEFAULT: GroupedPlot = {
 /** A new XY graph's plot: points only; a fitted line is a separate step (note 29's framing). */
 export const XY_DEFAULT: XyPlot = {
   kind: 'xy-scatter',
+  style: 'scatter',
   points: true,
   fit: false,
   band: 'none',

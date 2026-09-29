@@ -254,7 +254,13 @@ function plotJson(plot: GraphPlot): Json {
     case 'violin':
       return { kind: 'violin', inner: plot.inner, smoothing: plot.smoothing };
     case 'xy-scatter':
-      return { kind: 'xy-scatter', points: plot.points, fit: plot.fit, band: plot.band };
+      return {
+        kind: 'xy-scatter',
+        style: plot.style,
+        points: plot.points,
+        fit: plot.fit,
+        band: plot.band,
+      };
   }
 }
 
@@ -752,6 +758,10 @@ function plot(v: Json | undefined, p: Path): GraphPlot {
     case 'xy-scatter':
       return {
         kind,
+        style:
+          o['style'] === undefined
+            ? 'scatter'
+            : oneOf(o['style'], p.key('style'), ['scatter', 'lines', 'traces'] as const),
         points: bool(o['points'], p.key('points')),
         fit: bool(o['fit'], p.key('fit')),
         band: oneOf(o['band'], p.key('band'), ['confidence', 'prediction', 'none'] as const),

@@ -402,6 +402,15 @@ export function Inspector({ project, graph, element, onDone }: Props) {
         </fieldset>
       );
       break;
+    case 'connect-line':
+      body = (
+        <fieldset>
+          <legend>Line</legend>
+          <p className="hint flush">Its colour follows the data set’s.</p>
+          {style('lines.fit', 'Line width', theme.lines.fit)}
+        </fieldset>
+      );
+      break;
     case 'band':
       body = (
         <fieldset>

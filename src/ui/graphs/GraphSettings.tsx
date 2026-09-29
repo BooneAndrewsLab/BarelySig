@@ -132,6 +132,28 @@ export function GraphSettings({ project, graph }: Props) {
         )}
         {plot.kind === 'xy-scatter' && (
           <>
+            <label className="field inspector-field wide">
+              <span>Draw each data set as</span>
+              <select
+                value={plot.style}
+                onChange={(e) => {
+                  const v = e.currentTarget.value;
+                  setPlot({
+                    ...plot,
+                    style: v === 'lines' || v === 'traces' ? v : 'scatter',
+                  });
+                }}
+              >
+                <option value="scatter">Points only</option>
+                <option value="lines">Connected line (mean at each X)</option>
+                <option value="traces">Each replicate as a line, plus the mean</option>
+              </select>
+              {plot.style === 'traces' && (
+                <span className="hint">
+                  Needs replicate columns; summary-data tables show the mean line only.
+                </span>
+              )}
+            </label>
             <label className="option">
               <input
                 type="checkbox"

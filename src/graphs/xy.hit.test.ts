@@ -8,7 +8,7 @@ import { layoutXy, type XyGraphInput } from './xy';
 // along the fitted line, so its whole-path bounding box used to overlap
 // every point's hit box and the line could never win the pick.
 const input: XyGraphInput = {
-  plot: { kind: 'xy-scatter', points: true, fit: true, band: 'none' },
+  plot: { kind: 'xy-scatter', style: 'scatter', points: true, fit: true, band: 'none' },
   size: { width: 70, height: 60 },
   theme: MODERN,
   xTitle: 'X',

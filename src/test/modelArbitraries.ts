@@ -656,6 +656,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
               : table.type === 'xy'
                 ? {
                     kind: 'xy-scatter',
+                    style: (['scatter', 'lines', 'traces'] as const)[s.v % 3] ?? 'scatter',
                     points: s.v % 3 !== 0,
                     fit: s.v % 2 === 0,
                     band: (['confidence', 'prediction', 'none'] as const)[s.v % 3] ?? 'none',

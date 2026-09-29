@@ -10,7 +10,7 @@ import { textWidth } from './text/measure';
 /**
  * 'y-axis', 'y-title', 'x-axis', 'x-title', 'title', 'legend',
  * 'error-bars', `series:<data set>`, `bracket:<bracket key>`,
- * `fit-line:<series>` or `band:<series>` (XY graphs, item 31).
+ * `fit-line:<series>`, `connect-line:<series>` or `band:<series>` (XY graphs, item 31).
  */
 export type ElementId = string;
 
@@ -36,6 +36,11 @@ const SERIES_ROLES = new Set([
   'violin',
   'xy-point',
 ]);
+
+/** Roles drawn as one long polyline, which need a hit box per segment. */
+const isLineRole = (role: string): boolean => role === 'fit-line' || role === 'connect-line';
+export const isLineElement = (e: ElementId): boolean =>
+  e.startsWith('fit-line:') || e.startsWith('connect-line:');
 
 /** The element a mark belongs to, or null for marks that aren't formatted on their own. */
 export function elementOf(m: Mark): ElementId | null {
@@ -70,6 +75,8 @@ export function elementOf(m: Mark): ElementId | null {
       return 'legend';
     case 'fit-line':
       return m.ref === undefined ? null : `fit-line:${m.ref}`;
+    case 'connect-line':
+      return m.ref === undefined ? null : `connect-line:${m.ref}`;
     case 'band':
       return m.ref === undefined ? null : `band:${m.ref}`;
     default:
@@ -211,7 +218,7 @@ export function hitRegions(scene: Scene, min: number): Region[] {
       for (const [b, e] of edges) out.push({ ...pad(b, min), element: e });
       continue;
     }
-    if (m.kind === 'path' && m.role === 'fit-line') {
+    if (m.kind === 'path' && isLineRole(m.role)) {
       for (const b of fitLineBoxes(m.d)) out.push({ ...pad(b, min), element });
       continue;
     }
@@ -240,11 +247,11 @@ export function pick(regions: readonly Region[], x: number, y: number): ElementI
 export function elementBoxes(scene: Scene, element: ElementId): Box[] {
   const marks = scene.marks.filter((m) => elementOf(m) === element);
   const boxes = marks.flatMap((m) =>
-    m.kind === 'path' && m.role === 'fit-line' ? fitLineBoxes(m.d) : [markBox(m)],
+    m.kind === 'path' && isLineRole(m.role) ? fitLineBoxes(m.d) : [markBox(m)],
   );
   if (
     element.startsWith('series:') ||
-    element.startsWith('fit-line:') ||
+    isLineElement(element) ||
     element === 'error-bars' ||
     boxes.length === 0
   )

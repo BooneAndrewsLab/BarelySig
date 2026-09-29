@@ -130,6 +130,21 @@ graph yet.
 None of these analyses produces significance brackets: each is one number per Y
 data set, not a pairwise comparison.
 
+## Drawing the data: points, lines or replicate traces
+
+An XY graph's **Draw each data set as** setting chooses the style:
+
+- **Points only** (the default) shows every measurement.
+- **Connected line** joins the _mean_ Y at each X, in X order, without fitting
+  anything. Use it for a time course or titration where the shape between
+  points matters. Points can stay on or be switched off.
+- **Each replicate as a line, plus the mean** draws one thin, light line per
+  replicate column (one animal, one well) with the mean line on top, so you can
+  eyeball how much replicates disagree before any statistics. A table entered
+  as mean/SD/n has no replicates, so it shows the mean line only.
+
+Click a connected line to change its width; its colour follows the data set.
+
 ## What's not here yet
 
 "Help me choose" doesn't yet suggest these analyses — pick them directly

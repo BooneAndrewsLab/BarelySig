@@ -96,6 +96,7 @@ const ELEMENT_STYLE: Readonly<Record<string, readonly StyleKey[]>> = {
   ],
   bracket: ['font.bracket', 'lines.bracket'],
   'fit-line': ['lines.fit'],
+  'connect-line': ['lines.fit'],
   band: ['bandOpacity'],
 };
 
@@ -182,6 +183,8 @@ export function elementLabel(element: ElementId, project: Project, graph: Graph)
       return `Data set: ${title(element.slice('series:'.length))}`;
     case 'fit-line':
       return `Fitted line: ${title(element.slice('fit-line:'.length))}`;
+    case 'connect-line':
+      return `Line: ${title(element.slice('connect-line:'.length))}`;
     case 'band':
       return `Band: ${title(element.slice('band:'.length))}`;
     case 'bracket': {
