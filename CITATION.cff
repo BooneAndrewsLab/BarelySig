@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: 'If you use BarelySig in your research, please cite it as below.'
 type: software
 title: 'BarelySig'
-abstract: "Free, open-source statistics and graphing for wet-lab scientists, in the browser. Column and Grouped tables with paste from spreadsheets; t tests, Mann-Whitney and Wilcoxon tests, one- and two-way ANOVA with multiple comparisons, Kruskal-Wallis with Dunn's test and normality tests, computed by R (WebR) and validated against desktop R; bar, dot, box, violin and grouped bar graphs with significance brackets, exported as SVG or PNG at journal sizes with a reproducible recipe. All computation is client-side."
+abstract: "Free, open-source statistics and graphing for wet-lab scientists, in the browser. Column, Grouped, Nested, Contingency and XY tables with paste from spreadsheets; t tests, nonparametric tests, one- and two-way (including repeated-measures and nested) ANOVA with multiple comparisons, chi-square and Fisher's exact tests, linear and nonlinear regression, correlation and growth curves, computed by R (WebR) and validated against desktop R; bar, dot, box, violin, SuperPlot and grouped bar graphs with significance brackets, exported as SVG or PNG at journal sizes with a reproducible recipe. All computation is client-side."
 authors:
   - family-names: Usaj
     given-names: Matej
@@ -13,7 +13,7 @@ license: MIT
 repository-code: 'https://github.com/BooneAndrewsLab/BarelySig'
 url: 'https://booneandrewslab.github.io/BarelySig/'
 version: 1.0.0
-date-released: 2026-09-25
+date-released: 2026-09-28
 keywords:
   - statistics
   - graphing
