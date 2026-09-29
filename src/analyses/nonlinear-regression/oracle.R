@@ -629,3 +629,97 @@ fixture("compare-few-points",
   check = compare_agrees(dose, y, expected, TRUE, limits(), limits(bottom = 0)),
   options = list(x = "log", compare = list(bottom = 0)),
   note = "Five points, four parameters: df = 1 leaves the F test available, but AICc needs n > K + 1 (K = 5) and is reported as unavailable.")
+
+# --- Dose-response models (#95, item 37) ------------------------------------
+# Every model is the same curve with some parameters held (the app's model
+# presets), so each case states the holds by hand in limits() and its options
+# carry only the model: the test builds the request from `model` alone, which
+# checks the app's presets against these hand-written bounds. Inhibitor
+# models are the falling curve, HillSlope negative, as Prism reports them;
+# a standard slope is +1 (agonist) or -1 (inhibitor).
+
+fixture("inhibitor-variable-slope",
+  input = list(
+    dose = c(0, 0, 1e-09, 1e-09, 3e-09, 3e-09, 1e-08, 1e-08, 3e-08, 3e-08, 1e-07, 1e-07, 3e-07, 3e-07, 1e-06, 1e-06, 3e-06, 3e-06, 1e-05, 1e-05),
+    y = c(94.91, 93.15, 95.69, 94.81, 100.69, 97.14, 89.01, 88.38, 83.08, 79.4, 54.46, 54.6, 26.15, 19.17, 3.06, 8.78, -2.14, -0.26, 4.18, 1.5)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE), setup = reference,
+  check = drc_agrees(log10(dose[dose > 0]), y[dose > 0], expected, ref_optimum), check_packages = c("drc", "randtests"),
+  options = list(model = "log-inhibitor-variable-slope", x = "concentration"),
+  note = "log(inhibitor) vs. response, variable slope: molar concentrations in duplicate with a zero-dose control (left out, counted); the falling curve gives a negative HillSlope and Bottom < Top.")
+
+fixture("inhibitor-standard-slope",
+  input = list(
+    dose = c(0, 0, 1e-09, 1e-09, 3e-09, 3e-09, 1e-08, 1e-08, 3e-08, 3e-08, 1e-07, 1e-07, 3e-07, 3e-07, 1e-06, 1e-06, 3e-06, 3e-06, 1e-05, 1e-05),
+    y = c(94.91, 93.15, 95.69, 94.81, 100.69, 97.14, 89.01, 88.38, 83.08, 79.4, 54.46, 54.6, 26.15, 19.17, 3.06, 8.78, -2.14, -0.26, 4.18, 1.5)
+  ),
+  expr = run_fpl(dose, y, log_x = FALSE, bounds = limits(hill = -1)), setup = reference,
+  check = drc_agrees(log10(dose[dose > 0]), y[dose > 0], expected, ref_optimum, limits(hill = -1)), check_packages = c("drc", "randtests"),
+  options = list(model = "log-inhibitor-standard-slope", x = "concentration"),
+  note = "log(inhibitor) vs. response with the slope held at -1: Bottom, Top and LogIC50 estimated, df = n - 3.")
+
+fixture("inhibitor-normalized-variable-slope",
+  input = list(
+    dose = c(-9, -9, -9, -8.5, -8.5, -8.5, -8, -8, -8, -7.5, -7.5, -7.5, -7, -7, -7, -6.5, -6.5, -6.5, -6, -6, -6, -5.5, -5.5, -5.5, -5, -5, -5),
+    y = c(88.65, 102.44, 98.74, 103.18, 93.1, 94.78, 87.65, 84.24, 81.41, 70.94, 57.51, 62.08, 40.96, 40.18, 37.63, 16.54, 17.51, 20.9, 6.44, 16.04, 8.49, -1.4, 4.95, 6.87, -3.41, 3.12, 1.74)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0, top = 100)), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(bottom = 0, top = 100)), check_packages = c("drc", "randtests"),
+  options = list(model = "log-inhibitor-normalized-variable-slope", x = "log"),
+  note = "Percent-of-control inhibition in triplicate: Bottom = 0 and Top = 100 held, LogIC50 and a negative HillSlope estimated.")
+
+fixture("inhibitor-normalized-standard-slope",
+  input = list(
+    dose = c(-9, -9, -9, -8.5, -8.5, -8.5, -8, -8, -8, -7.5, -7.5, -7.5, -7, -7, -7, -6.5, -6.5, -6.5, -6, -6, -6, -5.5, -5.5, -5.5, -5, -5, -5),
+    y = c(88.65, 102.44, 98.74, 103.18, 93.1, 94.78, 87.65, 84.24, 81.41, 70.94, 57.51, 62.08, 40.96, 40.18, 37.63, 16.54, 17.51, 20.9, 6.44, 16.04, 8.49, -1.4, 4.95, 6.87, -3.41, 3.12, 1.74)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0, top = 100, hill = -1)), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(bottom = 0, top = 100, hill = -1)), check_packages = c("drc", "randtests"),
+  options = list(model = "log-inhibitor-normalized-standard-slope", x = "log"),
+  note = "Percent-of-control inhibition with the slope also held at -1: only LogIC50 is estimated (df = n - 1).")
+
+fixture("agonist-normalized-variable-slope",
+  input = list(
+    dose = c(-10, -10, -9.5, -9.5, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6),
+    y = c(6.74, -2.53, -6.57, 4.25, 6.44, 7, 25.52, 24.13, 61.19, 58.26, 88.8, 87.65, 101.99, 101.68, 103.02, 104.89, 102.2, 104.59)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0, top = 100)), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(bottom = 0, top = 100)), check_packages = c("drc", "randtests"),
+  options = list(model = "log-agonist-normalized-variable-slope", x = "log"),
+  note = "Percent-of-maximum stimulation in duplicate, with noise taking single values below 0 and above 100: Bottom = 0 and Top = 100 held.")
+
+fixture("agonist-normalized-standard-slope",
+  input = list(
+    dose = c(-10, -10, -9.5, -9.5, -9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5, -6, -6),
+    y = c(6.74, -2.53, -6.57, 4.25, 6.44, 7, 25.52, 24.13, 61.19, 58.26, 88.8, 87.65, 101.99, 101.68, 103.02, 104.89, 102.2, 104.59)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0, top = 100, hill = 1)), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(bottom = 0, top = 100, hill = 1)), check_packages = c("drc", "randtests"),
+  options = list(model = "log-agonist-normalized-standard-slope", x = "log"),
+  note = "Percent-of-maximum stimulation with the slope held at 1: only LogEC50 is estimated.")
+
+fixture("agonist-standard-slope-small-n",
+  input = list(
+    dose = c(-8, -7, -6, -5, -4),
+    y = c(2.53, 7.68, 26.48, 54.6, 58.73)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(hill = 1)), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(hill = 1)), check_packages = c("drc", "randtests"),
+  options = list(model = "log-agonist-standard-slope", x = "log"),
+  note = "Five points, one per dose, three parameters (HillSlope held at 1): df = 2, the smallest fit the model allows.")
+
+fixture("inhibitor-normalized-standard-slope-partial",
+  input = list(
+    dose = c(-9, -9, -8.5, -8.5, -8, -8, -7.5, -7.5, -7, -7, -6.5, -6.5),
+    y = c(97.49, 101.41, 101.36, 100.43, 93.5, 98.26, 89.44, 91.68, 72.29, 72.24, 47.98, 48.44)
+  ),
+  expr = run_fpl(dose, y, bounds = limits(bottom = 0, top = 100, hill = -1)), setup = reference,
+  check = drc_agrees(dose, y, expected, ref_optimum, limits(bottom = 0, top = 100, hill = -1)), check_packages = c("drc", "randtests"),
+  options = list(model = "log-inhibitor-normalized-standard-slope", x = "log"),
+  note = "Only the upper shoulder of the inhibition curve is measured (no bottom plateau): with both plateaus and the slope held the IC50 is still determined, where the free fit would not converge.")
+
+fixture("inhibitor-normalized-standard-slope-one-point",
+  input = list(dose = c(-7), y = c(50)),
+  expr = list(n = 1, dropped = 0, ran = FALSE, why = "few", minimum = 2),
+  options = list(model = "log-inhibitor-normalized-standard-slope", x = "log"),
+  note = "One point for the one parameter left (LogIC50): no residual degrees of freedom, so the minimum is 2.")

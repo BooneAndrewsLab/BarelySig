@@ -1,0 +1,26 @@
+{
+  "input": {
+    "dose": [-7],
+    "y": [50]
+  },
+  "expected": {
+    "n": 1,
+    "dropped": 0,
+    "ran": false,
+    "why": "few",
+    "minimum": 2
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "call": "list(n = 1, dropped = 0, ran = FALSE, why = \"few\", minimum = 2)"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "One point for the one parameter left (LogIC50): no residual degrees of freedom, so the minimum is 2.",
+  "options": {
+    "model": "log-inhibitor-normalized-standard-slope",
+    "x": "log"
+  }
+}

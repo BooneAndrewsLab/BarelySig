@@ -107,12 +107,31 @@ export interface CorrelationOptions {
 export type LinearRegressionOptions = Readonly<Record<string, never>>;
 
 /**
- * A dose-response curve fit (item 32, #37). One model so far, Prism's
- * "log(agonist) vs. response — Variable slope"; `x` says whether the
- * table's X is already log10(dose) (Prism's model) or a dose the fit logs.
+ * The dose-response models (item 37, #95), Prism's names: agonist or
+ * inhibitor (the same curve; only the potency is called EC50 or IC50),
+ * variable or standard (HillSlope held at ±1) slope, and raw or normalized
+ * (Bottom = 0, Top = 100) response.
+ */
+export const DOSE_RESPONSE_MODEL_IDS = [
+  'log-agonist-variable-slope',
+  'log-agonist-standard-slope',
+  'log-agonist-normalized-variable-slope',
+  'log-agonist-normalized-standard-slope',
+  'log-inhibitor-variable-slope',
+  'log-inhibitor-standard-slope',
+  'log-inhibitor-normalized-variable-slope',
+  'log-inhibitor-normalized-standard-slope',
+] as const;
+export type DoseResponseModelId = (typeof DOSE_RESPONSE_MODEL_IDS)[number];
+
+/**
+ * A dose-response curve fit (item 32, #37; models item 37, #95). `model`
+ * fixes some parameters (a standard slope, a normalized response) on top of
+ * the user's own constraints; `x` says whether the table's X is already
+ * log10(dose) (Prism's model) or a dose the fit logs.
  */
 export interface NonlinearRegressionOptions {
-  readonly model: 'log-agonist-variable-slope';
+  readonly model: DoseResponseModelId;
   readonly x: 'log' | 'concentration';
   /** What to do with each curve parameter (item 35, #96): estimate it, hold it at a constant, or keep it inside limits. */
   readonly bottom: ParameterConstraint;

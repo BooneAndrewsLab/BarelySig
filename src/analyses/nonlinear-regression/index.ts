@@ -15,6 +15,7 @@ import type { ParameterConstraint } from '@/model/project';
 import { need, num, object, type PlainObject } from '../values';
 import fitCode from './analysis.R?raw';
 import { optionsProblem } from './constraints';
+import { effectiveConstraints } from './models';
 import type {
   ComparisonOutcome,
   DoseResponseOutcome,
@@ -175,7 +176,7 @@ export const nonlinearRegression: AnalysisModule<
   NonlinearRegressionResult
 > = {
   kind: 'nonlinear-regression',
-  version: 3,
+  version: 4,
   code,
 
   prepare(analysis, project): Prepared<NonlinearRegressionRequest> {
@@ -190,7 +191,7 @@ export const nonlinearRegression: AnalysisModule<
     if (analysis.input.dataSets.length === 0) {
       return { ok: false, reason: 'Choose a Y data set to fit a curve to.' };
     }
-    const { bottom, top, hillSlope } = analysis.options;
+    const { bottom, top, hillSlope } = effectiveConstraints(analysis.options);
     const problem = optionsProblem(analysis.options);
     if (problem) return { ok: false, reason: problem };
     const series = xySeries(table, analysis.input.dataSets);
@@ -207,6 +208,7 @@ export const nonlinearRegression: AnalysisModule<
     return {
       ok: true,
       request: {
+        model: analysis.options.model,
         series: series.map((s) => ({ id: s.id, title: s.title })),
         points,
         logX: analysis.options.x === 'log',
@@ -250,6 +252,7 @@ export const nonlinearRegression: AnalysisModule<
   parse(value: Plain, request, warnings): NonlinearRegressionResult {
     const r = object(value, 'nonlinear regression');
     return {
+      model: request.model,
       logX: request.logX,
       constraints: request.constraints,
       compare: request.compare,

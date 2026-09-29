@@ -11,6 +11,7 @@ import type { CorrelationResult } from '@/analyses/correlation/types';
 import type { FriedmanResult } from '@/analyses/friedman/types';
 import type { GrowthCurveOutcome, GrowthCurveResult } from '@/analyses/growth-curve/types';
 import type { LinearRegressionResult } from '@/analyses/linear-regression/types';
+import { doseResponseModel } from '@/analyses/nonlinear-regression/models';
 import type {
   DoseResponseOutcome,
   ModelComparison,
@@ -757,6 +758,7 @@ export function comparisonReading(c: SimplerModel, m: ModelComparison): string {
  * series' EC50 with its CI, and what to be careful about.
  */
 export function nonlinearRegressionReading(r: NonlinearRegressionResult): string {
+  const potency = doseResponseModel(r.model).potency;
   const clauses = r.series.map((s) => {
     const o = s.outcome;
     if (!o.ran) return `${s.title} couldn’t be fit: ${doseResponseWhy(o)}`;
@@ -764,7 +766,7 @@ export function nonlinearRegressionReading(r: NonlinearRegressionResult): string
     const ci = o.logEc50.ambiguous
       ? 'CI very wide'
       : `95% CI ${interval(o.ec50Lower, o.ec50Upper)}`;
-    let text = `${s.title}’s EC50 = ${tilde}${sig(o.ec50)} (${ci}), Hill slope ${sig(o.hillSlope.value)}, R² = ${sig(o.r2)}`;
+    let text = `${s.title}’s ${potency} = ${tilde}${sig(o.ec50)} (${ci}), Hill slope ${sig(o.hillSlope.value)}${o.hillSlope.status === 'fixed' ? ' (held)' : ''}, R² = ${sig(o.r2)}`;
     const limited = [
       o.bottom.status === 'at-bound' ? 'Bottom' : null,
       o.top.status === 'at-bound' ? 'Top' : null,

@@ -57,15 +57,40 @@ results say so instead of a number.
 
 ### Dose-response curve
 
-Fits an S-shaped curve — Prism's "log(agonist) vs. response, variable
-slope", the four-parameter logistic — to each Y data set:
+Fits an S-shaped curve — by default Prism's "log(agonist) vs. response,
+variable slope", the four-parameter logistic — to each Y data set:
 
 - **Bottom** and **Top**: the two plateaus;
-- **EC50**: the dose giving a response halfway between them, with its 95%
-  CI (also shown as LogEC50, the value the fit actually estimates);
+- **EC50** (**IC50** in the inhibitor models): the dose giving a response
+  halfway between them, with its 95% CI (also shown as LogEC50, the value
+  the fit actually estimates);
 - **HillSlope**: how steep the rise is — about 1 for a textbook curve,
   negative when the response falls as the dose rises (an inhibition
   curve fits this same model).
+
+#### Choosing the model
+
+The **Model** menu in the Analyze dialog has Prism's eight dose-response
+models. They are one curve; a model only says which numbers are held and
+what the halfway dose is called:
+
+- **Agonist or inhibitor.** Choose _agonist_ when the response rises with
+  the dose and _inhibitor_ when it falls. It is the same curve either way:
+  the halfway dose is called EC50 or IC50, and an inhibitor curve comes out
+  with a negative HillSlope. Pick the one that matches your data: a falling
+  curve given to an agonist model with a fixed slope fits badly.
+- **Variable slope** estimates the HillSlope. **Standard slope** (or "three
+  parameters") holds it at 1 for an agonist, or −1 for an inhibitor: the
+  shape of simple one-site binding, one number less to estimate.
+- **Normalized response** holds Bottom at 0 and Top at 100, for data
+  already expressed as a percentage of control or of the maximum, so only
+  the halfway dose (and the slope, unless it is standard) is estimated.
+
+A number the model holds is shown as "(fixed)" in the results, without an
+SE or CI, exactly like a parameter you hold yourself; the settings say
+which ones the model holds. Prism's "[agonist] vs. response" models, with
+the dose on a linear axis, are these same fits: choose **doses or
+concentrations** below and the fit works on their log.
 
 In the settings, say what your X values are: **logs of the dose** (−9
 for 1 nM, the way Prism expects them) or **doses/concentrations**
@@ -204,9 +229,9 @@ Click a connected line to change its width; its colour follows the data set.
 ## What's not here yet
 
 "Help me choose" doesn't yet suggest these analyses — pick them directly
-from the **Analyze…** dialog. The dose-response fit has one model so far:
-no shared parameters, no comparing curves ("do these EC50s
+from the **Analyze…** dialog. The dose-response fit has the
+logistic models above only: no shared parameters, no comparing curves ("do these EC50s
 differ?"), no other curve shapes, weighting or interpolating unknowns
-from a standard curve yet (sharing a parameter across data sets is not there either). The growth curve fit likewise has one model
+from a standard curve yet (sharing a parameter across data sets is not there either). Other curve shapes (exponential growth and decay, Michaelis–Menten, Gaussian and the rest of Prism's library) are not there yet either, and a linear-axis fit cannot keep a zero dose. The growth curve fit likewise has one model
 (Gompertz); a logistic alternative, phase boundaries drawn on the graph,
 and fitting several data sets together aren't there yet either.

@@ -28,6 +28,7 @@ import type {
   DescribedReplicate,
   NestedDescriptiveResult,
 } from '@/analyses/nested-descriptive/types';
+import { doseResponseModel } from '@/analyses/nonlinear-regression/models';
 import type {
   ComparisonOutcome,
   FitParameter,
@@ -978,7 +979,7 @@ function comparisonRows(r: NonlinearRegressionResult): string[][] {
   const who = (p: 'fit' | 'simpler' | null) =>
     p === null ? '—' : p === 'fit' ? 'Your model (all estimated)' : 'Simpler model';
   return [
-    ['Simpler model: EC50', ...cell((c) => sig(c.simpler.ec50))],
+    [`Simpler model: ${doseResponseModel(r.model).potency}`, ...cell((c) => sig(c.simpler.ec50))],
     ['Simpler model: sum of squares', ...cell((c) => sig(c.simpler.ss))],
     ['Simpler model: degrees of freedom', ...cell((c) => sig(c.simpler.df, 0))],
     [
@@ -1012,6 +1013,8 @@ function comparisonRows(r: NonlinearRegressionResult): string[][] {
  * Prism does: "~" before the value, CI "very wide".
  */
 function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult }) {
+  const model = doseResponseModel(r.model);
+  const potency = model.potency;
   const head = ['', ...r.series.map((s) => s.title)];
   type Fit = Extract<NonlinearRegressionSeries['outcome'], { ran: true }>;
   const row = (label: string, f: (o: Fit) => string) => [
@@ -1042,8 +1045,9 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
     <>
       <Headline reading={nonlinearRegressionReading(r)} />
       <p className="method">
-        Nonlinear regression (least squares): log(agonist) vs. response, variable slope (four
-        parameters), Y = Bottom + (Top − Bottom) / (1 + 10^((LogEC50 − X) × HillSlope)).{' '}
+        Nonlinear regression (least squares): {model.label}, Y = Bottom + (Top − Bottom) / (1 +
+        10^((Log{potency} − X) × HillSlope)).{' '}
+        {model.inhibitor && 'A falling curve has a negative HillSlope. '}
         {constraintSentence(r.constraints)}
         {r.logX
           ? 'X is the log of the dose.'
@@ -1060,9 +1064,9 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             rows={[
               row('Bottom', (o) => value(o.bottom)),
               row('Top', (o) => value(o.top)),
-              row('LogEC50', (o) => value(o.logEc50)),
+              row(`Log${potency}`, (o) => value(o.logEc50)),
               row('HillSlope', (o) => value(o.hillSlope)),
-              row('EC50', (o) => `${o.logEc50.ambiguous ? '~' : ''}${sig(o.ec50)}`),
+              row(potency, (o) => `${o.logEc50.ambiguous ? '~' : ''}${sig(o.ec50)}`),
               row('Span (Top − Bottom)', (o) => sig(o.top.value - o.bottom.value)),
             ]}
           />
@@ -1072,7 +1076,7 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             rows={[
               row('Bottom', (o) => se(o.bottom)),
               row('Top', (o) => se(o.top)),
-              row('LogEC50', (o) => se(o.logEc50)),
+              row(`Log${potency}`, (o) => se(o.logEc50)),
               row('HillSlope', (o) => se(o.hillSlope)),
             ]}
           />
@@ -1082,9 +1086,9 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
             rows={[
               row('Bottom', (o) => ci(o.bottom)),
               row('Top', (o) => ci(o.top)),
-              row('LogEC50', (o) => ci(o.logEc50)),
+              row(`Log${potency}`, (o) => ci(o.logEc50)),
               row('HillSlope', (o) => ci(o.hillSlope)),
-              row('EC50', (o) =>
+              row(potency, (o) =>
                 o.logEc50.ambiguous ? 'very wide' : interval(o.ec50Lower, o.ec50Upper),
               ),
             ]}
@@ -1131,10 +1135,10 @@ function NonlinearRegressionView({ r }: { readonly r: NonlinearRegressionResult 
         </>
       )}
       <p className="legend">
-        EC50 is the dose giving a response halfway between Bottom and Top; its CI is 10 to the power
-        of LogEC50’s, so it isn’t symmetric around EC50. A nonlinear fit’s R² is not a test of the
-        curve: a small runs-test P says the points systematically miss the curve. “~” marks a value
-        the data barely pin down (dependency above 0.9999).
+        {potency} is the dose giving a response halfway between Bottom and Top; its CI is 10 to the
+        power of Log{potency}’s, so it isn’t symmetric around {potency}. A nonlinear fit’s R² is not
+        a test of the curve: a small runs-test P says the points systematically miss the curve. “~”
+        marks a value the data barely pin down (dependency above 0.9999).
       </p>
     </>
   );

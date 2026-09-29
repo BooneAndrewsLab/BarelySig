@@ -13,6 +13,7 @@ import {
   REPEATED_TWO_WAY_FAMILIES,
   TWO_WAY_FAMILIES,
   DEFAULT_OPTIONS,
+  DOSE_RESPONSE_MODEL_IDS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
   WELCH_ALL,
@@ -142,6 +143,7 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
   }),
   fc
     .record({
+      model: fc.constantFrom(...DOSE_RESPONSE_MODEL_IDS),
       x: fc.constantFrom('log' as const, 'concentration' as const),
       bottom: parameterConstraint,
       top: parameterConstraint,
@@ -165,7 +167,7 @@ export const analysisSpec: fc.Arbitrary<AnalysisSpec> = fc.oneof(
     })
     .map((o): AnalysisSpec => ({
       kind: 'nonlinear-regression',
-      options: { model: 'log-agonist-variable-slope', ...o },
+      options: o,
     })),
   fc.constant<AnalysisSpec>({
     kind: 'growth-curve',

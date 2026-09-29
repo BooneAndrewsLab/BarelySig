@@ -6,6 +6,8 @@
  */
 import type { NonlinearRegressionOptions, ParameterConstraint } from '@/model/project';
 
+import { effectiveConstraints } from './models';
+
 /** Why one parameter's constraint can't be used, in words; null when it is fine. */
 export function constraintProblem(
   c: ParameterConstraint,
@@ -42,10 +44,11 @@ export function constraintProblem(
  * always a special case of the fit (the F test needs that).
  */
 export function comparisonProblem(
-  o: Pick<NonlinearRegressionOptions, 'bottom' | 'top' | 'hillSlope' | 'compare'>,
+  o: Pick<NonlinearRegressionOptions, 'model' | 'bottom' | 'top' | 'hillSlope' | 'compare'>,
 ): string | null {
   const c = o.compare;
   if (c === null) return null;
+  const fit = effectiveConstraints(o);
   const held = (
     [
       ['bottom', 'Bottom'],
@@ -62,7 +65,7 @@ export function comparisonProblem(
     if (k === 'hillSlope' && v === 0) {
       return 'A HillSlope of 0 makes the curve a flat line with no EC50 to find. Hold it at another value.';
     }
-    if (o[k].kind !== 'free') {
+    if (fit[k].kind !== 'free') {
       return `${name} is already held or limited in the fit itself. The simpler model can only hold a parameter that the fit estimates.`;
     }
   }
@@ -74,12 +77,13 @@ export function comparisonProblem(
 
 /** The first problem with the options’ constraints or comparison, or null. */
 export function optionsProblem(
-  o: Pick<NonlinearRegressionOptions, 'bottom' | 'top' | 'hillSlope' | 'compare'>,
+  o: Pick<NonlinearRegressionOptions, 'model' | 'bottom' | 'top' | 'hillSlope' | 'compare'>,
 ): string | null {
+  const fit = effectiveConstraints(o);
   return (
-    constraintProblem(o.bottom, 'Bottom', false) ??
-    constraintProblem(o.top, 'Top', false) ??
-    constraintProblem(o.hillSlope, 'HillSlope', true) ??
+    constraintProblem(fit.bottom, 'Bottom', false) ??
+    constraintProblem(fit.top, 'Top', false) ??
+    constraintProblem(fit.hillSlope, 'HillSlope', true) ??
     comparisonProblem(o)
   );
 }

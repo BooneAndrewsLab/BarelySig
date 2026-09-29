@@ -11,6 +11,7 @@ import {
   type Analysis,
   createProject,
   DEFAULT_OPTIONS,
+  DOSE_RESPONSE_MODEL_IDS,
   type ParameterConstraint,
   type SimplerModel,
 } from '@/model/project';
@@ -19,6 +20,7 @@ import { type Fixture, loadFixtures, mismatches } from '@/test/fixtures';
 import { startNodeWebR } from '@/test/webrNode';
 
 import { nonlinearRegression } from '.';
+import { effectiveConstraints } from './models';
 import type { NonlinearRegressionRequest } from './types';
 
 const engine = new Engine(startNodeWebR);
@@ -34,15 +36,22 @@ function requestFor(f: Fixture): NonlinearRegressionRequest {
     if (v === null || yv === null || yv === undefined) throw new Error('fixture cell is empty');
     return { x: v, y: yv };
   });
+  const modelId = f.options?.['model'];
+  const model =
+    DOSE_RESPONSE_MODEL_IDS.find((id) => id === modelId) ?? 'log-agonist-variable-slope';
   return {
+    model,
     series: [{ id: 's1', title: 'Series 1' }],
     points: [points],
     logX: f.options?.['x'] !== 'concentration',
-    constraints: {
+    // What `prepare` would send: the model's own holds over the fixture's constraints. A model
+    // fixture states none of its own, so the oracle's hand-derived bounds check the presets.
+    constraints: effectiveConstraints({
+      model,
       bottom: constraintOf(f.options?.['bottom']),
       top: constraintOf(f.options?.['top']),
       hillSlope: constraintOf(f.options?.['hillSlope']),
-    },
+    }),
     compare: compareOf(f.options?.['compare']),
   };
 }
@@ -284,6 +293,78 @@ describe('prepare', () => {
         project2,
       ).ok,
     ).toBe(false);
+  });
+
+  it('applies the chosen model: its holds replace the constraints chosen for the same parameters', () => {
+    const { project, table } = setup();
+    const x = table.dataSets[0];
+    const y = table.dataSets[1];
+    if (!x || !y) throw new Error('table has no data sets');
+    const filled: XyTable = {
+      ...table,
+      dataSets: [
+        { ...x, subcolumns: [[0, 1e-9, 1e-8]] },
+        { ...y, subcolumns: [[2, 4, 6]] },
+      ],
+    };
+    const project2 = { ...project, tables: new Map([[filled.id, filled]]) };
+    const withOptions = (o: Partial<Fit['options']>): Fit => {
+      const a = analysisFor(filled);
+      return { ...a, options: { ...a.options, ...o } };
+    };
+    const free = { kind: 'free' } as const;
+    const fixed = (value: number) => ({ kind: 'fixed', value }) as const;
+    const cases = [
+      ['log-agonist-variable-slope', free, free, free],
+      ['log-inhibitor-variable-slope', free, free, free],
+      ['log-agonist-standard-slope', free, free, fixed(1)],
+      ['log-inhibitor-standard-slope', free, free, fixed(-1)],
+      ['log-agonist-normalized-variable-slope', fixed(0), fixed(100), free],
+      ['log-inhibitor-normalized-variable-slope', fixed(0), fixed(100), free],
+      ['log-agonist-normalized-standard-slope', fixed(0), fixed(100), fixed(1)],
+      ['log-inhibitor-normalized-standard-slope', fixed(0), fixed(100), fixed(-1)],
+    ] as const;
+    for (const [model, bottom, top, hillSlope] of cases) {
+      const p = nonlinearRegression.prepare(withOptions({ model }), project2);
+      if (!p.ok) throw new Error(`${model} was refused: ${p.reason}`);
+      expect(p.request.model).toBe(model);
+      expect(p.request.constraints).toEqual({ bottom, top, hillSlope });
+    }
+    // A limit chosen for a parameter the model holds is ignored, not merged.
+    const over = nonlinearRegression.prepare(
+      withOptions({
+        model: 'log-agonist-normalized-variable-slope',
+        bottom: { kind: 'bounded', lower: 5, upper: 5 },
+        hillSlope: { kind: 'bounded', lower: 0, upper: null },
+      }),
+      project2,
+    );
+    expect(over.ok && over.request.constraints.bottom).toEqual(fixed(0));
+    expect(over.ok && over.request.constraints.hillSlope).toEqual({
+      kind: 'bounded',
+      lower: 0,
+      upper: null,
+    });
+    // The simpler model can only hold what the model itself leaves free.
+    const none = { bottom: null, top: null, hillSlope: null };
+    expect(
+      nonlinearRegression.prepare(
+        withOptions({
+          model: 'log-inhibitor-standard-slope',
+          compare: { ...none, hillSlope: 1 },
+        }),
+        project2,
+      ).ok,
+    ).toBe(false);
+    expect(
+      nonlinearRegression.prepare(
+        withOptions({
+          model: 'log-inhibitor-standard-slope',
+          compare: { ...none, bottom: 0 },
+        }),
+        project2,
+      ).ok,
+    ).toBe(true);
   });
 
   it('passes the simpler model through, and refuses one that is not nested in the fit', () => {

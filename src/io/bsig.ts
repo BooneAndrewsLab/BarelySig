@@ -32,6 +32,7 @@ import {
   type NonlinearRegressionOptions,
   type SimplerModel,
   type ParameterConstraint,
+  DOSE_RESPONSE_MODEL_IDS,
   EQUAL_SD_ALL,
   EQUAL_SD_CONTROL,
   type KruskalWallisOptions,
@@ -554,7 +555,7 @@ function spec(o: JsonObject, p: Path): AnalysisSpec {
     }
     case 'nonlinear-regression': {
       const options: NonlinearRegressionOptions = {
-        model: oneOf(opts['model'], q.key('model'), ['log-agonist-variable-slope'] as const),
+        model: oneOf(opts['model'], q.key('model'), DOSE_RESPONSE_MODEL_IDS),
         x: oneOf(opts['x'], q.key('x'), ['log', 'concentration'] as const),
         // Files from before #96 have no constraints: every parameter is estimated.
         bottom: constraint(opts['bottom'], q.key('bottom')),

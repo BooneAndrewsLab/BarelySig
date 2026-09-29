@@ -4,16 +4,22 @@
  * logistic, one fit per series. Request and result.
  */
 import type { RegressionBand, Residual, RunsOutcome } from '../linear-regression/types';
-import type { ParameterConstraint, SimplerModel } from '@/model/project';
+import type { DoseResponseModelId, ParameterConstraint, SimplerModel } from '@/model/project';
 import type { Named } from '../ttest/types';
 
 export interface NonlinearRegressionRequest {
+  /** Which dose-response model (item 37, #95); it names the potency and holds some parameters. */
+  readonly model: DoseResponseModelId;
   readonly series: readonly Named[];
   /** Each series' (x, y) points, X as entered in the table. */
   readonly points: readonly (readonly { readonly x: number; readonly y: number }[])[];
   /** X is already log10(dose) (Prism's model); otherwise a dose, fit against its log10. */
   readonly logX: boolean;
-  /** Bottom, Top and HillSlope: estimated, held at a constant, or kept within limits (#96). */
+  /**
+   * Bottom, Top and HillSlope as the fit uses them: estimated, held at a
+   * constant, or kept within limits (#96); the model's own holds (a standard
+   * slope, a normalized response) are already in here as `fixed`.
+   */
   readonly constraints: {
     readonly bottom: ParameterConstraint;
     readonly top: ParameterConstraint;
@@ -93,6 +99,7 @@ export type DoseResponseOutcome =
       readonly dropped: number;
       readonly bottom: FitParameter;
       readonly top: FitParameter;
+      /** Named EC50 or IC50 by the model; the numbers are the same. */
       readonly logEc50: FitParameter;
       readonly hillSlope: FitParameter;
       readonly ec50: number;
@@ -124,6 +131,7 @@ export interface NonlinearRegressionSeries extends Named {
 }
 
 export interface NonlinearRegressionResult {
+  readonly model: DoseResponseModelId;
   readonly logX: boolean;
   readonly constraints: NonlinearRegressionRequest['constraints'];
   readonly compare: SimplerModel | null;

@@ -8,6 +8,7 @@
 import type { Analysis, Comparisons, ErrorBar, Graph, Project, Whiskers } from '@/model/project';
 import type { Table } from '@/model/table';
 
+import { doseResponseModel, effectiveConstraints } from '@/analyses/nonlinear-regression/models';
 import { testName } from '../analysisKinds';
 import { COMPARISON_TEST } from '../results/reading';
 
@@ -443,22 +444,22 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
-    case 'nonlinear-regression':
+    case 'nonlinear-regression': {
+      const potency = doseResponseModel(analysis.options.model).potency;
+      const effective = effectiveConstraints(analysis.options);
       return [
         {
           kicker,
           title,
           text: [
-            'Fits an S-shaped dose-response curve to each Y data set: a bottom and a top plateau, the EC50 (the dose giving a response halfway between them) and the Hill slope (how steep the rise is; negative for a falling curve).',
+            `Fits an S-shaped dose-response curve to each Y data set: a bottom and a top plateau, the ${potency} (the dose giving a response halfway between them) and the Hill slope (how steep the rise is; negative for a falling curve).`,
             analysis.options.x === 'concentration'
               ? 'X is read as a dose and fitted on a log scale; a zero dose has no log, so it is left out of the fit.'
               : 'X is read as the log of the dose (−9 for 1 nM); choose “concentrations” in the settings if you typed doses.',
-            'The CIs are asymptotic (symmetric around LogEC50). A “~” marks a value the data barely pin down, usually because a plateau has no points on it.',
-            ...(['bottom', 'top', 'hillSlope'].some(
-              (k) => analysis.options[k as 'bottom' | 'top' | 'hillSlope'].kind !== 'free',
-            )
+            `The CIs are asymptotic (symmetric around Log${potency}). A “~” marks a value the data barely pin down, usually because a plateau has no points on it.`,
+            ...(Object.values(effective).some((c) => c.kind !== 'free')
               ? [
-                  'Some parameters are held at a constant or kept within limits. A held parameter is not estimated, so it has no SE or CI; a limit the fit runs into counts as held.',
+                  'Some parameters are held at a constant (by the model or by you) or kept within limits. A held parameter is not estimated, so it has no SE or CI; a limit the fit runs into counts as held.',
                 ]
               : []),
             ...(analysis.options.compare
@@ -469,6 +470,7 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           ],
         },
       ];
+    }
     case 'growth-curve':
       return [
         {

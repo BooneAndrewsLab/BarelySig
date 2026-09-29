@@ -6,6 +6,12 @@
 import { type ReactNode, useState } from 'react';
 
 import { comparisonProblem, optionsProblem } from '@/analyses/nonlinear-regression/constraints';
+import {
+  DOSE_RESPONSE_MODELS,
+  doseResponseModel,
+  effectiveConstraints,
+  heldByModel,
+} from '@/analyses/nonlinear-regression/models';
 import { type Id, newId } from '@/model/ids';
 import {
   type Analysis,
@@ -157,7 +163,7 @@ const KINDS: readonly KindInfo[] = [
     kind: 'nonlinear-regression',
     name: 'Dose-response curve',
     blurb:
-      'Fit an S-shaped dose-response curve, per Y data set: EC50 with its CI, Hill slope, bottom and top.',
+      'Fit an S-shaped dose-response curve, per Y data set: EC50 or IC50 with its CI, Hill slope, bottom and top.',
     tables: ['xy'],
   },
   {
@@ -497,28 +503,78 @@ function DoseResponseFields(props: {
   readonly set: (o: NonlinearRegressionOptions) => void;
 }) {
   const { o, set } = props;
+  const model = doseResponseModel(o.model);
   return (
-    <fieldset>
-      <legend>My X values are</legend>
-      <Radio
-        name="dose-response-x"
-        checked={o.x === 'log'}
-        onPick={() => {
-          set({ ...o, x: 'log' });
-        }}
-      >
-        Logs of the dose (e.g. −9 for 1 nM)
-      </Radio>
-      <Radio
-        name="dose-response-x"
-        checked={o.x === 'concentration'}
-        onPick={() => {
-          set({ ...o, x: 'concentration' });
-        }}
-      >
-        Doses or concentrations (e.g. 1e-9); a zero dose is left out, since it has no log
-      </Radio>
-    </fieldset>
+    <>
+      <fieldset>
+        <legend>Curve</legend>
+        <label className="constraint-name">
+          <span>Model</span>
+          <select
+            aria-label="Dose-response model"
+            value={o.model}
+            onChange={(e) => {
+              const next = DOSE_RESPONSE_MODELS.find((m) => m.id === e.currentTarget.value);
+              if (!next) return;
+              // A simpler model can't hold what the new model already holds.
+              const c = o.compare;
+              const compare =
+                c === null
+                  ? null
+                  : {
+                      bottom: next.bottom === null ? c.bottom : null,
+                      top: next.top === null ? c.top : null,
+                      hillSlope: next.hillSlope === null ? c.hillSlope : null,
+                    };
+              const empty =
+                compare !== null &&
+                compare.bottom === null &&
+                compare.top === null &&
+                compare.hillSlope === null;
+              set({ ...o, model: next.id, compare: empty ? null : compare });
+            }}
+          >
+            {DOSE_RESPONSE_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="hint">
+          {model.inhibitor
+            ? 'For a response that falls as the dose rises. The dose halfway between the plateaus is the IC50, and the HillSlope comes out negative.'
+            : 'For a response that rises with the dose. The dose halfway between the plateaus is the EC50.'}{' '}
+          {model.hillSlope !== null
+            ? `The slope is held at ${model.hillSlope < 0 ? '−1' : '1'}, the shape of simple one-site binding, so the curve has one less number to estimate. `
+            : 'The slope is estimated from the data. '}
+          {model.bottom !== null
+            ? 'Use it when the response is a percentage of control: the bottom is held at 0 and the top at 100.'
+            : ''}
+        </p>
+      </fieldset>
+      <fieldset>
+        <legend>My X values are</legend>
+        <Radio
+          name="dose-response-x"
+          checked={o.x === 'log'}
+          onPick={() => {
+            set({ ...o, x: 'log' });
+          }}
+        >
+          Logs of the dose (e.g. −9 for 1 nM)
+        </Radio>
+        <Radio
+          name="dose-response-x"
+          checked={o.x === 'concentration'}
+          onPick={() => {
+            set({ ...o, x: 'concentration' });
+          }}
+        >
+          Doses or concentrations (e.g. 1e-9); a zero dose is left out, since it has no log
+        </Radio>
+      </fieldset>
+    </>
   );
 }
 
@@ -635,33 +691,33 @@ function ConstraintFields(props: {
 }) {
   const { o, set } = props;
   const problem = optionsProblem(o);
+  const rows = [
+    ['bottom', 'Bottom'],
+    ['top', 'Top'],
+    ['hillSlope', 'HillSlope'],
+  ] as const;
   return (
     <fieldset>
       <legend>Curve parameters</legend>
-      <ConstraintField
-        name="bottom"
-        label="Bottom"
-        c={o.bottom}
-        set={(bottom) => {
-          set({ ...o, bottom });
-        }}
-      />
-      <ConstraintField
-        name="top"
-        label="Top"
-        c={o.top}
-        set={(top) => {
-          set({ ...o, top });
-        }}
-      />
-      <ConstraintField
-        name="hillSlope"
-        label="HillSlope"
-        c={o.hillSlope}
-        set={(hillSlope) => {
-          set({ ...o, hillSlope });
-        }}
-      />
+      {rows.map(([name, label]) => {
+        const held = heldByModel(o.model, name);
+        return held !== null ? (
+          <p className="hint" key={name}>
+            {label} is held at {held < 0 ? `−${String(-held)}` : String(held)} by the model chosen
+            above.
+          </p>
+        ) : (
+          <ConstraintField
+            key={name}
+            name={name}
+            label={label}
+            c={o[name]}
+            set={(c) => {
+              set({ ...o, [name]: c });
+            }}
+          />
+        );
+      })}
       <p className="hint">
         If your data don’t reach a plateau, hold it at the value you know (Bottom = 0 after
         subtracting a baseline, Top = 100 for percent-of-control data, HillSlope = 1 for simple
@@ -701,9 +757,10 @@ function ComparisonFields(props: {
         <input
           type="checkbox"
           checked={c !== null}
+          disabled={c === null && names.every(([k]) => effectiveConstraints(o)[k].kind !== 'free')}
           onChange={(e) => {
             const on = e.currentTarget.checked;
-            const first = names.find(([k]) => o[k].kind === 'free');
+            const first = names.find(([k]) => effectiveConstraints(o)[k].kind === 'free');
             set({
               ...o,
               compare: on
@@ -723,7 +780,7 @@ function ComparisonFields(props: {
         <>
           {names.map(([k, label]) => {
             const v = c[k];
-            const free = o[k].kind === 'free';
+            const free = effectiveConstraints(o)[k].kind === 'free';
             return (
               <div className="constraint-row" key={k}>
                 <label className="option">
