@@ -28,6 +28,10 @@ export type Sheet =
 
 export const HOME: Sheet = { kind: 'home' };
 
+/** How long a status-line message stays, then how long it takes to fade. */
+export const NOTICE_MS = 5000;
+export const NOTICE_FADE_MS = 400;
+
 export type NoticeTone = 'info' | 'warning' | 'error';
 
 /** One message for the status line; `seq` tells a repeated message from the last one. */
@@ -73,6 +77,7 @@ export class AppStore {
   private state: AppState;
   private readonly listeners = new Set<() => void>();
   private seq = 0;
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(initial: Project = createProject('Untitled project')) {
     this.state = {
@@ -155,13 +160,28 @@ export class AppStore {
     this.set({ sheet });
   }
 
+  /** Shows a message on the status line; it drains and fades by itself. */
   notify(text: string, tone: NoticeTone = 'info'): void {
     this.seq += 1;
-    this.set({ notice: { text, tone, seq: this.seq } });
+    const seq = this.seq;
+    this.set({ notice: { text, tone, seq } });
+    this.clearNoticeTimer();
+    this.noticeTimer = setTimeout(() => {
+      this.noticeTimer = null;
+      if (this.state.notice?.seq === seq) this.set({ notice: null });
+    }, NOTICE_MS + NOTICE_FADE_MS);
   }
 
   clearNotice(): void {
+    this.clearNoticeTimer();
     if (this.state.notice) this.set({ notice: null });
+  }
+
+  private clearNoticeTimer(): void {
+    if (this.noticeTimer !== null) {
+      clearTimeout(this.noticeTimer);
+      this.noticeTimer = null;
+    }
   }
 
   /** The current project was just downloaded. */

@@ -11,7 +11,8 @@ import { useProjects } from './recent';
 
 interface Props {
   readonly onNewTable: (type: TableType) => void;
-  readonly onExample: () => void;
+  /** No type: the whole-app example; a type: that table type's own. */
+  readonly onExample: (type?: TableType) => void;
   /** Open… for a data file (item 10). */
   readonly onOpenFile: () => void;
   /** The open project when it is blank, left out of the list. */
@@ -68,7 +69,13 @@ export function Home({ onNewTable, onExample, onOpenFile, current, children }: P
             open source, and it runs entirely in your browser.
           </p>
           <div className="hero-actions">
-            <button type="button" className="primary" onClick={onExample}>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                onExample();
+              }}
+            >
               Try an example
             </button>
             <button type="button" className="outline" onClick={onOpenFile}>
@@ -81,7 +88,14 @@ export function Home({ onNewTable, onExample, onOpenFile, current, children }: P
           </p>
         </section>
 
-        {projects !== null && projects.length > 0 && <ProjectList projects={projects} />}
+        {projects !== null && projects.length > 0 && (
+          <ProjectList
+            projects={projects}
+            onEmpty={() => {
+              onNewTable('column');
+            }}
+          />
+        )}
 
         <section className="start" aria-labelledby="start-title">
           <h2 id="start-title">Start with a table</h2>
@@ -90,18 +104,28 @@ export function Home({ onNewTable, onExample, onOpenFile, current, children }: P
           </p>
           <div className="home-types">
             {TABLE_TYPES.map((t) => (
-              <button
-                key={t.type}
-                type="button"
-                className="type-tile"
-                onClick={() => {
-                  onNewTable(t.type);
-                }}
-              >
+              <div key={t.type} className="home-type">
                 <Icon name={t.icon} size={40} />
-                <span className="type-name">{t.name} table</span>
+                <button
+                  type="button"
+                  className="type-open"
+                  onClick={() => {
+                    onNewTable(t.type);
+                  }}
+                >
+                  {t.name} table
+                </button>
                 <span className="type-blurb">{t.blurb}</span>
-              </button>
+                <button
+                  type="button"
+                  className="type-example"
+                  onClick={() => {
+                    onExample(t.type);
+                  }}
+                >
+                  Open an example
+                </button>
+              </div>
             ))}
           </div>
         </section>

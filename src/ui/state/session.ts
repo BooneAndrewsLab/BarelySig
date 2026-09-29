@@ -14,6 +14,7 @@ import type { EngineInfo } from '@/model/inputs';
 import type { Json } from '@/model/json';
 import type { ResultEntry } from '@/model/recompute';
 import { type Project, createProject } from '@/model/project';
+import type { TableType } from '@/model/table';
 
 import { analytics } from '../analytics';
 import { copyName } from '../copyName';
@@ -21,7 +22,7 @@ import { exampleProject } from '../examples';
 import { Autosaver } from './autosave';
 import { keepStorageQuietly } from './storageSafety';
 import { type ResultsBridge, getResults } from './results';
-import { type AppStore, project, store } from './store';
+import { type AppStore, HOME, type Sheet, project, store } from './store';
 
 const APP = __APP_VERSION__;
 
@@ -98,10 +99,38 @@ export class Session {
     this.appStore.load(saved.project, { hasFile: saved.downloaded });
   }
 
-  /** Reopens the project changed most recently in this browser, if any. */
+  /**
+   * Reopens the view the last session ended on: that project and sheet, or
+   * the front page. With no record (first run with this version), the
+   * project changed most recently.
+   */
   async restore(): Promise<void> {
-    const saved = await this.storage.latest();
-    if (saved) this.reopen(saved);
+    const view = readView();
+    try {
+      if (view === null) {
+        const saved = await this.storage.latest();
+        if (saved) this.reopen(saved);
+      } else if (view.project !== null) {
+        const saved = await this.storage.load(view.project);
+        if (saved) {
+          this.reopen(saved);
+          this.appStore.show(view.sheet);
+        }
+      }
+    } finally {
+      this.watchView();
+    }
+  }
+
+  private watchView(): void {
+    const write = () => {
+      const s = this.appStore.getState();
+      const p = project(s);
+      const blank = p.tables.size === 0 && p.analyses.size === 0 && p.graphs.size === 0;
+      writeView({ project: blank ? null : p.id, sheet: s.sheet });
+    };
+    write();
+    this.appStore.subscribe(write);
   }
 
   private async replace(p: Project, opts: { hasFile?: boolean } = {}): Promise<void> {
@@ -132,24 +161,26 @@ export class Session {
     }
   }
 
-  async openExample(): Promise<void> {
-    await this.replace(exampleProject());
+  async openExample(type?: TableType): Promise<void> {
+    await this.replace(exampleProject(type));
   }
 
-  async openStored(id: Id): Promise<void> {
+  /** False when the project is already open but has no table to show (its last one was deleted). */
+  async openStored(id: Id): Promise<boolean> {
     if (this.isOpen(id)) {
-      // Open but on the front page (its last experiment deleted): show its first one.
       const first = project(this.appStore.getState()).order.tables[0];
-      if (first !== undefined) this.appStore.show({ kind: 'table', id: first });
-      return;
+      if (first === undefined) return false;
+      this.appStore.show({ kind: 'table', id: first });
+      return true;
     }
     await this.autosaver.flush();
     const saved = await this.storage.load(id);
     if (!saved) {
       this.appStore.notify(CANT_READ, 'error');
-      return;
+      return true;
     }
     this.reopen(saved);
+    return true;
   }
 
   /**
@@ -294,6 +325,38 @@ export class Session {
       target.removeEventListener('pagehide', flush);
       document.removeEventListener('visibilitychange', onVisibility);
     };
+  }
+}
+
+const VIEW_KEY = 'barelysig.view';
+
+interface View {
+  readonly project: Id | null;
+  readonly sheet: Sheet;
+}
+
+function readView(): View | null {
+  try {
+    const raw = localStorage.getItem(VIEW_KEY);
+    if (raw === null) return null;
+    const v = JSON.parse(raw) as Partial<{ project: unknown; sheet: Partial<Sheet> }>;
+    const kind = v.sheet?.kind;
+    if (kind === undefined) return null;
+    if (v.project !== null && typeof v.project !== 'string') return null;
+    if (kind === 'home') return { project: v.project as Id | null, sheet: HOME };
+    const id = (v.sheet as { id?: unknown }).id;
+    if (typeof id !== 'string') return null;
+    return { project: v.project as Id | null, sheet: { kind, id: id as Id } };
+  } catch {
+    return null;
+  }
+}
+
+function writeView(v: View): void {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify(v));
+  } catch {
+    // Private mode or full storage: the view just isn't remembered.
   }
 }
 

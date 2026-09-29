@@ -15,14 +15,21 @@ const SEARCH_FROM = 6;
 function ProjectRow({
   project: r,
   onDelete,
+  onEmpty,
 }: {
   readonly project: ProjectSummary;
   readonly onDelete: (t: DeleteTarget) => void;
+  readonly onEmpty: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const session = getSession();
   const contents = contentsLine(r);
   const metaId = `proj-meta-${r.id}`;
+  const open = () => {
+    void session.openStored(r.id).then((shown) => {
+      if (!shown) onEmpty();
+    });
+  };
   return (
     <li className="proj-row">
       {renaming ? (
@@ -38,14 +45,7 @@ function ProjectRow({
           }}
         />
       ) : (
-        <button
-          type="button"
-          className="proj-open"
-          aria-describedby={metaId}
-          onClick={() => {
-            void session.openStored(r.id);
-          }}
-        >
+        <button type="button" className="proj-open" aria-describedby={metaId} onClick={open}>
           <span className="proj-name">{r.name}</span>
           <span className="proj-meta" id={metaId}>
             {contents} ·{' '}
@@ -67,9 +67,7 @@ function ProjectRow({
         items={[
           {
             label: 'Open',
-            onSelect: () => {
-              void session.openStored(r.id);
-            },
+            onSelect: open,
           },
           {
             label: 'Rename',
@@ -105,7 +103,14 @@ function ProjectRow({
  * Every project kept in this browser, newest change first (item 09):
  * click one to open it, ⋯ to rename, duplicate, download or delete it.
  */
-export function ProjectList({ projects }: { readonly projects: readonly ProjectSummary[] }) {
+export function ProjectList({
+  projects,
+  onEmpty,
+}: {
+  readonly projects: readonly ProjectSummary[];
+  /** The clicked project is open already and has no table: offer to make one. */
+  readonly onEmpty: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const q = query.trim().toLocaleLowerCase();
@@ -138,7 +143,7 @@ export function ProjectList({ projects }: { readonly projects: readonly ProjectS
       ) : (
         <ul>
           {shown.map((r) => (
-            <ProjectRow key={r.id} project={r} onDelete={setDeleting} />
+            <ProjectRow key={r.id} project={r} onDelete={setDeleting} onEmpty={onEmpty} />
           ))}
         </ul>
       )}

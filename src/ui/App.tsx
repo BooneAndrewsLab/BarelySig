@@ -203,14 +203,19 @@ export function App() {
             current={blank ? p.id : null}
             onNewTable={setNewTable}
             onOpenFile={() => fileInput.current?.click()}
-            onExample={() => {
-              void getSession().openExample();
+            onExample={(type) => {
+              void getSession().openExample(type);
             }}
           >
             <HelpButton />
           </Home>
         </main>
-        <StatusLine notice={state.notice} />
+        <StatusLine
+          notice={state.notice}
+          onDismiss={() => {
+            store.clearNotice();
+          }}
+        />
         {fileInputEl}
         {dialogs}
       </div>
@@ -277,7 +282,14 @@ export function App() {
           }
         />
       </main>
-      <StatusLine notice={state.notice}>{summary}</StatusLine>
+      <StatusLine
+        notice={state.notice}
+        onDismiss={() => {
+          store.clearNotice();
+        }}
+      >
+        {summary}
+      </StatusLine>
       {fileInputEl}
       {dialogs}
     </div>

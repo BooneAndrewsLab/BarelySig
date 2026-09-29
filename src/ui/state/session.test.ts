@@ -20,6 +20,7 @@ const withTable = (name: string) =>
   });
 
 function setup() {
+  localStorage.clear();
   const store = new AppStore(createProject('Untitled project'));
   const storage = new ProjectStorage(new BarelySigDb(`test-${newId('x')}`));
   return { store, storage, session: new Session(store, storage, () => null) };
@@ -79,6 +80,31 @@ describe('Session', () => {
     await storage.save(p, '0.3.0');
     await session.restore();
     expect(project(store.getState())).toStrictEqual(p);
+  });
+
+  it('reload returns to the exact project and sheet, or the front page', async () => {
+    const { store, storage, session } = setup();
+    const p = withTable('Kept');
+    const other = withTable('Other');
+    await storage.save(p, '0.3.0');
+    await storage.save(other, '0.3.0');
+    await session.restore();
+    await session.openStored(p.id);
+    const table = p.order.tables[0];
+    if (table === undefined) throw new Error('no table');
+    store.show({ kind: 'table', id: table });
+
+    const again = new Session(new AppStore(createProject('Untitled project')), storage, () => null);
+    await again.restore();
+    // Same project as before, though `other` was saved later.
+    expect(again.storage).toBe(storage);
+    const s2 = (again as unknown as { appStore: AppStore }).appStore.getState();
+    expect(project(s2).id).toBe(p.id);
+
+    await session.closeProject();
+    const third = new AppStore(createProject('Untitled project'));
+    await new Session(third, storage, () => null).restore();
+    expect(project(third.getState()).tables.size).toBe(0);
   });
 
   it('opens a .bsig file as a new project, remembered as downloaded', async () => {
@@ -378,6 +404,17 @@ describe('closing a project', () => {
     if (!kept) throw new Error('not kept');
     await session.openStored(kept.id);
     expect(project(store.getState()).name).toBe('Screen 3b');
+  });
+
+  it('reports an open project with no table left, instead of doing nothing', async () => {
+    const { store, storage, session } = setup();
+    const p = withTable('Emptied');
+    await storage.save(p, '1.0.0');
+    expect(await session.openStored(p.id)).toBe(true);
+    const table = p.order.tables[0];
+    if (table === undefined) throw new Error('no table');
+    store.edit({ op: 'removeTable', table });
+    expect(await session.openStored(p.id)).toBe(false);
   });
 
   it('says nothing when closing an empty project', async () => {
