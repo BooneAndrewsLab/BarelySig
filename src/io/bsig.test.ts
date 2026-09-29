@@ -92,6 +92,29 @@ describe('.bsig', () => {
     );
   });
 
+  it('generates every trace error band, so the round trip above covers the field', () => {
+    const seen = new Set<string>();
+    fc.assert(
+      fc.property(sessionArb, (shapes) => {
+        for (const g of play(shapes).project.graphs.values())
+          if (g.plot.kind === 'xy-scatter') seen.add(g.plot.error);
+      }),
+      { numRuns: 1000 },
+    );
+    expect([...seen].sort()).toEqual(['ci95', 'none', 'sd', 'sem']);
+  });
+
+  it('opens a file from before the error band as no band', () => {
+    const doc = JSON.parse(
+      writeBsig({ project: sample().project, results: new Map(), engine: null, app: '0.2.0' }),
+    ) as { project: { graphs: { plot: Record<string, unknown> }[] } };
+    const plots = doc.project.graphs.map((g) => g.plot).filter((p) => p['kind'] === 'xy-scatter');
+    for (const p of plots) delete p['error'];
+    const back = readBsig(JSON.stringify(doc));
+    for (const g of back.project.graphs.values())
+      if (g.plot.kind === 'xy-scatter') expect(g.plot.error).toBe('none');
+  });
+
   it('drops results of analyses the project does not have', () => {
     const { project } = sample();
     const results = new Map<ReturnType<typeof asId>, ResultEntry>([

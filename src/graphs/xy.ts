@@ -35,6 +35,18 @@ export interface XySeriesInput {
   readonly connect?: readonly XyPoint[] | undefined;
   /** One polyline per replicate subcolumn (the `traces` style); unset = none. */
   readonly traces?: readonly (readonly XyPoint[])[] | undefined;
+  /**
+   * The mean ± SD/SEM/CI band of the `traces` style (item 42): runs of two or more X values drawn
+   * as filled bands, lone X values as bars. Unset = not drawn.
+   */
+  readonly errorBand?:
+    | {
+        readonly segments: readonly (readonly XyBandPoint[])[];
+        readonly lone: readonly XyBandPoint[];
+        /** X values with no spread (a single value): no band there. */
+        readonly skipped: number;
+      }
+    | undefined;
   /** The fitted line, a sorted polyline across the series' X range; unset = not drawn. */
   readonly fit?: readonly XyPoint[] | undefined;
   /** The band around the fit, one (x, y0, y1) per fit x; unset = not drawn. */
@@ -62,6 +74,17 @@ export interface XyGraphInput {
 }
 
 const PAD = 3;
+
+/** How the error band is worded on the graph; null = none. */
+const ERROR_TEXT: Readonly<Record<XyPlot['error'], string | null>> = {
+  none: null,
+  sd: '± SD',
+  sem: '± SEM',
+  ci95: 'with its 95% CI (Student’s t)',
+};
+
+/** The error band's opacity as a share of the theme's band opacity, so a fit's band reads over it. */
+const ERROR_BAND_SHARE = 0.55;
 
 /** The extent of a set of values: padded 5% (linear), or the nearest decades (log). */
 function extentOf(values: readonly number[], log: boolean): [number, number] {
@@ -102,6 +125,10 @@ export function layoutXy(input: XyGraphInput): Scene {
       }
       for (const p of s.fit ?? []) values.push(pick(p.x, p.y));
       for (const p of s.connect ?? []) values.push(pick(p.x, p.y));
+      for (const b of [...(s.errorBand?.segments.flat() ?? []), ...(s.errorBand?.lone ?? [])]) {
+        values.push(pick(b.x, b.y0));
+        values.push(pick(b.x, b.y1));
+      }
       for (const b of s.band ?? []) {
         values.push(pick(b.x, b.y0));
         values.push(pick(b.x, b.y1));
@@ -177,6 +204,58 @@ export function layoutXy(input: XyGraphInput): Scene {
     });
   }
 
+  // The mean ± error band goes lowest and lighter, then the fit's band over it, then lines and points.
+  const errorWord = ERROR_TEXT[input.plot.error];
+  if (input.plot.style === 'traces' && errorWord !== null) {
+    for (const s of series) {
+      const eb = s.errorBand;
+      if (!eb) continue;
+      for (const seg of eb.segments) {
+        const at = (pick: 'y0' | 'y1', list: readonly XyBandPoint[]) =>
+          list
+            .map((b) => {
+              const x = xOf(b.x);
+              const y = yOf(b[pick]);
+              return x === null || y === null ? null : `${f2(x)} ${f2(y)}`;
+            })
+            .filter((p): p is string => p !== null);
+        const upper = at('y1', seg);
+        const lower = at('y0', [...seg].reverse());
+        if (upper.length < 2 || lower.length < 2) continue;
+        marks.push({
+          kind: 'path',
+          role: 'error-band',
+          ref: s.id,
+          d: `M${upper.join('L')}L${lower.join('L')}Z`,
+          line: { stroke: 'none', width: 0 },
+          fill: s.color,
+          opacity: theme.bandOpacity * ERROR_BAND_SHARE,
+        });
+      }
+      for (const b of eb.lone) {
+        const x = xOf(b.x);
+        const y0 = yOf(b.y0);
+        const y1 = yOf(b.y1);
+        if (x === null || y0 === null || y1 === null) continue;
+        marks.push({
+          kind: 'path',
+          role: 'error-band',
+          ref: s.id,
+          d: `M${f2(x)} ${f2(y0)}L${f2(x)} ${f2(y1)}`,
+          line: { stroke: lighten(s.color, 0.3), width: theme.lines.fit },
+        });
+      }
+    }
+    const skipped = series.reduce((a, s) => a + (s.errorBand?.skipped ?? 0), 0);
+    const hasFitBand = series.some((s) => s.band !== undefined);
+    notes.push(
+      `${hasFitBand ? 'Lighter band' : 'Shaded band'} around the mean line: mean ${errorWord} of the values at each X` +
+        (hasFitBand ? '; the darker band belongs to the fitted line' : '') +
+        (skipped > 0
+          ? `; ${String(skipped)} ${skipped === 1 ? 'X value has' : 'X values have'} no band (a single value, or no SD and n to work from)`
+          : ''),
+    );
+  }
   // Bands underneath, then fit lines, then points on top.
   for (const s of series) {
     const band = s.band;

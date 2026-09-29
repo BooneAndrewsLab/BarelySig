@@ -362,6 +362,16 @@ An XY graph's **Draw each data set as** setting chooses the style:
   eyeball how much replicates disagree before any statistics. A table entered
   as mean/SD/n has no replicates, so it shows the mean line only.
 
+With the replicate style you can also **Shade around the mean**: a band of
+mean ± SD (how spread out the replicates are), mean ± SEM (how well the mean
+is known) or the mean with its 95% CI (from Student's t with n − 1 degrees of
+freedom). The graph's notes say which one you chose. An X with only one value
+has no spread, so it gets no band (the notes count how many); a band is never
+drawn across such a gap. A table entered as mean/SD/n uses its own SD and n
+for each row, and a mean/lower/upper table has no SD, so no band. If you also
+draw a fitted line with a confidence or prediction band, the mean band is the
+lighter one, underneath.
+
 Click a connected line to change its width; its colour follows the data set.
 
 ## What's not here yet

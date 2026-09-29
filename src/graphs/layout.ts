@@ -207,6 +207,13 @@ export function describePlot(graphPlot: GraphPlot): string {
           `a ${graphPlot.band === 'confidence' ? '95% confidence' : '95% prediction'} band`,
         );
     }
+    if (graphPlot.style === 'traces' && graphPlot.error !== 'none') {
+      parts.push(
+        graphPlot.error === 'ci95'
+          ? 'a band of the mean with its 95% CI'
+          : `a band of the mean ± ${graphPlot.error === 'sd' ? 'SD' : 'SEM'}`,
+      );
+    }
     return parts.length ? `XY scatter: ${parts.join('; ')}` : 'XY scatter';
   }
   const plot: ColumnPlot =

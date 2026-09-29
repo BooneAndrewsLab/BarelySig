@@ -154,6 +154,32 @@ export function GraphSettings({ project, graph }: Props) {
                 </span>
               )}
             </label>
+            {plot.style === 'traces' && (
+              <label className="field inspector-field wide">
+                <span>Shade around the mean</span>
+                <select
+                  value={plot.error}
+                  onChange={(e) => {
+                    const v = e.currentTarget.value;
+                    setPlot({
+                      ...plot,
+                      error: v === 'sd' || v === 'sem' || v === 'ci95' ? v : 'none',
+                    });
+                  }}
+                >
+                  <option value="none">Nothing</option>
+                  <option value="sd">Mean ± SD (spread of the replicates)</option>
+                  <option value="sem">Mean ± SEM (how well the mean is known)</option>
+                  <option value="ci95">Mean with its 95% CI</option>
+                </select>
+                {plot.error !== 'none' && (
+                  <span className="hint">
+                    An X with only one value has no spread, so it gets no band. What is shaded is
+                    stated under the graph.
+                  </span>
+                )}
+              </label>
+            )}
             <label className="option">
               <input
                 type="checkbox"

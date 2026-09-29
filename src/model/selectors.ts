@@ -15,6 +15,7 @@
  */
 import type { Id } from './ids';
 import type { Cell } from './missing';
+import { tQuantile } from './tdist';
 import {
   type ColumnTable,
   type ContingencyTable,
@@ -467,6 +468,99 @@ export function xyTraces(table: XyTable, dataSets: readonly Id[]): Map<Id, XyPoi
     out.set(id, traces);
   }
   return out;
+}
+
+/** The mean ± spread at one X: the band's edges. */
+export interface XyErrorPoint {
+  readonly x: number;
+  readonly y0: number;
+  readonly y1: number;
+}
+
+/**
+ * The mean ± SD, SEM or 95% CI of Y at each distinct X (item 42, #104). `segments` are runs of
+ * consecutive X values that each have a spread (drawn as filled bands, never bridging a gap);
+ * `lone` are X values with a spread whose neighbours have none (drawn as a bar); `skipped` counts
+ * the X values with no spread (n = 1, or no SD/n in the table).
+ */
+export interface XyErrorBand {
+  readonly segments: XyErrorPoint[][];
+  readonly lone: XyErrorPoint[];
+  readonly skipped: number;
+}
+
+/** The half-width of the band from the SD and n (sample SD, n - 1; CI by Student's t). */
+export function halfWidth(error: 'sd' | 'sem' | 'ci95', sd: number, n: number): number {
+  if (error === 'sd') return sd;
+  const sem = sd / Math.sqrt(n);
+  return error === 'sem' ? sem : tQuantile(0.975, n - 1) * sem;
+}
+
+/**
+ * Per distinct X, the mean and half-width for one Y data set. Raw data pools the Y values at
+ * each X (as `meanByX` averages them); summary data uses each row's entered mean, SD and n, and
+ * has no band where two rows share an X or the table has no SD/n.
+ */
+export function xyErrorBand(
+  table: XyTable,
+  dataSet: Id,
+  error: 'sd' | 'sem' | 'ci95',
+): XyErrorBand {
+  const x = table.dataSets[0];
+  if (!x) throw new DataError(`Table "${table.title}" has no X column.`);
+  const ds = requireDataSet(table, dataSet);
+  const { format } = table;
+  const at = new Map<number, { ys: number[] } | { mean: number; sd: number; n: number } | null>();
+  table.rows.forEach((_, r) => {
+    const xv = usable(table, x, 0, r);
+    if (xv === null) return;
+    if (format.kind === 'summary') {
+      const g = summaryAt(table, ds, format.stats, r);
+      if (g.kind !== 'summary' || g.mean === null) return;
+      const usableSpread = g.sd !== null && g.n !== null && g.n >= 2;
+      at.set(xv, at.has(xv) || !usableSpread ? null : { mean: g.mean, sd: g.sd, n: g.n });
+      return;
+    }
+    for (let s = 0; s < format.count; s += 1) {
+      const v = usable(table, ds, s, r);
+      if (v === null) continue;
+      const cur = at.get(xv);
+      if (cur && 'ys' in cur) cur.ys.push(v);
+      else at.set(xv, { ys: [v] });
+    }
+  });
+  const ordered = [...at.entries()].sort((a, b) => a[0] - b[0]);
+  const segments: XyErrorPoint[][] = [];
+  const lone: XyErrorPoint[] = [];
+  let run: XyErrorPoint[] = [];
+  let skipped = 0;
+  const close = () => {
+    if (run.length >= 2) segments.push(run);
+    else if (run.length === 1 && run[0]) lone.push(run[0]);
+    run = [];
+  };
+  for (const [xv, cell] of ordered) {
+    let point: XyErrorPoint | null = null;
+    if (cell && 'ys' in cell) {
+      const n = cell.ys.length;
+      if (n >= 2) {
+        const mean = cell.ys.reduce((a, b) => a + b, 0) / n;
+        const sd = Math.sqrt(cell.ys.reduce((a, v) => a + (v - mean) ** 2, 0) / (n - 1));
+        const h = halfWidth(error, sd, n);
+        point = { x: xv, y0: mean - h, y1: mean + h };
+      }
+    } else if (cell) {
+      const h = halfWidth(error, cell.sd, cell.n);
+      point = { x: xv, y0: cell.mean - h, y1: cell.mean + h };
+    }
+    if (point) run.push(point);
+    else {
+      skipped += 1;
+      close();
+    }
+  }
+  close();
+  return { segments, lone, skipped };
 }
 
 export interface GroupedSubject {

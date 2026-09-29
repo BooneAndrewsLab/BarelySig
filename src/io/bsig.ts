@@ -388,6 +388,7 @@ function plotJson(plot: GraphPlot): Json {
         points: plot.points,
         fit: plot.fit,
         band: plot.band,
+        error: plot.error,
       };
   }
 }
@@ -915,6 +916,10 @@ function plot(v: Json | undefined, p: Path): GraphPlot {
         points: bool(o['points'], p.key('points')),
         fit: bool(o['fit'], p.key('fit')),
         band: oneOf(o['band'], p.key('band'), ['confidence', 'prediction', 'none'] as const),
+        error:
+          o['error'] === undefined
+            ? 'none'
+            : oneOf(o['error'], p.key('error'), ['none', 'sd', 'sem', 'ci95'] as const),
       };
   }
 }

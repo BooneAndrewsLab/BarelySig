@@ -22,6 +22,7 @@ import {
   groupedCells,
   nestedGroups,
   xySeries,
+  xyErrorBand,
   xyTraces,
 } from '@/model/selectors';
 import type { DataSet, Table } from '@/model/table';
@@ -443,6 +444,9 @@ function xyGraphInput(
         : {
             connect: meanByX(points),
             ...(traces ? { traces: traces.get(x.ds.id) } : {}),
+            ...(plot.style === 'traces' && plot.error !== 'none'
+              ? { errorBand: xyErrorBand(table, x.ds.id, plot.error) }
+              : {}),
           };
     const outcome = fits?.(x.ds.id);
     if (!plot.fit || !outcome) return { id: x.ds.id, title: x.ds.title, color, points, ...drawn };

@@ -9,6 +9,7 @@ import {
   groupedCells,
   nestedGroups,
   pairedGroups,
+  xyErrorBand,
   xySeries,
 } from './selectors';
 import {
@@ -488,5 +489,109 @@ describe('xySeries', () => {
 
   it('X format never changes shape (always one value per row)', () => {
     expect(XY_X_FORMAT).toEqual({ kind: 'replicates', count: 1 });
+  });
+});
+
+describe('xyErrorBand (item 42)', () => {
+  // Pooled Y at each X: 0 -> [1, 3]; 1 -> [2] (n = 1); 2 -> [5, 7]; 3 -> [4, 8]; 4 -> [9] (n = 1).
+  const t = xy(
+    [0, 1, 2, 3, 4],
+    {
+      a: [
+        [1, 2, 5, 4, null],
+        [3, null, 7, 8, 9],
+      ],
+    },
+    { kind: 'replicates', count: 2 },
+  );
+  const r2 = Math.SQRT2;
+
+  it('is mean ± SD (n - 1), a band only across X values that each have a spread', () => {
+    const b = xyErrorBand(t, ds('a'), 'sd');
+    expect(b.skipped).toBe(2);
+    expect(b.lone).toEqual([{ x: 0, y0: 2 - r2, y1: 2 + r2 }]);
+    expect(b.segments).toHaveLength(1);
+    const [seg] = b.segments;
+    expect(seg?.map((p) => p.x)).toEqual([2, 3]);
+    expect(seg?.[0]?.y0).toBeCloseTo(6 - r2, 12);
+    expect(seg?.[1]?.y1).toBeCloseTo(6 + 2 * r2, 12);
+  });
+
+  it('is mean ± SEM = SD / sqrt(n)', () => {
+    const b = xyErrorBand(t, ds('a'), 'sem');
+    expect(b.lone[0]?.y0).toBeCloseTo(1, 12);
+    expect(b.lone[0]?.y1).toBeCloseTo(3, 12);
+    expect(b.segments[0]?.[1]?.y0).toBeCloseTo(4, 12);
+  });
+
+  it('is mean ± t(0.975, n - 1) × SEM (R: qt(.975, 1) = 12.7062047361747)', () => {
+    const b = xyErrorBand(t, ds('a'), 'ci95');
+    expect(b.lone[0]?.y1).toBeCloseTo(2 + 12.7062047361747, 9);
+    expect(b.segments[0]?.[1]?.y0).toBeCloseTo(6 - 2 * 12.7062047361747, 9);
+  });
+
+  it('draws no band for a single value (never a zero-width one), and treats a missing cell as absent', () => {
+    const one = xy([0, 1], { a: [[5, 6]] });
+    const b = xyErrorBand(one, ds('a'), 'sd');
+    expect(b).toEqual({ segments: [], lone: [], skipped: 2 });
+    const gap = xy(
+      [0, 1],
+      {
+        a: [
+          [5, null],
+          [7, 6],
+        ],
+      },
+      { kind: 'replicates', count: 2 },
+    );
+    expect(xyErrorBand(gap, ds('a'), 'sd').skipped).toBe(1);
+  });
+
+  it('uses a summary table’s own SD and n, and converts SEM to SD', () => {
+    const s = xy(
+      [0, 1],
+      {
+        a: [
+          [10, 20],
+          [2, 4],
+          [4, 4],
+        ],
+      },
+      { kind: 'summary', stats: 'mean-sd-n' },
+    );
+    const b = xyErrorBand(s, ds('a'), 'sd');
+    expect(b.segments[0]).toEqual([
+      { x: 0, y0: 8, y1: 12 },
+      { x: 1, y0: 16, y1: 24 },
+    ]);
+    const c = xyErrorBand(s, ds('a'), 'sem');
+    expect(c.segments[0]?.[0]).toEqual({ x: 0, y0: 9, y1: 11 });
+  });
+
+  it('has no band for mean/lower/upper data or a repeated X', () => {
+    const mlu = xy(
+      [0, 1],
+      {
+        a: [
+          [1, 2],
+          [0, 1],
+          [2, 3],
+        ],
+      },
+      { kind: 'summary', stats: 'mean-lower-upper' },
+    );
+    expect(xyErrorBand(mlu, ds('a'), 'sd').segments).toEqual([]);
+    const dup = xy(
+      [0, 0],
+      {
+        a: [
+          [1, 2],
+          [1, 1],
+          [3, 3],
+        ],
+      },
+      { kind: 'summary', stats: 'mean-sd-n' },
+    );
+    expect(xyErrorBand(dup, ds('a'), 'sd').skipped).toBe(1);
   });
 });

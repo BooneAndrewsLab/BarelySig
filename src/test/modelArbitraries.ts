@@ -739,6 +739,7 @@ export function resolve(p: Project, s: Shape): Edit | null {
                     points: s.v % 3 !== 0,
                     fit: s.v % 2 === 0,
                     band: (['confidence', 'prediction', 'none'] as const)[s.v % 3] ?? 'none',
+                    error: (['none', 'sd', 'sem', 'ci95'] as const)[s.v % 4] ?? 'none',
                   }
                 : s.v % 11 === 3
                   ? {

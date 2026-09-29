@@ -525,6 +525,10 @@ export interface GroupedPlot {
 export type XyStyle = 'scatter' | 'lines' | 'traces';
 export const XY_STYLES: readonly XyStyle[] = ['scatter', 'lines', 'traces'];
 
+/** The spread the `traces` style shades around its mean line (item 42, #104). */
+export type XyError = 'none' | 'sd' | 'sem' | 'ci95';
+export const XY_ERRORS: readonly XyError[] = ['none', 'sd', 'sem', 'ci95'];
+
 /** What a graph of an XY table plots (item 31, #87). */
 export interface XyPlot {
   readonly kind: 'xy-scatter';
@@ -539,6 +543,11 @@ export interface XyPlot {
   readonly fit: boolean;
   /** Band around the fit; meaningless (ignored) unless fit is true. */
   readonly band: 'confidence' | 'prediction' | 'none';
+  /**
+   * A band of mean ± this around the `traces` style's mean line (item 42, #104); ignored for the
+   * other styles.
+   */
+  readonly error: XyError;
 }
 
 /**
@@ -568,6 +577,7 @@ export const XY_DEFAULT: XyPlot = {
   points: true,
   fit: false,
   band: 'none',
+  error: 'none',
 };
 
 /**
