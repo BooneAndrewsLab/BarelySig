@@ -1765,7 +1765,7 @@ function TwoWayView({ r, id }: { readonly r: TwoWayResult; readonly id: Id }) {
         <p className="status-banner info">
           {r.comparisonsNote === 'empty-cell'
             ? 'Multiple comparisons aren’t available when a cell has no values (the model without interaction gives means that depend on its fit); fill in the cell, or compare fewer groups.'
-            : 'Comparisons within rows, within data sets or between cells need more than one value per cell. Compare the main effects instead (Prism does the same).'}
+            : 'Comparisons within rows, within data sets or between cells need more than one value per cell. Compare the main effects instead.'}
         </p>
       )}
       {r.families.length > 0 && (
@@ -1858,7 +1858,7 @@ function TwoWayView({ r, id }: { readonly r: TwoWayResult; readonly id: Id }) {
       <p className="legend">
         Asterisks: {STAR_SCHEME}. Mean diff. is the first minus the second. Main effects compare
         least-squares means (the average of the cell means). With unbalanced data the Type III sums
-        of squares don’t add up to the total, as in Prism.
+        of squares don’t add up to the total.
       </p>
     </>
   );
@@ -2046,8 +2046,7 @@ function OneWayView({ r, id }: { readonly r: OneWayResult; readonly id: Id }) {
         )}
       </AllNumbers>
       <p className="legend">
-        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
-        reports it.
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s.
       </p>
     </>
   );
@@ -2181,11 +2180,10 @@ function RepeatedMeasuresView({ r, id }: { readonly r: RepeatedMeasuresResult; r
         )}
       </AllNumbers>
       <p className="legend">
-        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
-        reports it.{' '}
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s.{' '}
         {twoGroups
           ? 'With two groups, epsilon is always 1 and every P agrees.'
-          : 'Prism reports the Geisser-Greenhouse corrected P by default; the uncorrected and Huynh-Feldt P are under “All numbers”.'}
+          : 'The Geisser-Greenhouse corrected P is the one reported by default; the uncorrected and Huynh-Feldt P are under “All numbers”.'}
       </p>
     </>
   );
@@ -2332,11 +2330,10 @@ function NestedRepeatedView({ r, id }: { readonly r: NestedRepeatedResult; reado
         )}
       </AllNumbers>
       <p className="legend">
-        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
-        reports it.{' '}
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s.{' '}
         {twoGroups
           ? 'With two groups, epsilon is always 1 and every P agrees.'
-          : 'Prism reports the Geisser-Greenhouse corrected P by default; the uncorrected and Huynh-Feldt P are under “All numbers”.'}
+          : 'The Geisser-Greenhouse corrected P is the one reported by default; the uncorrected and Huynh-Feldt P are under “All numbers”.'}
       </p>
     </>
   );
@@ -2414,8 +2411,7 @@ function NestedOneWayView({ r, id }: { readonly r: NestedOneWayResult; readonly 
         />
       </AllNumbers>
       <p className="legend">
-        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s, as Prism
-        reports it.
+        Asterisks: {STAR_SCHEME}. Mean diff. is the first group’s mean minus the second’s.
       </p>
     </>
   );
@@ -2473,7 +2469,7 @@ function StatsTable({ groups }: { readonly groups: readonly DescribedGroup[] }) 
 
 const DESCRIPTIVE_LEGEND =
   '— means not defined for these values (e.g. the SD of a single value, a geometric mean with ' +
-  'values of 0 or below) or not available from summary data. Percentiles as Prism computes them.';
+  'values of 0 or below) or not available from summary data. Percentiles are found from rank (n + 1) × p, interpolated.';
 
 function DescriptiveView({ r }: { readonly r: DescriptiveResult }) {
   if (r.kind === 'column') {

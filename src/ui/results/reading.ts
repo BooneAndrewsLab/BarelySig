@@ -306,8 +306,8 @@ export function repeatedMethod(r: RepeatedMeasuresResult): string {
 /** How the comparisons were computed (#83): stated every time, never left to a silent default. */
 function sphericityPhrase(assumeSphericity: boolean): string {
   return assumeSphericity
-    ? 'assuming sphericity (pooling every group’s variability, Prism’s traditional method)'
-    : 'not assuming sphericity (each pair from just its own two groups, Prism’s other method, FAQ 1609)';
+    ? 'assuming sphericity (pooling every group’s variability, the traditional method)'
+    : 'not assuming sphericity (each pair from just its own two groups, the alternative method)';
 }
 
 export function repeatedReading(r: RepeatedMeasuresResult): string {
@@ -392,8 +392,8 @@ export function twoWayMethod(r: TwoWayResult): string {
     r.model === 'full'
       ? 'Two-way ANOVA with interaction, Type III sums of squares'
       : r.why === 'no-replicates'
-        ? 'Two-way ANOVA, main effects only: with one value per cell an interaction can’t be estimated, so none is assumed (as Prism)'
-        : 'Two-way ANOVA, main effects only: a cell has no values, so the model with interaction can’t be fitted (as Prism)';
+        ? 'Two-way ANOVA, main effects only: with one value per cell an interaction can’t be estimated, so none is assumed'
+        : 'Two-way ANOVA, main effects only: a cell has no values, so the model with interaction can’t be fitted';
   const c = r.options.comparisons;
   const comps =
     c.kind === 'none'
@@ -401,7 +401,7 @@ export function twoWayMethod(r: TwoWayResult): string {
       : ` ${COMPARISON_TEST[c.test] ?? c.test} multiple comparisons ${FAMILY_TEXT[r.options.family] ?? ''}${c.kind === 'control' ? ' against the control' : ''}, with P values adjusted within each family.`;
   const from = r.from === 'summary' ? ' Computed from summary data (mean, SD and n).' : '';
   const approx = r.approximate
-    ? ' With unequal n per cell, summary data give only an approximate result (Prism’s analysis of unweighted means, Fisher and van Belle, 1993); enter the individual values for an exact one.'
+    ? ' With unequal n per cell, summary data give only an approximate result (the analysis of unweighted means, Fisher and van Belle, 1993); enter the individual values for an exact one.'
     : '';
   return `${model}.${comps}${from}${approx}`;
 }

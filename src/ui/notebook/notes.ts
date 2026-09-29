@@ -275,7 +275,7 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           title,
           text: [
             'Asks whether the group means are all the same, comparing each subject with itself across the groups so a subject that reads high (or low) everywhere doesn’t hide a real difference. It doesn’t say which groups differ; the comparisons below do.',
-            'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default.',
+            'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); that corrected P is the one reported by default.',
             ...(comps ? [comps] : []),
             ...(o.assumeSphericity
               ? []
@@ -297,7 +297,7 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           text: [
             'Each replicate is one sample split between every group, so it compares the groups within each replicate: a repeated-measures ANOVA on the replicate means. It doesn’t say which groups differ; the comparisons below do.',
             'A replicate that read high (or low) everywhere doesn’t hide a real difference, as long as it goes the same way every time. A replicate with values in some groups but not every group is left out of all of them.',
-            'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default.',
+            'The Geisser-Greenhouse correction widens the P when the groups don’t vary together the same way (epsilon below 1); that corrected P is the one reported by default.',
             ...(comps ? [comps] : []),
             ...(o.assumeSphericity
               ? []
@@ -317,7 +317,7 @@ export function analysisNotes(project: Project, analysis: Analysis): Note[] {
           title,
           text: [
             `Asks three questions about ${o.repeatedFactor === 'column' ? 'the data sets' : 'the rows'}, ${o.repeatedFactor === 'column' ? 'matched by subcolumn within each row' : 'matched by subcolumn within each data set'}: does the between-subjects factor matter, does the repeated factor matter, and does the effect of one depend on the other (the interaction)?`,
-            'The Geisser-Greenhouse correction widens the repeated factor’s and interaction’s P when subjects don’t vary together the same way (epsilon below 1); Prism reports that corrected P by default. The between-subjects factor needs no such correction.',
+            'The Geisser-Greenhouse correction widens the repeated factor’s and interaction’s P when subjects don’t vary together the same way (epsilon below 1); that corrected P is the one reported by default. The between-subjects factor needs no such correction.',
             NS,
           ],
         },

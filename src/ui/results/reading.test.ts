@@ -232,7 +232,7 @@ describe('two-way ANOVA readings', () => {
 
   it('says when main effects only were fitted, and why', () => {
     expect(twoWayMethod(base)).toBe(
-      'Two-way ANOVA, main effects only: with one value per cell an interaction can’t be estimated, so none is assumed (as Prism). Tukey’s multiple comparisons between data sets, averaged over rows, with P values adjusted within each family.',
+      'Two-way ANOVA, main effects only: with one value per cell an interaction can’t be estimated, so none is assumed. Tukey’s multiple comparisons between data sets, averaged over rows, with P values adjusted within each family.',
     );
     expect(twoWayReading(base)).toBe(
       'There is no evidence that the rows, averaged over the data sets, differ (P = 0.2000). The data sets, averaged over the rows, differ (P = 0.0100). Tukey’s comparisons between data sets, averaged over rows: 2 of 3 pairs differ after adjusting for the number of comparisons.',
@@ -241,7 +241,7 @@ describe('two-way ANOVA readings', () => {
 
   it('says when unequal n from summary data made the result approximate', () => {
     expect(twoWayMethod({ ...base, model: 'full', from: 'summary', approximate: true })).toMatch(
-      /With unequal n per cell, summary data give only an approximate result \(Prism’s analysis of unweighted means, Fisher and van Belle, 1993\); enter the individual values for an exact one\.$/,
+      /With unequal n per cell, summary data give only an approximate result \(the analysis of unweighted means, Fisher and van Belle, 1993\); enter the individual values for an exact one\.$/,
     );
     expect(twoWayMethod({ ...base, approximate: false })).not.toMatch(/approximate result/);
   });

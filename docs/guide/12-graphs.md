@@ -100,7 +100,8 @@ draw its brackets; untick a comparison to hide just that one.
 
 **Look** switches between **Modern** (the default: axes on the left and
 bottom, soft bars with a coloured edge, outward ticks) and **Classic
-(Prism-like)** (a box around the plot, solid bars, black points).
+(boxed axes)** (a box around the plot, solid bars, black points; the look
+Prism users know).
 **Size (mm)** is the figure's size in print; text and lines keep their
 point sizes at any size, as journals ask. See
 [Exporting figures](14-export.md).

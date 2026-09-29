@@ -441,7 +441,7 @@ export function GraphSettings({ project, graph }: Props) {
                   );
                 }}
               >
-                <option value="prism">Asterisks (Prism: up to ****)</option>
+                <option value="prism">Asterisks (up to ****)</option>
                 <option value="apa">Asterisks (APA: up to ***)</option>
                 <option value="exact">Exact P values</option>
               </select>
@@ -473,7 +473,7 @@ export function GraphSettings({ project, graph }: Props) {
           }}
         >
           <option value="modern">Modern</option>
-          <option value="classic">Classic (Prism-like)</option>
+          <option value="classic">Classic (boxed axes)</option>
           {graph.theme.kind === 'fixed' && <option value="fixed">As exported</option>}
         </select>
         <label className="option">

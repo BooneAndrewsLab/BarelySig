@@ -347,7 +347,7 @@ function TTestFields(props: {
             Don’t assume both groups have the same SD (Welch’s correction)
           </label>
           <p className="hint">
-            Off by default, as in Prism. The results include a test of whether the SDs differ.
+            Off by default. The results include a test of whether the SDs differ.
           </p>
         </fieldset>
       )}
@@ -395,7 +395,7 @@ function NestedTTestFields(props: {
         <p className="hint">
           {o.matched
             ? 'A paired t test on the replicate means, as in the SuperPlots paper (Lord et al. 2020). A replicate with values in only one group is left out.'
-            : 'A mixed model, as Prism’s nested t test: it weighs each replicate by how many values it has.'}
+            : 'A mixed model: it weighs each replicate by how many values it has.'}
         </p>
       </fieldset>
       <TailsChoice
@@ -437,7 +437,7 @@ function RankTestFields(props: {
               set({ ...o, zeros: 'wilcoxon' });
             }}
           >
-            Leave them out (Wilcoxon’s method, as Prism by default)
+            Leave them out (Wilcoxon’s method, the default)
           </Radio>
           <Radio
             name="zeros"
@@ -836,9 +836,7 @@ function OneWayFields(props: {
           />
           Don’t assume all groups have the same SD (Welch’s and Brown-Forsythe ANOVA)
         </label>
-        <p className="hint">
-          Off by default, as in Prism. The results include tests of whether the SDs differ.
-        </p>
+        <p className="hint">Off by default. The results include tests of whether the SDs differ.</p>
       </fieldset>
       <fieldset>
         <legend>Which groups differ? (multiple comparisons)</legend>
@@ -1036,8 +1034,8 @@ function NestedOneWayFields<O extends { readonly comparisons: NestedComparisons 
         {sphericity &&
           c.kind !== 'none' &&
           (sphericity.assume
-            ? ' Assuming sphericity (Prism’s traditional method, on by default) pools every group’s variability into one residual.'
-            : ' Not assuming sphericity (Prism’s other method): each comparison uses only its own two groups’ pairing, so it has less power, but isn’t thrown off if the groups don’t vary together the same way.')}
+            ? ' Assuming sphericity (the traditional method, on by default) pools every group’s variability into one residual.'
+            : ' Not assuming sphericity (the alternative method): each comparison uses only its own two groups’ pairing, so it has less power, but isn’t thrown off if the groups don’t vary together the same way.')}
       </p>
     </fieldset>
   );
@@ -1107,7 +1105,7 @@ function KruskalFields(props: {
               set({ ...o, corrected: e.currentTarget.checked });
             }}
           />
-          Adjust each P for the number of comparisons (recommended, as Prism)
+          Adjust each P for the number of comparisons (recommended)
         </label>
       )}
     </fieldset>
@@ -1370,8 +1368,8 @@ function TwoWayFields(props: {
             </select>
           </label>
           <p className="hint">
-            One family of comparisons per row or data set, as Prism recommends; each P is adjusted
-            for the comparisons in its family.
+            One family of comparisons per row or data set, as is recommended; each P is adjusted for
+            the comparisons in its family.
           </p>
         </>
       )}
