@@ -44,4 +44,24 @@ describe('random editing sessions', () => {
       { numRuns: 100 },
     );
   });
+
+  it('generate calculated tables, by row and detached, so the properties above cover them', () => {
+    const seen = { made: 0, byRow: 0, summary: 0, detached: 0 };
+    fc.assert(
+      fc.property(sessionArb, (shapes) => {
+        const { project, applied } = play(shapes);
+        project.tables.forEach((t) => {
+          if (!t.derived) return;
+          seen.made += 1;
+          if (t.derived.options.by === 'row') seen.byRow += 1;
+          if (t.format.kind === 'summary') seen.summary += 1;
+        });
+        seen.detached += applied.filter((e) => e.op === 'detachDerived').length;
+      }),
+      { numRuns: 1000 },
+    );
+    expect(seen.made).toBeGreaterThan(0);
+    expect(seen.byRow).toBeGreaterThan(0);
+    expect(seen.detached).toBeGreaterThan(0);
+  });
 });

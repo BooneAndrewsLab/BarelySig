@@ -93,3 +93,10 @@ from replicates to summary data) later.
 The group names and each group's colour belong to the table, so every
 graph of the table uses the same ones. Change a group's colour from any of
 its graphs: see [Formatting a graph](13-formatting.md).
+
+## Normalized tables
+
+**Normalize…** under a Column, Grouped or XY table makes a second,
+calculated table with the same data expressed against a control (fold or %
+of control, or a 0 to 100% scale). You can't type in it; it follows the
+original. See [Normalizing to a control](23-normalize.md).

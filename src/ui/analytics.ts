@@ -54,7 +54,7 @@ export const EVENTS = {
   /** Once per visit: `start` (the version), `layout` (desktop/tablet). */
   app: ['start', 'layout'],
   history: ['undo', 'redo'],
-  table: ['new-column', 'new-grouped', 'new-nested', 'new-contingency', 'new-xy'],
+  table: ['new-column', 'new-grouped', 'new-nested', 'new-contingency', 'new-xy', 'normalize'],
   data: ['paste', 'fill-down', 'exclude'],
   file: ['open', 'open-data', 'download'],
   analysis: [

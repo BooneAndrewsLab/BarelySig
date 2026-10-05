@@ -71,13 +71,16 @@ import type { ResultEntry } from '@/model/recompute';
 import {
   type CellKey,
   type DataSet,
+  type Derivation,
   type EntryFormat,
+  type NormalizeRef,
   type Row,
   SUMMARY_STATS,
   type SummaryStats,
   type Table,
 } from '@/model/table';
 import { validateProject } from '@/model/validate';
+import { syncDerived } from '@/model/derive';
 
 export const FORMAT = 'barelysig';
 export const EXTENSION = '.bsig';
@@ -117,6 +120,29 @@ function keepsResult(p: Project, id: Id): boolean {
 const optional = <K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> =>
   value === undefined ? {} : ({ [key]: value } as Record<K, V>);
 
+function refJson(r: NormalizeRef): Json {
+  return r.kind === 'value'
+    ? { kind: r.kind, value: r.value }
+    : r.kind === 'dataSet'
+      ? { kind: r.kind, dataSet: r.dataSet }
+      : { kind: r.kind };
+}
+
+/** A calculated table (item 43); its cells are saved too, and recomputed on opening. */
+function derivedJson(d: Derivation): Json {
+  return {
+    kind: d.kind,
+    source: d.source,
+    options: {
+      by: d.options.by,
+      zero: refJson(d.options.zero),
+      full: refJson(d.options.full),
+      unit: d.options.unit,
+    },
+    problem: d.problem,
+  };
+}
+
 function tableJson(t: Table): Json {
   return {
     id: t.id,
@@ -135,6 +161,7 @@ function tableJson(t: Table): Json {
     ...optional('valueTitle', t.valueTitle),
     ...optional('unit', t.unit),
     ...optional('notes', t.notes),
+    ...(t.derived ? { derived: derivedJson(t.derived) } : {}),
     ...(t.type === 'nested' ? optional('replicateTitles', t.replicateTitles) : {}),
   };
 }
@@ -574,6 +601,40 @@ function row(v: Json, p: Path): Row {
   return { id: id(o['id'], p.key('id')), title: nullableStr(o['title'], p.key('title')) };
 }
 
+function normalizeRef(v: Json | undefined, p: Path): NormalizeRef {
+  const o = obj(v, p);
+  const kind = oneOf(o['kind'], p.key('kind'), [
+    'value',
+    'dataSet',
+    'min',
+    'max',
+    'sum',
+    'first',
+    'last',
+  ] as const);
+  if (kind === 'value') return { kind, value: num(o['value'], p.key('value')) };
+  if (kind === 'dataSet') return { kind, dataSet: id(o['dataSet'], p.key('dataSet')) };
+  return { kind };
+}
+
+function derivation(v: Json | undefined, p: Path): Derivation {
+  const o = obj(v, p);
+  const q = p.key('options');
+  const opts = obj(o['options'], q);
+  oneOf(o['kind'], p.key('kind'), ['normalize'] as const);
+  return {
+    kind: 'normalize',
+    source: id(o['source'], p.key('source')),
+    options: {
+      by: oneOf(opts['by'], q.key('by'), ['whole', 'row'] as const),
+      zero: normalizeRef(opts['zero'], q.key('zero')),
+      full: normalizeRef(opts['full'], q.key('full')),
+      unit: oneOf(opts['unit'], q.key('unit'), ['fraction', 'percent'] as const),
+    },
+    problem: nullableStr(o['problem'], p.key('problem')),
+  };
+}
+
 function table(v: Json, p: Path): Table {
   const o = obj(v, p);
   const typePath: Path = p.key('type');
@@ -599,6 +660,7 @@ function table(v: Json, p: Path): Table {
     valueTitle: optStr(o, 'valueTitle', p),
     unit: optStr(o, 'unit', p),
     notes: optStr(o, 'notes', p),
+    ...(o['derived'] === undefined ? {} : { derived: derivation(o['derived'], p.key('derived')) }),
     ...(type === 'nested' && o['replicateTitles'] !== undefined
       ? {
           replicateTitles: list(o['replicateTitles'], p.key('replicateTitles'), nullableStr),
@@ -1138,7 +1200,7 @@ export function readBsig(text: string): SavedProject {
   const analyses = list(po['analyses'], pp.key('analyses'), analysis);
   const graphs = list(po['graphs'], pp.key('graphs'), graph);
   const layouts = list(po['layouts'], pp.key('layouts'), layout);
-  const project: Project = {
+  const loaded: Project = {
     id: id(po['id'], pp.key('id')),
     name: str(po['name'], pp.key('name')),
     tables: byId(tables),
@@ -1153,9 +1215,11 @@ export function readBsig(text: string): SavedProject {
     },
     exports: list(po['exports'], pp.key('exports'), exportRecord),
   };
-  const problems = validateProject(project);
+  const problems = validateProject(loaded);
   if (problems.length > 0)
     throw new BsigError(`This file is damaged: ${problems.slice(0, 3).join('; ')}.`);
+  // Calculated tables are recomputed, so a hand-edited file or a changed formula can't leave stale numbers.
+  const project = syncDerived(loaded);
 
   const results = new Map<Id, ResultEntry>();
   const ro = doc['results'] === undefined ? {} : obj(doc['results'], root.key('results'));

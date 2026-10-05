@@ -4,6 +4,7 @@
  * its source and on the analyses it draws, a layout on its graphs. One
  * source of truth, so edges can never disagree with the nodes.
  *
+ *   table ──▶ table (calculated, item 43)
  *   table ──▶ analysis ──▶ analysis (chained)
  *     │           │
  *     └─────▶ graph ◀────┘         layout ◀── graphs
@@ -25,6 +26,8 @@ export function graphDependencies(graph: Graph): Id[] {
 
 /** Direct dependencies of a node, in a stable order. */
 export function dependenciesOf(project: Project, id: Id): Id[] {
+  const table = project.tables.get(id);
+  if (table) return table.derived ? [table.derived.source] : [];
   const analysis = project.analyses.get(id);
   if (analysis) return [analysisSource(analysis.input)];
   const graph = project.graphs.get(id);
@@ -40,6 +43,9 @@ export function dependentsOf(project: Project, id: Id): Id[] {
   const visit = (nodeId: Id, deps: readonly Id[]): void => {
     if (deps.includes(id)) out.push(nodeId);
   };
+  project.tables.forEach((t) => {
+    if (t.derived) visit(t.id, [t.derived.source]);
+  });
   project.analyses.forEach((a: Analysis) => {
     visit(a.id, [analysisSource(a.input)]);
   });

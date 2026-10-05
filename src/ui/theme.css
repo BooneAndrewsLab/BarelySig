@@ -2758,3 +2758,45 @@ button.pill.primary {
     grid-template: 'side bar' 52px 'side main' 1fr 'side status' 36px / 216px 1fr;
   }
 }
+
+.calculated-bar {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule, currentColor);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ink-2, inherit);
+}
+
+.calculated-bar p {
+  margin: 0 0 8px;
+}
+
+.calculated-bar .actions {
+  justify-content: flex-start;
+}
+
+.normalize {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.normalize .choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.normalize .indent {
+  margin-left: 24px;
+}
+
+.normalized-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ink-3);
+}

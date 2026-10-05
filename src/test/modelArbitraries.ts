@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 
 import { type Edit, EditError, applyEdit } from '@/model/edits';
+import { canNormalize, createNormalized } from '@/model/derive';
 import { type Id, asId, newId } from '@/model/ids';
 import type { Cell } from '@/model/missing';
 import {
@@ -25,6 +26,8 @@ import {
 } from '@/model/project';
 import {
   type EntryFormat,
+  type NormalizeOptions,
+  type NormalizeRef,
   SUMMARY_STATS,
   createColumnTable,
   createContingencyTable,
@@ -364,6 +367,18 @@ export type Shape =
       readonly v: number;
       readonly ds: readonly number[];
     }
+  | {
+      readonly k: 'normalize';
+      readonly t: number;
+      readonly d: number;
+      readonly by: 'whole' | 'row';
+      readonly unit: 'fraction' | 'percent';
+      /** Index into the kinds of reference; the 0% reference is a value of 0 when `ratio`. */
+      readonly zero: number;
+      readonly full: number;
+      readonly value: number;
+    }
+  | { readonly k: 'detach'; readonly t: number }
   | { readonly k: 'removeTable'; readonly t: number }
   | { readonly k: 'removeAnalysis'; readonly a: number }
   | { readonly k: 'removeGraph'; readonly g: number }
@@ -503,6 +518,20 @@ export const shapeArb: fc.Arbitrary<Shape> = fc.oneof(
     // Graphs carry many optional fields; enough of them that each is seen.
     weight: 4,
   },
+  {
+    arbitrary: fc.record({
+      k: fc.constant('normalize'),
+      t: idx,
+      d: idx,
+      by: fc.constantFrom('whole', 'row'),
+      unit: fc.constantFrom('fraction', 'percent'),
+      zero: fc.nat(6),
+      full: fc.nat(6),
+      value: fc.integer({ min: -5, max: 50 }),
+    }),
+    weight: 6,
+  },
+  { arbitrary: fc.record({ k: fc.constant('detach'), t: idx }), weight: 3 },
   { arbitrary: fc.record({ k: fc.constant('removeTable'), t: idx }), weight: 1 },
   { arbitrary: fc.record({ k: fc.constant('removeAnalysis'), a: idx }), weight: 1 },
   { arbitrary: fc.record({ k: fc.constant('removeGraph'), g: idx }), weight: 1 },
@@ -815,6 +844,34 @@ export function resolve(p: Project, s: Shape): Edit | null {
           },
         },
       };
+    }
+    case 'normalize': {
+      if (!table || !canNormalize(table)) return null;
+      const refs: NormalizeRef[] = [
+        { kind: 'value', value: 0 },
+        { kind: 'value', value: s.value },
+        ...(ds ? [{ kind: 'dataSet', dataSet: ds.id } as const] : []),
+        { kind: 'min' },
+        { kind: 'max' },
+        { kind: 'sum' },
+        { kind: 'first' },
+      ];
+      const options: NormalizeOptions = {
+        by: s.by,
+        unit: s.unit,
+        zero: refs[s.zero % refs.length] ?? refs[0] ?? { kind: 'value', value: 0 },
+        full: refs[s.full % refs.length] ?? refs[0] ?? { kind: 'value', value: 0 },
+      };
+      if (table.derived) return { op: 'setNormalize', table: table.id, options };
+      return {
+        op: 'addTable',
+        table: createNormalized(table, options, newId('t'), `${table.title} (normalized)`),
+      };
+    }
+    case 'detach': {
+      const calculated = p.order.tables.filter((id) => p.tables.get(id)?.derived !== undefined);
+      const id = pick(calculated, s.t);
+      return id === undefined ? null : { op: 'detachDerived', table: id };
     }
     case 'removeTable':
       return table ? { op: 'removeTable', table: table.id } : null;

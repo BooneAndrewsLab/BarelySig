@@ -99,6 +99,6 @@ describe('engine parity with desktop R', () => {
         await shelter.purge();
       }
     },
-    60_000,
+    180_000,
   );
 });

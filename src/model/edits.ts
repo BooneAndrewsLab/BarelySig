@@ -9,6 +9,7 @@
  * nothing, so the grid and dialogs can say why.
  */
 import { wouldCycle } from './deps';
+import { calculateNormalize, canNormalize, normalizedTitle, syncDerived } from './derive';
 import { type Id, newId } from './ids';
 import type { Cell } from './missing';
 import type { Analysis, ExportRecord, Graph, Project } from './project';
@@ -16,6 +17,7 @@ import {
   type CellKey,
   type DataSet,
   type EntryFormat,
+  type NormalizeOptions,
   type Row,
   type Table,
   cellKey,
@@ -93,6 +95,10 @@ export type Edit =
       readonly excluded: boolean;
     }
   | { readonly op: 'setFormat'; readonly table: Id; readonly format: EntryFormat }
+  /** Changes how a calculated table is made (item 43). */
+  | { readonly op: 'setNormalize'; readonly table: Id; readonly options: NormalizeOptions }
+  /** Turns a calculated table into an ordinary one, free to edit. */
+  | { readonly op: 'detachDerived'; readonly table: Id }
   | { readonly op: 'addAnalysis'; readonly analysis: Analysis }
   | { readonly op: 'setAnalysis'; readonly analysis: Analysis }
   | { readonly op: 'removeAnalysis'; readonly analysis: Id }
@@ -131,6 +137,8 @@ const LABELS: Readonly<Record<Exclude<EditOp, 'batch'>, string>> = {
   setDataSet: 'Edit data set',
   setExcluded: 'Exclude values',
   setFormat: 'Change data format',
+  setNormalize: 'Change normalization',
+  detachDerived: 'Detach calculated table',
   addAnalysis: 'New analysis',
   setAnalysis: 'Change analysis',
   removeAnalysis: 'Delete analysis',
@@ -140,7 +148,34 @@ const LABELS: Readonly<Record<Exclude<EditOp, 'batch'>, string>> = {
   addExport: 'Export',
 };
 
+/** The edits that type into a table's structure or cells; a calculated table refuses them. */
+const TYPED_EDITS: ReadonlySet<EditOp> = new Set<EditOp>([
+  'setCells',
+  'insertRows',
+  'deleteRows',
+  'setRowTitle',
+  'addDataSet',
+  'removeDataSet',
+  'moveDataSet',
+  'setExcluded',
+  'setFormat',
+]);
+
+/** Applies an edit, then brings calculated tables up to date with what it changed (item 43). */
 export function applyEdit(project: Project, edit: Edit): Project {
+  return syncDerived(applyEditTo(project, edit));
+}
+
+function applyEditTo(project: Project, edit: Edit): Project {
+  if (TYPED_EDITS.has(edit.op) && 'table' in edit && typeof edit.table === 'string') {
+    const t = project.tables.get(edit.table);
+    if (t?.derived) {
+      const from = project.tables.get(t.derived.source)?.title ?? 'the original';
+      throw new EditError(
+        `"${t.title}" is calculated from "${from}", so its values can't be typed over. Change "${from}" instead, or detach this table first.`,
+      );
+    }
+  }
   switch (edit.op) {
     case 'renameProject':
       return { ...project, name: edit.name };
@@ -193,6 +228,8 @@ export function applyEdit(project: Project, edit: Edit): Project {
         return { ...t, dataSets: ids.map((id) => requireDataSet(t, id)) };
       });
     case 'setDataSet':
+      if (edit.title !== undefined && project.tables.get(edit.table)?.derived)
+        throw new EditError('A calculated table takes its group names from the original table.');
       return updateDataSet(project, edit.table, edit.dataSet, (d) => {
         let out: DataSet = edit.title === undefined ? d : { ...d, title: edit.title };
         if (edit.decimals !== undefined && edit.decimals !== null) {
@@ -211,6 +248,14 @@ export function applyEdit(project: Project, edit: Edit): Project {
       );
     case 'setFormat':
       return updateTable(project, edit.table, (t) => setFormat(t, edit.format));
+    case 'setNormalize':
+      return setNormalize(project, edit.table, edit.options);
+    case 'detachDerived':
+      return updateTable(project, edit.table, (t) => {
+        if (!t.derived) throw new EditError(`"${t.title}" is not a calculated table.`);
+        const { derived: _derived, ...plain } = t;
+        return plain;
+      });
     case 'addAnalysis':
       if (project.analyses.has(edit.analysis.id))
         throw new EditError(`Analysis ${edit.analysis.id} already exists.`);
@@ -251,7 +296,7 @@ export function applyEdit(project: Project, edit: Edit): Project {
       requireFreshId(project, edit.record.id);
       return { ...project, exports: [...project.exports, edit.record] };
     case 'batch':
-      return edit.edits.reduce(applyEdit, project);
+      return edit.edits.reduce(applyEditTo, project);
   }
 }
 
@@ -342,6 +387,13 @@ function updateDataSet(project: Project, table: Id, id: Id, fn: (d: DataSet) => 
 function addTable(project: Project, table: Table, at?: number): Project {
   const problems = validateTable(table);
   if (problems.length > 0) throw new EditError(`Not a valid table: ${problems.join('; ')}`);
+  if (table.derived) {
+    const source = project.tables.get(table.derived.source);
+    if (!source || !canNormalize(source))
+      throw new EditError('A normalized table needs a Column, Grouped or XY table to read from.');
+    const { problem } = calculateNormalize(source, table.derived.options);
+    if (problem !== null) throw new EditError(problem);
+  }
   requireFreshId(
     project,
     table.id,
@@ -361,6 +413,23 @@ function addTable(project: Project, table: Table, at?: number): Project {
   };
 }
 
+function setNormalize(project: Project, id: Id, options: NormalizeOptions): Project {
+  const t = requireTable(project, id);
+  const d = t.derived;
+  const source = d && project.tables.get(d.source);
+  if (!d || !source) throw new EditError(`"${t.title}" is not a calculated table.`);
+  const { problem } = calculateNormalize(source, options);
+  if (problem !== null) throw new EditError(problem);
+  // The axis title follows the setting unless the user wrote their own.
+  const followed = t.valueTitle === normalizedTitle(d.options);
+  const next: Table = {
+    ...t,
+    derived: { ...d, options },
+    ...(followed ? { valueTitle: normalizedTitle(options) } : {}),
+  };
+  return { ...project, tables: withEntry(project.tables, next) };
+}
+
 /**
  * Removes nodes and everything downstream of them: analyses and graphs
  * that read them. A graph that only draws a removed analysis (brackets)
@@ -371,6 +440,13 @@ function removeNodes(project: Project, id: Id): Project {
   // Graphs draw analyses without depending on them for their data, so
   // follow data dependencies only: analyses reading analyses, and sources.
   const visit = (node: Id): void => {
+    // Calculated tables go with their source.
+    project.tables.forEach((t) => {
+      if (t.derived?.source === node && !drop.has(t.id)) {
+        drop.add(t.id);
+        visit(t.id);
+      }
+    });
     project.analyses.forEach((a) => {
       const src = a.input.kind === 'table' ? a.input.table : a.input.analysis;
       if (src === node && !drop.has(a.id)) {

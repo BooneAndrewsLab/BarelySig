@@ -160,6 +160,8 @@ export function validateProject(project: Project): string[] {
 
   project.tables.forEach((t) => {
     problems.push(...validateTable(t));
+    if (t.derived && (t.derived.source === t.id || !project.tables.has(t.derived.source)))
+      problems.push(`table "${t.title}" is calculated from a table that is not there`);
     t.dataSets.forEach((d) => {
       claim(d.id);
     });

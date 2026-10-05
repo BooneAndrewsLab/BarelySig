@@ -91,8 +91,44 @@ const SUBCOLUMNS: Readonly<Record<SummaryStats, readonly SummarySubcolumn[]>> = 
 export const summarySubcolumns = (stats: SummaryStats): readonly SummarySubcolumn[] =>
   SUBCOLUMNS[stats];
 
+/**
+ * What a normalised value is measured against (item 43). `dataSet` is the
+ * mean of that (control) data set, or its own row's mean when normalising
+ * by row; the rest are Prism's own choices, taken from the data set being
+ * normalised, and need `by: 'whole'`.
+ */
+export type NormalizeRef =
+  | { readonly kind: 'value'; readonly value: number }
+  | { readonly kind: 'dataSet'; readonly dataSet: Id }
+  | { readonly kind: 'min' | 'max' | 'sum' | 'first' | 'last' };
+
+export interface NormalizeOptions {
+  /** `whole`: one reference per data set (Prism). `row`: each row against its own control. */
+  readonly by: 'whole' | 'row';
+  /** What becomes 0 (a `value` of 0 for fold / % of a control). */
+  readonly zero: NormalizeRef;
+  /** What becomes 1 (or 100 %). */
+  readonly full: NormalizeRef;
+  readonly unit: 'fraction' | 'percent';
+}
+
+/**
+ * A table calculated from another (item 43): kept as a real table so
+ * analyses and graphs read it like any other, and recomputed from its
+ * source after every edit (`derive.ts`).
+ */
+export interface Derivation {
+  readonly kind: 'normalize';
+  readonly source: Id;
+  readonly options: NormalizeOptions;
+  /** Why the numbers could not be calculated, in words; null when they could. */
+  readonly problem: string | null;
+}
+
 export interface TableBase {
   readonly id: Id;
+  /** Set on a calculated table: its cells are not typed in. */
+  readonly derived?: Derivation;
   readonly title: string;
   readonly rows: readonly Row[];
   readonly dataSets: readonly DataSet[];
@@ -316,5 +352,7 @@ export function duplicateTable(table: Table, title: string): Table {
       }),
     ),
   }));
-  return { ...table, id: newId('t'), title, rows, dataSets };
+  // A copy is plain data, free to edit.
+  const { derived: _derived, ...plain } = table;
+  return { ...plain, id: newId('t'), title, rows, dataSets };
 }

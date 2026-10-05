@@ -19,6 +19,7 @@ import shortcuts from '../../../docs/guide/16-shortcuts.md?raw';
 import tables from '../../../docs/guide/03-tables.md?raw';
 import tTests from '../../../docs/guide/05-t-tests.md?raw';
 import twoWay from '../../../docs/guide/09-two-way-anova.md?raw';
+import normalize from '../../../docs/guide/23-normalize.md?raw';
 import xyTables from '../../../docs/guide/22-xy-tables.md?raw';
 
 import type { UserAnalysisKind } from '@/model/project';
@@ -64,6 +65,7 @@ export const GUIDE: readonly GuidePage[] = [
   page('20-repeated-two-way-both', repeatedTwoWayBoth),
   page('21-contingency-tables', contingencyTables),
   page('22-xy-tables', xyTables),
+  page('23-normalize', normalize),
 ];
 
 export function guidePage(id: string): GuidePage | undefined {

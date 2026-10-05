@@ -48,3 +48,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 40 | [Nonlinear regression: weighting and interpolating unknowns](40-nonlinear-weighting-interpolation.md) | #100 |
 | 41 | [Nonlinear regression: profile-likelihood confidence intervals](41-nonlinear-profile-ci.md) | #99 |
 | 42 | [Replicate traces: a mean ± error band](42-traces-error-band.md) | #104 |
+| 43 | [Normalize: a calculated table](43-normalize.md) | #118 |

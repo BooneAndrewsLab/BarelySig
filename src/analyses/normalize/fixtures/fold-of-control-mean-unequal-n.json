@@ -1,0 +1,35 @@
+{
+  "input": {
+    "ctrl": [10, 12, null, 14],
+    "a": [20, 25, 30, 35],
+    "b": [5, null, null, 7]
+  },
+  "expected": {
+    "ctrl": [0.83333333333333337, 1, null, 1.1666666666666667],
+    "a": [1.6666666666666667, 2.0833333333333335, 2.5, 2.9166666666666665],
+    "b": [0.41666666666666669, null, null, 0.58333333333333337]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    k_of <- function(unit) if (unit == \"percent\") \n        100\n    else 1\n    row_mean <- function(...) {\n        m <- rowMeans(cbind(...), na.rm = TRUE)\n        m[is.nan(m)] <- NA\n        m\n    }\n    whole <- function(cols, zero, full, unit) {\n        lapply(cols, function(y) {\n            z <- zero(y)\n            f <- full(y)\n            (y - z)/(f - z) * k_of(unit)\n        })\n    }\n    by_row <- function(cols, ctrl, unit) {\n        lapply(cols, function(y) y/ctrl * k_of(unit))\n    }\n    mean_na <- function(x) sum(x, na.rm = TRUE)/sum(!is.na(x))\n    raw_of <- function(mean, sd, n) as.numeric(scale(seq_len(n))) * sd + mean\n}",
+    "call": "whole(list(ctrl = ctrl, a = a, b = b), function(y) 0, function(y) mean_na(ctrl), \n    \"fraction\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "Unequal n: the control mean uses its three values.",
+  "options": {
+    "by": "whole",
+    "zero": {
+      "kind": "value",
+      "value": 0
+    },
+    "full": {
+      "kind": "dataSet",
+      "dataSet": "ctrl"
+    },
+    "unit": "fraction",
+    "replicates": 1
+  }
+}

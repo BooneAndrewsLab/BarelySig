@@ -1,0 +1,35 @@
+{
+  "input": {
+    "ctrl": [2, null, 5, 10, 8],
+    "drug": [1, 6, null, 30, 4],
+    "other": [2, 4, 10, null, 8]
+  },
+  "expected": {
+    "ctrl": [100, null, 100, 100, 100],
+    "drug": [50, null, null, 300, 50],
+    "other": [100, null, 200, null, 100]
+  },
+  "reference": {
+    "r": "R version 4.6.0 (2026-04-24)",
+    "packages": {
+      "stats": "4.6.0"
+    },
+    "setup": "{\n    k_of <- function(unit) if (unit == \"percent\") \n        100\n    else 1\n    row_mean <- function(...) {\n        m <- rowMeans(cbind(...), na.rm = TRUE)\n        m[is.nan(m)] <- NA\n        m\n    }\n    whole <- function(cols, zero, full, unit) {\n        lapply(cols, function(y) {\n            z <- zero(y)\n            f <- full(y)\n            (y - z)/(f - z) * k_of(unit)\n        })\n    }\n    by_row <- function(cols, ctrl, unit) {\n        lapply(cols, function(y) y/ctrl * k_of(unit))\n    }\n    mean_na <- function(x) sum(x, na.rm = TRUE)/sum(!is.na(x))\n    raw_of <- function(mean, sd, n) as.numeric(scale(seq_len(n))) * sd + mean\n}",
+    "call": "by_row(list(ctrl = ctrl, drug = drug, other = other), ctrl, \"percent\")"
+  },
+  "tolerance": 9.9999999999999995e-7,
+  "note": "A missing control leaves its row missing everywhere; a missing value stays missing.",
+  "options": {
+    "by": "row",
+    "zero": {
+      "kind": "value",
+      "value": 0
+    },
+    "full": {
+      "kind": "dataSet",
+      "dataSet": "ctrl"
+    },
+    "unit": "percent",
+    "replicates": 1
+  }
+}

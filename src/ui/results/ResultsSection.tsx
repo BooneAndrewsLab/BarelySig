@@ -54,9 +54,11 @@ import type {
 } from '@/analyses/repeatedTwowayBoth/types';
 import type { TwoWayResult, TwoWayTerm } from '@/analyses/twoway/types';
 import type { TTestResult } from '@/analyses/ttest/types';
+import { NORMALIZE_CAVEAT, normalizeNote } from '@/model/derive';
 import type { Id } from '@/model/ids';
 import type { Analysis, Project, SharedParameters } from '@/model/project';
 import type { Dropped } from '@/model/selectors';
+import type { Table } from '@/model/table';
 
 import { Section as PageSection } from '../notebook/Section';
 import { AnalyzeDialog } from '../shell/AnalyzeDialog';
@@ -2870,6 +2872,28 @@ interface SectionProps extends Props {
   readonly note?: ReactNode;
 }
 
+const TESTS = /anova|t-test|rank-test|kruskal|friedman/;
+
+/** Says the data were normalised, and to what (item 43), with the caution for tests. */
+function NormalizedNote({
+  project,
+  analysis,
+  table,
+}: {
+  readonly project: Project;
+  readonly analysis: Analysis;
+  readonly table: Table;
+}) {
+  const d = table.derived;
+  if (!d) return null;
+  return (
+    <p className="normalized-note" role="note">
+      {normalizeNote(project.tables.get(d.source), d)}
+      {TESTS.test(analysis.kind) ? ` ${NORMALIZE_CAVEAT}` : ''}
+    </p>
+  );
+}
+
 /** An analysis as a section of its experiment's page (item 08). */
 export function ResultsSection({ project, analysis, number, note }: SectionProps) {
   const bridge = getResults();
@@ -2934,6 +2958,7 @@ export function ResultsSection({ project, analysis, number, note }: SectionProps
         aria-busy={busy}
       >
         <Status analysis={analysis} over={value !== null} />
+        {source?.derived && <NormalizedNote project={project} analysis={analysis} table={source} />}
         {value !== null && analysis.kind === 't-test' && (
           <TTestView r={value as unknown as TTestResult} id={analysis.id} />
         )}
