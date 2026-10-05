@@ -58,7 +58,8 @@ describe('random editing sessions', () => {
         });
         seen.detached += applied.filter((e) => e.op === 'detachDerived').length;
       }),
-      { numRuns: 1000 },
+      // as many runs as the properties above, so it vouches for what they see
+      { numRuns: RUNS },
     );
     expect(seen.made).toBeGreaterThan(0);
     expect(seen.byRow).toBeGreaterThan(0);

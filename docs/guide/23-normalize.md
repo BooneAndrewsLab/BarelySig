@@ -41,7 +41,9 @@ times 100 for percent.
   slightly below 0 or above 100.
 - **A control of 0 is refused.** You can't divide by 0; the table says which
   data set or row is the problem, and recovers as soon as the original is
-  fixed. A negative control is allowed and gives negative results.
+  fixed. A negative control is allowed and gives negative results. A result
+  too large for the computer to hold (a huge value against a tiny control) is
+  refused the same way.
 - **Excluded values** are left out of the references and of the result.
 - **Summary data (mean, SD, n)** can be normalized as a whole, not row by row:
   the means are rescaled and each SD is divided by the same factor. Change
@@ -53,7 +55,9 @@ times 100 for percent.
 ## It stays up to date
 
 The normalized table is _calculated_: edit the original and it follows, and
-Undo undoes both. You can't type into it. Use **Change normalization…** to
+Undo undoes both. Delete a data set from the original and it goes from the
+normalized table too, and from its graphs and analyses. You can't type into
+it. Use **Change normalization…** to
 change the setting, or **Detach (make editable)** to keep the numbers as an
 ordinary table that no longer follows the original.
 

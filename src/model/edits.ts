@@ -163,7 +163,44 @@ const TYPED_EDITS: ReadonlySet<EditOp> = new Set<EditOp>([
 
 /** Applies an edit, then brings calculated tables up to date with what it changed (item 43). */
 export function applyEdit(project: Project, edit: Edit): Project {
-  return syncDerived(applyEditTo(project, edit));
+  return pruneDerivedReads(syncDerived(applyEditTo(project, edit)));
+}
+
+/**
+ * A calculated table loses a data set when its source does, inside
+ * `syncDerived`; analyses and graphs that read it stop reading it, as
+ * `removeDataSet` does for a plain table. Unchanged objects keep their identity.
+ */
+function pruneDerivedReads(project: Project): Project {
+  const gone = (tableId: Id, ds: Id): boolean => {
+    const t = project.tables.get(tableId);
+    return t?.derived !== undefined && !t.dataSets.some((d) => d.id === ds);
+  };
+  let analyses = project.analyses;
+  project.analyses.forEach((a) => {
+    if (a.input.kind !== 'table') return;
+    const table = a.input.table;
+    if (!a.input.dataSets.some((ds) => gone(table, ds))) return;
+    if (analyses === project.analyses) analyses = new Map(analyses);
+    (analyses as Map<Id, Analysis>).set(a.id, {
+      ...a,
+      input: { ...a.input, dataSets: a.input.dataSets.filter((ds) => !gone(table, ds)) },
+    });
+  });
+  let graphs = project.graphs;
+  project.graphs.forEach((g) => {
+    if (g.source.kind !== 'table' || !g.dataSets) return;
+    const table = g.source.table;
+    if (!g.dataSets.some((ds) => gone(table, ds))) return;
+    if (graphs === project.graphs) graphs = new Map(graphs);
+    (graphs as Map<Id, Graph>).set(g.id, {
+      ...g,
+      dataSets: g.dataSets.filter((ds) => !gone(table, ds)),
+    });
+  });
+  return analyses === project.analyses && graphs === project.graphs
+    ? project
+    : { ...project, analyses, graphs };
 }
 
 function applyEditTo(project: Project, edit: Edit): Project {

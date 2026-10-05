@@ -89,3 +89,15 @@ and a tiny control, row mode, 0-100 range, summary data checked against
 raw values with the same mean/SD/n. The app's own test runs the TypeScript
 on the same inputs; tolerance 1e-6 relative. No R in the app: parity is
 skipped (`parity = FALSE`).
+
+## Later fixes (#122)
+
+- A result that overflows (finite inputs, e.g. 1e308 against a control of
+  4) is refused in words like a zero control, never written as `Infinity`.
+- A calculated table loses a data set inside `syncDerived` when its source
+  does, so `applyEdit` then prunes analyses and graphs that read it, as
+  `removeDataSet` does for a plain table; otherwise the project failed
+  validation and the saved `.bsig` would not open.
+- Both were found once `sessionArb` used `size: 'medium'`: fast-check's
+  default kept sessions near 5 shapes, too short for table → normalize →
+  detach, which also made the coverage test flaky.

@@ -933,4 +933,11 @@ export function play(shapes: readonly Shape[]): Session {
   return { project, applied, refused };
 }
 
-export const sessionArb: fc.Arbitrary<readonly Shape[]> = fc.array(shapeArb, { maxLength: 40 });
+/**
+ * `size: 'medium'`: fast-check's default keeps arrays near 5 shapes, too few
+ * for chains like table → normalize → detach (about 1 detach per 300 runs).
+ */
+export const sessionArb: fc.Arbitrary<readonly Shape[]> = fc.array(shapeArb, {
+  maxLength: 40,
+  size: 'medium',
+});

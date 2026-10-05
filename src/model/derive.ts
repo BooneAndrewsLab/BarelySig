@@ -173,8 +173,16 @@ export function calculateNormalize(source: Table, options: NormalizeOptions): Ca
           }
           const kind = subKinds?.[s] ?? 'mean';
           if (kind === 'n') return v;
-          if (kind === 'sd' || kind === 'sem') return noNegZero((v * k) / ref.scale);
-          return noNegZero(((v - ref.zero) / ref.scale) * k);
+          const x =
+            kind === 'sd' || kind === 'sem'
+              ? (v * k) / ref.scale
+              : ((v - ref.zero) / ref.scale) * k;
+          // Finite inputs can still overflow (1e308 against a reference of 4).
+          if (!Number.isFinite(x))
+            throw new Refuse(
+              `A value in ${nameOf(d)} is too large to normalize against this reference.`,
+            );
+          return noNegZero(x);
         }),
       );
     });

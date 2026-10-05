@@ -9,8 +9,8 @@ import {
   syncDerived,
 } from './derive';
 import { dependentsOf } from './deps';
-import { newId } from './ids';
-import { createProject } from './project';
+import { asId, newId } from './ids';
+import { createProject, GRAPH_DEFAULTS } from './project';
 import { type NormalizeOptions, type Table, createColumnTable } from './table';
 import { validateProject } from './validate';
 
@@ -131,6 +131,35 @@ describe('calculated tables', () => {
     expect(missing.tables.get(derived.id)?.dataSets[1]?.subcolumns[0]).toEqual([50, null, 200]);
   });
 
+  it('refuse a result too large to hold, in words, never an infinite cell', () => {
+    const { p, source, derived, options } = setup();
+    const drug = source.dataSets[1];
+    // 1e308 against a control of 4 is 2.5e309 percent: past the largest double
+    const huge = applyEdit(p, {
+      op: 'setCells',
+      table: source.id,
+      cells: [
+        {
+          dataSet: drug?.id ?? derived.id,
+          subcolumn: 0,
+          row: source.rows[1]?.id ?? derived.id,
+          value: 1e308,
+        },
+      ],
+    });
+    expect(huge.tables.get(derived.id)?.derived?.problem).toMatch(/too large/);
+    expect(huge.tables.get(derived.id)?.dataSets[1]?.subcolumns[0]).toEqual([null, null, null]);
+    expect(validateProject(huge)).toEqual([]);
+    const fresh = huge.tables.get(source.id);
+    if (!fresh) throw new Error('unreachable');
+    expect(() =>
+      applyEdit(huge, {
+        op: 'addTable',
+        table: createNormalized(fresh, options, newId('t'), 'again'),
+      }),
+    ).toThrow(/too large/);
+  });
+
   it('refuse a setting that cannot be calculated', () => {
     const { p, derived, options } = setup();
     expect(() =>
@@ -146,6 +175,48 @@ describe('calculated tables', () => {
       options: { ...options, unit: 'fraction' },
     });
     expect(q.tables.get(derived.id)?.dataSets[1]?.subcolumns[0]).toEqual([0.5, 1.5, 2]);
+  });
+
+  it('lose a data set with their source, and what read it stops reading it', () => {
+    const { p, source, derived } = setup();
+    const t = p.tables.get(derived.id);
+    const drug = t?.dataSets[1]?.id;
+    const ctrl = t?.dataSets[0]?.id;
+    if (!drug || !ctrl) throw new Error('unreachable');
+    let q = applyEdit(p, {
+      op: 'addAnalysis',
+      analysis: {
+        id: asId('a_1'),
+        title: 'A',
+        kind: 'descriptive',
+        options: {},
+        input: { kind: 'table', table: derived.id, dataSets: [ctrl, drug] },
+      },
+    });
+    q = applyEdit(q, {
+      op: 'addGraph',
+      graph: {
+        id: asId('g_1'),
+        title: 'G',
+        ...GRAPH_DEFAULTS,
+        source: { kind: 'table', table: derived.id },
+        dataSets: [ctrl, drug],
+        analyses: [],
+      },
+    });
+    const r = applyEdit(q, {
+      op: 'removeDataSet',
+      table: source.id,
+      dataSet: source.dataSets[1]?.id ?? source.id,
+    });
+    expect(r.graphs.get(asId('g_1'))?.dataSets).toEqual([ctrl]);
+    const a = r.analyses.get(asId('a_1'));
+    expect(a?.input.kind === 'table' && a.input.dataSets).toEqual([ctrl]);
+    expect(validateProject(r)).toEqual([]);
+    // an edit that drops nothing keeps every object as it was (graphs are cached by identity)
+    const s = applyEdit(q, { op: 'renameProject', name: 'again' });
+    expect(s.graphs).toBe(q.graphs);
+    expect(s.analyses).toBe(q.analyses);
   });
 
   it('are deleted with their source, and are a step downstream of it', () => {
