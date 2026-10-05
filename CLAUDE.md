@@ -2,6 +2,14 @@
 
 > No license required. Asterisks included.
 
+This file is loaded into every session, so it holds only what changes how
+the code is worked on: decisions, rules, lessons, pointers — not status.
+What a release did goes in its Release notes, why in a design note, what
+is left in an issue. `src/claudeMd.test.ts` fails the build if it regains
+a Status section or names a version other than `package.json`'s.
+
+## What this is
+
 Free, open-source, fully browser-based statistics and graphing for wet-lab
 scientists — a GraphPad Prism alternative. Sibling of PlasmidPop
 (`../PlasmidPop`), built the same way: no install, no backend, no account,
@@ -12,32 +20,24 @@ matches a reference implementation; (2) Prism-familiar workflow; (3)
 publication-quality graphs with zero formatting; (4) private by default;
 (5) the UI never freezes — heavy work runs off the main thread.
 
-## Status
-
-Repo `BooneAndrewsLab/BarelySig`, public; 1.0.0 released 2026-09-28 (DOI in
-`CITATION.cff`, `deploy.yml` publishes on GitHub Releases). Open work lives
-in GitHub Issues and milestones (`gh api repos/BooneAndrewsLab/BarelySig/milestones`);
-history in `docs/design/NN-*.md` and git. Next: UI revamp as the user files
-ideas, then milestones 1.1–1.5 in order.
-
 ## Stack
 
 - TypeScript strict, React 19 + Vite, ESLint `strictTypeChecked`, Prettier,
   `@/` → `src/`. Vitest (node env; `// @vitest-environment jsdom` for
   components), Playwright e2e. MIT.
-- **Stats engine: WebR** 0.6.0 (R 4.6.0) in its own worker, PostMessage
-  channel, no cross-origin isolation (note 01). Cancel = restart WebR, so
-  analyses keep no state in R. Self-hosted in `public/webr/` via
-  `npm run webr:fetch`. The app ships base R + mvtnorm + emmeans only
-  (`scripts/webr/packages.json`); multcomp, dunn.test, fBasics, car, drc
-  etc. are oracle-only.
+- **Stats engine: WebR** in its own worker, PostMessage channel, no
+  cross-origin isolation (note 01); WebR, R and package versions are pinned
+  in `src/engine/lock.json`. Cancel = restart WebR, so analyses keep no
+  state in R. Self-hosted in `public/webr/` via `npm run webr:fetch`. The
+  app ships base R plus the short list in `scripts/webr/packages.json`;
+  multcomp, dunn.test, fBasics, car, drc etc. are oracle-only.
 - **Engine interface:** `runAnalysis(request): Promise<AnalysisResult>`,
   one typed request/result pair per analysis. No R code outside
   `src/engine` and `src/analyses`; keep WebR swappable behind it.
 - **Graphs:** React-rendered SVG; D3 only for scales/axes/shape
   generators, never DOM. Default theme seaborn "ticks" style; themes are
-  data (`GraphTheme`) under per-element overrides (note 05). Exports embed
-  a figure recipe of *resolved* values, never just a theme name (#43).
+  data (`GraphTheme`) under per-element overrides. Exports embed a figure
+  recipe of *resolved* values, never just a theme name (note 05).
 - **Data grid:** our own; flawless tab-separated paste from Excel is a
   requirement.
 - **State:** one serializable project store; tables → analyses → results →
@@ -48,7 +48,8 @@ ideas, then milestones 1.1–1.5 in order.
 - Static GitHub Pages hosting; PWA (`vite-plugin-pwa`), WebR runtime-cached
   cache-first. No third-party requests besides self-hosted Matomo
   (`src/ui/analytics.ts`, `EVENTS` allow-list, never user data; unset env =
-  no-op).
+  no-op). A dependency published only as a tarball is vendored
+  (`vendor/README.md`), never fetched from a CDN.
 
 ## Domain rules that cause bugs
 
@@ -91,25 +92,55 @@ No analysis ships without passing its validation tests.
 - Compare defaults and outputs with Prism (GraphPad's guides); record
   intentional differences in the design note.
 
-## Tooling
+## Tooling and releasing
 
 - Node: `export PATH=$HOME/Programs/miniconda3/envs/node/bin:$PATH`
-- `npm run check` (typecheck, lint, format, stage WebR, test; the slow
-  parity suite only when analyses/engine/harness files changed vs
-  origin/main, `PARITY=1` forces, `npm run test:parity` always; CI and
-  releases always run it, note 44) gates every
-  commit: `npm run check && git commit …`. `npm run e2e` for Playwright
-  against a production build.
-- R oracle: `mamba run -n barelysig-r Rscript …` (R 4.6.0; R packages
-  installed from CRAN inside the env). Record package versions in
-  fixtures and check the package exists for WebR. Run `oracle:generate`
-  with the node env on PATH (it runs Prettier).
+- `npm run check` gates every commit: `npm run check && git commit …`. It
+  runs typecheck, lint, format, WebR staging and the tests; the slow parity
+  suite only when analysis/engine/harness files changed vs origin/main
+  (`PARITY=1` forces, `npm run test:parity` runs it alone; CI and releases
+  always run it; note 44). `npm run e2e` runs Playwright against a
+  production build.
+- R oracle: `mamba run -n barelysig-r Rscript …` (R at WebR's version;
+  packages from CRAN inside the env). Record package versions in fixtures
+  and check the package exists for WebR. Run `oracle:generate` with the
+  node env on PATH (it runs Prettier).
 - WebR pin `src/engine/lock.json`: change only with
   `npm run webr:fetch -- --update-lock`, then `oracle:pin`,
   `oracle:generate` and the parity test.
-- Font/brand scripts (`scripts/make-wordmark.py`, `make-graph-font.py`,
-  `make-ui-font.py`, `make-icons.sh`, `seaborn-reference.py`) need Python
-  with fonttools (see each script); sources in `design/`.
+- Font/brand scripts (`scripts/make-*.py`, `make-icons.sh`,
+  `seaborn-reference.py`) need Python with fonttools (see each script);
+  sources and their READMEs in `design/`.
+- **Releasing:** current is 1.0.0 (2026-09-28). Bump `package.json` and
+  `CITATION.cff` together, add `docs/releases/X.Y.Z.md`, publish a GitHub
+  Release; **the site deploys only then** (`deploy.yml`) and the release
+  gets a Zenodo DOI under the concept DOI in `CITATION.cff`. A push to
+  main reaches no user until a release carries it.
+
+## Where things are written down
+
+- **Design notes `docs/design/NN-*.md`** (index: its README): what was
+  asked, what was built and why. Write one *before* implementing anything
+  significant; "note N" / "item N" in code means that note, read it before
+  changing that area.
+- **Open work:** GitHub Issues and milestones
+  (`gh api repos/BooneAndrewsLab/BarelySig/milestones`); the numbered
+  milestones go in order. Never a to-do list here or in a note.
+- **User guide:** `docs/guide/NN-*.md`, bundled by `src/ui/help/guide.ts`
+  (`GUIDE` lists the pages, `ANALYSIS_PAGE` maps each analysis kind to
+  its page).
+- **What a release did:** GitHub Releases and `docs/releases/`.
+
+```
+src/model      typed tables, project, dependency graph
+src/engine     worker, WebR bridge
+src/analyses   one folder per analysis: types, R snippet, parser, oracle, fixtures
+src/graphs     renderers, formatting model, export
+src/ui         app shell, navigator, grid, inspectors, help, analytics
+src/io         save/load, imports
+scripts/       wordmark, fonts, icons, R oracle, simulations, WebR staging
+design/        logo, icon and font sources (each with a README)
+```
 
 ## Lessons (things that bit)
 
@@ -128,7 +159,8 @@ No analysis ships without passing its validation tests.
   `test = "Spherical"`); clamp epsilons to `[1/(k−1), 1]` (note 17).
 - **Oracle/app disagree by ~1/K on one family of P?** Suspect a count
   mismatch in what feeds the shared math (note 17).
-- **Simulate a test's false-positive rate before choosing it** (note 14).
+- **Simulate a test's false-positive rate before choosing it** (note 14,
+  `scripts/sim/`).
 - **Adding an analysis kind:** grep every place kinds are matched
   (results view, brackets, margin notes, Analyze dialog, `.bsig`) —
   `kind === X && <View/>` isn't exhaustive and compiles clean.
@@ -150,27 +182,12 @@ No analysis ships without passing its validation tests.
 - **Prettier rewrites `*italic*` as `_italic_`** in Markdown; the guide
   parser reads both and guide lists stay flat.
 
-## Layout
-
-```
-src/model      typed tables, project, dependency graph
-src/engine     worker, WebR bridge
-src/analyses   one folder per analysis: types, R snippet, parser, fixtures
-src/graphs     renderers, formatting model, export
-src/ui         app shell, navigator, grid, inspectors, analytics
-src/io         save/load, imports
-scripts/       wordmark, fonts, R oracle, WebR staging
-design/        logo, icon and font sources
-docs/design/   numbered design notes (index: README.md)
-```
-
 ## Conventions
 
-- Write a design note (`docs/design/NN-*.md`) *before* implementing
-  anything significant; "item N" in code means that note.
 - One short-lived branch per issue, fast-forwarded into `main` when green;
   hotfixes from the last release tag. Small commits, `Fixes #N`.
-- Any user-visible change updates its user-guide page in the same commit.
+- Any user-visible change updates its user-guide page in the same commit;
+  a new analysis gets a page (or section) and an `ANALYSIS_PAGE` entry.
 - File follow-ups as issues, not "not yet" lists in notes.
 - No `any`; discriminated unions for table, analysis and graph types.
 - Write UI text for a grad student with no statistics background: plain
