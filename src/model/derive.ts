@@ -238,6 +238,18 @@ export function normalizeNote(source: Table | undefined, d: Derivation): string 
   return `Normalized from "${name}": ${body}, as ${unit}; ${how}.`;
 }
 
+/** Said when replicates are rescaled by reference points taken from their means. */
+export const REPLICATE_RANGE_NOTE =
+  '0 and 100 are set from the means of the replicates, so individual replicates can fall slightly outside this range.';
+
+/** The note about replicates leaving 0 to 100, or null when it does not apply. */
+export function replicateRangeNote(source: Table | undefined, d: Derivation): string | null {
+  const zero = d.options.zero.kind === 'value' && d.options.zero.value === 0;
+  if (!source || zero) return null;
+  const replicated = source.format.kind === 'replicates' && source.format.count > 1;
+  return replicated ? REPLICATE_RANGE_NOTE : null;
+}
+
 /** Said under every analysis of a normalised table. */
 export const NORMALIZE_CAVEAT =
   'The data set used as the reference becomes constant (SD 0), so it cannot be tested against itself. To compare it, test the original, un-normalized data.';

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { applyEdit, EditError } from './edits';
-import { createNormalized, normalizeNote, syncDerived } from './derive';
+import {
+  createNormalized,
+  normalizeNote,
+  replicateRangeNote,
+  REPLICATE_RANGE_NOTE,
+  syncDerived,
+} from './derive';
 import { dependentsOf } from './deps';
 import { newId } from './ids';
 import { createProject } from './project';
@@ -176,5 +182,18 @@ describe('calculated tables', () => {
     expect(normalizeNote(source, derived.derived ?? ({} as never))).toBe(
       'Normalized from "Expt": divided by the mean of "ctrl", as percent; each row against its own control.',
     );
+  });
+
+  it('warns that replicates can leave 0 to 100 only on a 0-100 scale with replicates', () => {
+    const { source, derived, options } = setup();
+    const d = derived.derived ?? ({} as never);
+    expect(replicateRangeNote(source, d)).toBeNull(); // divide-by-control mode
+    const range = {
+      ...d,
+      options: { ...options, zero: { kind: 'min' as const }, full: { kind: 'max' as const } },
+    };
+    expect(replicateRangeNote(source, range)).toBeNull(); // one value per cell
+    const triple = { ...source, format: { kind: 'replicates' as const, count: 3 } };
+    expect(replicateRangeNote(triple, range)).toBe(REPLICATE_RANGE_NOTE);
   });
 });

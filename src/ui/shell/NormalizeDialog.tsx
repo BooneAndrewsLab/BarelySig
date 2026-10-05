@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { calculateNormalize, NORMALIZE_CAVEAT } from '@/model/derive';
+import { calculateNormalize, NORMALIZE_CAVEAT, REPLICATE_RANGE_NOTE } from '@/model/derive';
 import type { Id } from '@/model/ids';
 import { type NormalizeOptions, type NormalizeRef, type Table, isXyX } from '@/model/table';
 
@@ -277,8 +277,10 @@ export function NormalizeDialog({ table, current, defaultTitle, onApply, onClose
         {s.mode === 'range' && (
           <>
             <p className="hint flush">
-              Each data set is rescaled on its own, as in Prism. With replicates, the reference
-              points come from the replicate averages.
+              Each data set is rescaled on its own, as in Prism.
+              {!summary && table.format.count > 1
+                ? ` ${REPLICATE_RANGE_NOTE}`
+                : ' With replicates, the reference points come from the replicate averages.'}
             </p>
             <label className="field">
               0% is{' '}

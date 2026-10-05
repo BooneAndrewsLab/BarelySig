@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { normalizeNote } from '@/model/derive';
+import { normalizeNote, replicateRangeNote } from '@/model/derive';
 import type { Project } from '@/model/project';
 import type { Table } from '@/model/table';
 
@@ -25,8 +25,8 @@ export function CalculatedBar({
   return (
     <div className="calculated-bar" role="note">
       <p>
-        {normalizeNote(source, d)} You can’t type in this table; change “
-        {source?.title ?? 'the original'}” and it follows.
+        {normalizeNote(source, d)} {replicateRangeNote(source, d)} You can’t type in this table;
+        change “{source?.title ?? 'the original'}” and it follows.
       </p>
       {d.problem !== null && (
         <p className="warning-note" role="alert">

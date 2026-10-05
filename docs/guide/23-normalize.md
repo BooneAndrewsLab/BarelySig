@@ -37,7 +37,8 @@ times 100 for percent.
 - **Replicates keep their structure.** Dividing by the row's control uses the
   average of the control's replicates in that row, and each replicate is
   divided separately. For a 0 to 100% scale, the reference points come from
-  the replicate averages, as in Prism.
+  the replicate averages, as in Prism, so individual replicates can fall
+  slightly below 0 or above 100.
 - **A control of 0 is refused.** You can't divide by 0; the table says which
   data set or row is the problem, and recovers as soon as the original is
   fixed. A negative control is allowed and gives negative results.

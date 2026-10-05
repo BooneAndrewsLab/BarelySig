@@ -11,7 +11,9 @@ normalised, inside the fit. This adds a general step.
   set, the value in the last row, the sum of the column, or a value you
   enter. Results as fractions or percentages.
 - With replicates, 0% and 100% come from the *means of the replicates*;
-  the means or each sub column can be normalised.
+  the means or each sub column can be normalised. Individual replicates can
+  therefore fall outside 0-100; the banner and dialog say so (replicates
+  present, 0-100 scale only).
 - X is copied, not normalised. SD/SEM are divided by the range; subtracting
   the baseline does not change them.
 - The guide says nothing about blanks, a zero denominator or negative
