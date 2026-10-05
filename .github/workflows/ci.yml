@@ -41,8 +41,11 @@ jobs:
       - name: Stage WebR
         run: npm run webr:fetch
 
+      # Always the whole suite, parity included (never the selective `check`).
       - name: Test
         run: npm run test:coverage
+        env:
+          PARITY: '1'
 
       - name: Build
         run: npm run build

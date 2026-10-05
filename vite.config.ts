@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { existsSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
@@ -47,6 +48,19 @@ function webrStatic404(): Plugin {
     },
   };
 }
+
+/**
+ * WebR instances the parity suite runs at once (= vitest's `maxConcurrency`,
+ * and the pool size in src/test/parity.test.ts through `PARITY_JOBS`):
+ * `PARITY_JOBS`, else min(cores - 2, 4), at least 1. Each instance is a WASM
+ * R heap plus a worker (a few hundred MB), and other test files need cores.
+ */
+const asked = Number(process.env['PARITY_JOBS']);
+const parityJobs =
+  Number.isInteger(asked) && asked >= 1
+    ? asked
+    : Math.max(1, Math.min(availableParallelism() - 2, 4));
+process.env['PARITY_JOBS'] = String(parityJobs);
 
 export default defineConfig({
   base,
@@ -134,6 +148,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     // The parity test keeps every core busy; 5 s was too tight for UI tests.
     testTimeout: 30_000,
+    // Only the parity suite uses `it.concurrent`: one case per WebR instance in its pool.
+    maxConcurrency: parityJobs,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',

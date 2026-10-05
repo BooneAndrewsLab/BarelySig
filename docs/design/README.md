@@ -49,3 +49,4 @@ implementing anything significant; open work lives in GitHub Issues.
 | 41 | [Nonlinear regression: profile-likelihood confidence intervals](41-nonlinear-profile-ci.md) | #99 |
 | 42 | [Replicate traces: a mean ± error band](42-traces-error-band.md) | #104 |
 | 43 | [Normalize: a calculated table](43-normalize.md) | #118 |
+| 44 | [A faster `npm run check`: parallel parity, run only for analysis changes](44-faster-check.md) | #121 |

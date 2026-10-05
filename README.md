@@ -43,6 +43,7 @@ in APA or BibTeX.
 npm install
 npm run dev       # local dev server
 npm run check     # typecheck, lint, format, tests
+npm run test:parity # the engine parity suite (check skips it unless analyses/engine changed; PARITY=1 forces)
 npm run e2e       # end-to-end tests (Playwright, against a production build)
 npm run build     # static build for GitHub Pages
 ```

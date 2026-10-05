@@ -35,7 +35,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Releases always run the whole suite, parity included.
       - run: npm run check
+        env:
+          PARITY: '1'
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       # The release build, served under the Pages base, through the whole

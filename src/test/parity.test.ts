@@ -4,6 +4,11 @@
  * desktop R (a different build, a package version out of step with
  * `lock.json`) for every analysis, before any app code is involved. Each
  * analysis's own tests then check the app's code against the same fixtures.
+ *
+ * Cases run concurrently on a pool of `PARITY_JOBS` WebR instances (a case
+ * takes a free one, so results don't depend on the order or the pool size).
+ * `PARITY=0` shows the whole suite as skipped (`scripts/test-run.ts` sets it
+ * for changes that can't affect it); unset, it always runs.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RObject, WebR } from 'webr';
@@ -50,13 +55,27 @@ function asListed(actual: Plain, expected: Plain): Plain {
   return actual;
 }
 
-describe('engine parity with desktop R', () => {
+// Set by vite.config.ts (also vitest's `maxConcurrency`).
+const jobs = Math.max(1, Number(process.env['PARITY_JOBS']) || 1);
+
+describe.skipIf(process.env['PARITY'] === '0')('engine parity with desktop R', () => {
   let webR: WebR;
+  const pool: WebR[] = [];
+  const free: WebR[] = [];
   beforeAll(async () => {
-    webR = await startNodeWebR();
-  }, 60_000);
+    pool.push(...(await Promise.all(Array.from({ length: jobs }, () => startNodeWebR()))));
+    // Install one instance at a time: concurrent installs in one process
+    // fail (a corrupt download), and each case then only loads the package.
+    const packages = [...new Set(runnable.flatMap(referencePackages))];
+    if (packages.length > 0)
+      for (const w of pool) await w.installPackages(packages, { quiet: true });
+    free.push(...pool);
+    const [first] = pool;
+    if (first === undefined) throw new Error('no WebR started');
+    webR = first;
+  }, 120_000);
   afterAll(() => {
-    webR.close();
+    for (const w of pool) w.close();
   });
 
   it('has fixtures', () => {
@@ -74,31 +93,42 @@ describe('engine parity with desktop R', () => {
     expect(runnable.length).toBeGreaterThan(fixtures.length / 2);
   });
 
-  it.each(runnable.map((f) => [f.id, f] as const))(
+  // The vitest `maxConcurrency` (vite.config.ts) equals the pool size, so a
+  // case never waits for an instance.
+  it.concurrent.each(runnable.map((f) => [f.id, f] as const))(
     '%s',
     async (_id, f) => {
-      const packages = referencePackages(f);
-      if (packages.length > 0) await webR.installPackages(packages, { quiet: true });
-      const shelter = await new webR.Shelter();
+      const webR = free.pop();
+      if (webR === undefined) throw new Error('no free WebR instance');
       try {
-        const inputs: Record<string, RObject> = Object.fromEntries(
-          await Promise.all(
-            Object.entries(f.input).map(async ([k, v]): Promise<[string, RObject]> => [
-              k,
-              await new shelter.RDouble([...v]),
-            ]),
-          ),
-        );
-        const env = await new shelter.REnvironment(inputs);
-        for (const p of packages) await shelter.evalR(`library(${p})`, { env });
-        if (f.reference.setup !== undefined) await shelter.evalR(f.reference.setup, { env });
-        const result = await shelter.evalR(f.reference.call, { env });
-        const actual = asListed(fromR((await result.toJs()) as RJs), f.expected);
-        expect(mismatches(actual, f.expected, f.tolerance)).toEqual([]);
+        await runCase(webR, f);
       } finally {
-        await shelter.purge();
+        free.push(webR);
       }
     },
     180_000,
   );
 });
+
+async function runCase(webR: WebR, f: Fixture): Promise<void> {
+  const packages = referencePackages(f);
+  const shelter = await new webR.Shelter();
+  try {
+    const inputs: Record<string, RObject> = Object.fromEntries(
+      await Promise.all(
+        Object.entries(f.input).map(async ([k, v]): Promise<[string, RObject]> => [
+          k,
+          await new shelter.RDouble([...v]),
+        ]),
+      ),
+    );
+    const env = await new shelter.REnvironment(inputs);
+    for (const p of packages) await shelter.evalR(`library(${p})`, { env });
+    if (f.reference.setup !== undefined) await shelter.evalR(f.reference.setup, { env });
+    const result = await shelter.evalR(f.reference.call, { env });
+    const actual = asListed(fromR((await result.toJs()) as RJs), f.expected);
+    expect(mismatches(actual, f.expected, f.tolerance)).toEqual([]);
+  } finally {
+    await shelter.purge();
+  }
+}

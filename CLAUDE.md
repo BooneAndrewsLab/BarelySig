@@ -94,7 +94,10 @@ No analysis ships without passing its validation tests.
 ## Tooling
 
 - Node: `export PATH=$HOME/Programs/miniconda3/envs/node/bin:$PATH`
-- `npm run check` (typecheck, lint, format, stage WebR, test) gates every
+- `npm run check` (typecheck, lint, format, stage WebR, test; the slow
+  parity suite only when analyses/engine/harness files changed vs
+  origin/main, `PARITY=1` forces, `npm run test:parity` always; CI and
+  releases always run it, note 44) gates every
   commit: `npm run check && git commit …`. `npm run e2e` for Playwright
   against a production build.
 - R oracle: `mamba run -n barelysig-r Rscript …` (R 4.6.0; R packages
